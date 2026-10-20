@@ -1,0 +1,258 @@
+{
+  "measuredAt": "2026-10-20",
+  "method": "scripts/measure-coverage.ts",
+  "cities": {
+    "New York City": {
+      "artist": {
+        "depth": 150,
+        "distinct": 0.64
+      },
+      "tv_show": {
+        "depth": 150,
+        "distinct": 0.64
+      },
+      "movie": {
+        "depth": 150,
+        "distinct": 0.46
+      },
+      "brand": {
+        "depth": 150,
+        "distinct": 0.74
+      },
+      "place": {
+        "categoryDepth": 0.65
+      }
+    },
+    "London": {
+      "artist": {
+        "depth": 150,
+        "distinct": 0.72
+      },
+      "tv_show": {
+        "depth": 150,
+        "distinct": 0.64
+      },
+      "movie": {
+        "depth": 150,
+        "distinct": 0.22
+      },
+      "brand": {
+        "depth": 150,
+        "distinct": 0.7
+      },
+      "place": {
+        "categoryDepth": 0.65
+      }
+    },
+    "Paris": {
+      "artist": {
+        "depth": 150,
+        "distinct": 0.72
+      },
+      "tv_show": {
+        "depth": 150,
+        "distinct": 0.52
+      },
+      "movie": {
+        "depth": 150,
+        "distinct": 0.16
+      },
+      "brand": {
+        "depth": 150,
+        "distinct": 0.5
+      },
+      "place": {
+        "categoryDepth": 0.53
+      }
+    },
+    "Tokyo": {
+      "artist": {
+        "depth": 150,
+        "distinct": 0.98
+      },
+      "tv_show": {
+        "depth": 150,
+        "distinct": 1
+      },
+      "movie": {
+        "depth": 150,
+        "distinct": 1
+      },
+      "brand": {
+        "depth": 150,
+        "distinct": 0.58
+      },
+      "place": {
+        "categoryDepth": 0.47
+      }
+    },
+    "Seoul": {
+      "artist": {
+        "depth": 150,
+        "distinct": 0.98
+      },
+      "tv_show": {
+        "depth": 150,
+        "distinct": 1
+      },
+      "movie": {
+        "depth": 150,
+        "distinct": 0.88
+      },
+      "brand": {
+        "depth": 150,
+        "distinct": 0.48
+      },
+      "place": {
+        "categoryDepth": 0.29
+      }
+    },
+    "Mumbai": {
+      "artist": {
+        "depth": 150,
+        "distinct": 0.94
+      },
+      "tv_show": {
+        "depth": 150,
+        "distinct": 0.9
+      },
+      "movie": {
+        "depth": 150,
+        "distinct": 1
+      },
+      "brand": {
+        "depth": 150,
+        "distinct": 0.96
+      },
+      "place": {
+        "categoryDepth": 0.3
+      }
+    },
+    "Madrid": {
+      "artist": {
+        "depth": 150,
+        "distinct": 0.98
+      },
+      "tv_show": {
+        "depth": 150,
+        "distinct": 0.84
+      },
+      "movie": {
+        "depth": 150,
+        "distinct": 0.44
+      },
+      "brand": {
+        "depth": 150,
+        "distinct": 0.86
+      },
+      "place": {
+        "categoryDepth": 0.32
+      }
+    },
+    "Berlin": {
+      "artist": {
+        "depth": 150,
+        "distinct": 0.82
+      },
+      "tv_show": {
+        "depth": 150,
+        "distinct": 0.58
+      },
+      "movie": {
+        "depth": 150,
+        "distinct": 0.18
+      },
+      "brand": {
+        "depth": 150,
+        "distinct": 0.56
+      },
+      "place": {
+        "categoryDepth": 0.42
+      }
+    },
+    "São Paulo": {
+      "artist": {
+        "depth": 150,
+        "distinct": 0.96
+      },
+      "tv_show": {
+        "depth": 150,
+        "distinct": 0.86
+      },
+      "movie": {
+        "depth": 150,
+        "distinct": 0.46
+      },
+      "brand": {
+        "depth": 150,
+        "distinct": 0.86
+      },
+      "place": {
+        "categoryDepth": 0.51
+      }
+    },
+    "Mexico City": {
+      "artist": {
+        "depth": 150,
+        "distinct": 0.96
+      },
+      "tv_show": {
+        "depth": 150,
+        "distinct": 0.8
+      },
+      "movie": {
+        "depth": 150,
+        "distinct": 0.38
+      },
+      "brand": {
+        "depth": 150,
+        "distinct": 0.72
+      },
+      "place": {
+        "categoryDepth": 0.48
+      }
+    },
+    "Sydney": {
+      "artist": {
+        "depth": 150,
+        "distinct": 0.8
+      },
+      "tv_show": {
+        "depth": 150,
+        "distinct": 0.66
+      },
+      "movie": {
+        "depth": 150,
+        "distinct": 0.18
+      },
+      "brand": {
+        "depth": 150,
+        "distinct": 0.98
+      },
+      "place": {
+        "categoryDepth": 0.52
+      }
+    },
+    "Toronto": {
+      "artist": {
+        "depth": 150,
+        "distinct": 0.84
+      },
+      "tv_show": {
+        "depth": 150,
+        "distinct": 0.62
+      },
+      "movie": {
+        "depth": 150,
+        "distinct": 0.36
+      },
+      "brand": {
+        "depth": 150,
+        "distinct": 1
+      },
+      "place": {
+        "categoryDepth": 0.53
+      }
+    }
+  }
+}

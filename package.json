@@ -2,6 +2,7 @@
   "name": "transcreate",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Translate cultural references, not just words, using Qloo's taste graph.",
   "license": "MIT",
   "scripts": {
