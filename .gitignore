@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+
+# next.js / build
+.next/
+out/
+build/
+dist/
+
+# env and secrets
+.env
+.env.local
+.env.*.local
+.secrets/
+
+# misc
+.DS_Store
+Thumbs.db
+*.log
+.vercel
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+*.pem
+
+# Real Qloo responses must never be committed (Qloo hackathon terms).
+research/out/
+data/raw/
+eval/out/

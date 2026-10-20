@@ -1,0 +1,108 @@
+import { describe, expect, it } from "vitest";
+import {
+  cleanDescription,
+  normalizeCompare,
+  normalizeInsights,
+  normalizeSearch,
+  normalizeTags,
+} from "@/lib/qloo/normalize";
+import { fixture } from "./helpers";
+
+describe("normalizeInsights", () => {
+  const r = normalizeInsights(fixture("insights-movie"));
+
+  it("keeps valid entities in rank order and drops ones without IDs", () => {
+    expect(r.entities.map((e) => e.id)).toEqual(["FAKE-MOVIE-0001", "FAKE-MOVIE-0002"]);
+    expect(r.entities.map((e) => e.rank)).toEqual([1, 2]);
+  });
+
+  it("reads affinity, popularity, image and tags", () => {
+    const [one, two] = r.entities;
+    expect(one).toMatchObject({
+      affinity: 0.91,
+      affinityRank: 1,
+      popularity: 0.62,
+      imageUrl: "https://example.test/one.jpg",
+      description: "A made-up film used only in tests.",
+    });
+    expect(one.tags[0]).toEqual({
+      id: "urn:tag:genre:test:drama",
+      name: "Drama",
+      type: "urn:tag:genre",
+    });
+    expect(two.imageUrl).toBe("https://example.test/two.jpg");
+    expect(two.tags[0].id).toBe("urn:tag:genre:test:comedy");
+    expect(two.affinityRank).toBeNull();
+  });
+
+  it("reads explainability in the list shape the hackathon API returns", () => {
+    expect(r.entities[0].explainability).toEqual({ "FAKE-SEED-A1": 0.7, "FAKE-SEED-B1": 0.3 });
+    expect(r.entities[1].explainability).toBeNull();
+    expect(r.aggregateExplainability).toEqual({ "FAKE-SEED-A1": 0.55, "FAKE-SEED-B1": 0.45 });
+    expect(r.durationMs).toBe(120);
+  });
+});
+
+describe("normalizeSearch", () => {
+  it("reads the top-level results array and the types list", () => {
+    const r = normalizeSearch(fixture("search"));
+    expect(r[0]).toMatchObject({
+      id: "FAKE-ARTIST-0001",
+      type: "urn:entity:artist",
+      disambiguation: "Made-up band",
+      rank: 1,
+    });
+    expect(r[1].rank).toBe(2);
+  });
+});
+
+describe("normalizeTags", () => {
+  it("reads tags and their parent types in either format", () => {
+    expect(normalizeTags(fixture("tags"))).toEqual([
+      {
+        id: "urn:tag:keyword:test:coming_of_age",
+        name: "Coming of age",
+        type: "urn:tag:keyword",
+        parents: ["urn:entity:movie"],
+      },
+      {
+        id: "urn:tag:genre:test:folk",
+        name: "Folk",
+        type: "urn:tag:genre",
+        parents: ["urn:entity:artist"],
+      },
+    ]);
+  });
+});
+
+describe("normalizeCompare", () => {
+  const r = normalizeCompare(fixture("compare"));
+
+  it("merges repeated shared tags and unions their supporting seeds", () => {
+    expect(r.sharedTags.map((t) => t.name)).toEqual(["Soul", "Identity"]);
+    expect(r.sharedTags[0]).toMatchObject({
+      score: 0.95,
+      aEntityIds: ["FAKE-SEED-A1", "FAKE-SEED-A2"],
+      bEntityIds: ["FAKE-SEED-B1"],
+    });
+  });
+
+  it("reads one-sided tags with their counts", () => {
+    expect(r.aTags[0]).toMatchObject({ name: "Youth", count: 4, score: null });
+    expect(r.bTags).toEqual([]);
+  });
+});
+
+describe("cleanDescription", () => {
+  it("drops links, contact addresses and ad boilerplate but keeps the description", () => {
+    const raw =
+      "Join a host and guests as they chat about whatever. Comedy sketches and music. " +
+      "Help us improve: https://bit.ly/x  For advertising opportunities please email ads@studio.com " +
+      "Privacy Policy: https://example.com/privacy";
+    expect(cleanDescription(raw)).toBe(
+      "Join a host and guests as they chat about whatever. Comedy sketches and music.",
+    );
+    expect(cleanDescription("See https://example.com")).toBeNull();
+    expect(cleanDescription(null)).toBeNull();
+  });
+});
