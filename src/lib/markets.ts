@@ -85,7 +85,13 @@ export const TARGET_MARKETS: Market[] = [
 ];
 
 /** Cities used as the "everywhere else" baseline when measuring how local a candidate is. */
-export const CONTROL_LOCATIONS = ["New York City", "London", "Tokyo", "Mumbai", "São Paulo", "Paris"];
+export const CONTROL_LOCATIONS = ["London", "Tokyo", "Mumbai", "São Paulo", "Paris", "Madrid"];
+
+/**
+ * US cities whose distinctive lists define "already familiar to the source audience". An
+ * equivalent the US audience already has (In-N-Out, Jamba Juice) isn't a localization.
+ */
+export const SOURCE_LOCATIONS = ["New York City", "Los Angeles", "Chicago", "San Francisco"];
 
 type CityCoverage = Record<string, { distinct?: number; categoryDepth?: number }>;
 

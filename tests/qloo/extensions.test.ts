@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createQlooClient } from "@/lib/qloo";
-import {
-  normalizeDemographics,
-  normalizeEntities,
-  pickDisplayName,
-} from "@/lib/qloo/normalize";
+import { normalizeDemographics, normalizeEntities, pickDisplayName } from "@/lib/qloo/normalize";
 import { jsonResponse, mockFetch, noSleep } from "./helpers";
 
 // Synthetic shapes matching the live API (names and IDs are made up).

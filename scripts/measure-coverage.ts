@@ -40,7 +40,12 @@ const PLACE_CATEGORIES = [
   "urn:tag:category:place:stadium",
 ];
 
-const client = createQlooClient({ ...getQlooEnv(), timeoutMs: 20_000, maxRetries: 4, onEmpty: () => {} });
+const client = createQlooClient({
+  ...getQlooEnv(),
+  timeoutMs: 20_000,
+  maxRetries: 4,
+  onEmpty: () => {},
+});
 
 async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Promise<R[]> {
   const out: R[] = [];
@@ -111,9 +116,14 @@ const cities = Object.fromEntries(
     const domains = Object.fromEntries(
       DOMAINS.map((d) => {
         const mine = lists[d][city].slice(0, 50);
-        const others = CITIES.filter((o) => o !== city).map((o) => new Set(lists[d][o].slice(0, 50)));
+        const others = CITIES.filter((o) => o !== city).map(
+          (o) => new Set(lists[d][o].slice(0, 50)),
+        );
         const distinct = mine.filter((id) => others.filter((s) => s.has(id)).length <= 1).length;
-        return [d, { depth: lists[d][city].length, distinct: round(distinct / (mine.length || 1)) }];
+        return [
+          d,
+          { depth: lists[d][city].length, distinct: round(distinct / (mine.length || 1)) },
+        ];
       }),
     );
     const categoryDepth = round(
@@ -127,15 +137,24 @@ mkdirSync("data", { recursive: true });
 writeFileSync(
   "data/coverage.json",
   JSON.stringify(
-    { measuredAt: new Date().toISOString().slice(0, 10), method: "scripts/measure-coverage.ts", cities },
+    {
+      measuredAt: new Date().toISOString().slice(0, 10),
+      method: "scripts/measure-coverage.ts",
+      cities,
+    },
     null,
     2,
   ) + "\n",
 );
 console.log("city".padEnd(14), [...DOMAINS, "place"].map((d) => d.padStart(9)).join(""));
-for (const [city, m] of Object.entries(cities) as [string, Record<string, { distinct?: number; categoryDepth?: number }>][]) {
+for (const [city, m] of Object.entries(cities) as [
+  string,
+  Record<string, { distinct?: number; categoryDepth?: number }>,
+][]) {
   console.log(
     city.padEnd(14),
-    [...DOMAINS.map((d) => m[d].distinct!), m.place.categoryDepth!].map((x) => x.toFixed(2).padStart(9)).join(""),
+    [...DOMAINS.map((d) => m[d].distinct!), m.place.categoryDepth!]
+      .map((x) => x.toFixed(2).padStart(9))
+      .join(""),
   );
 }

@@ -145,6 +145,7 @@ export function normalizeEntity(raw: unknown): QlooEntity | null {
     type: str(raw.type) ?? str(arr(raw.types)[0]),
     subtype: str(raw.subtype),
     description: cleanDescription(str(props.description) ?? str(props.short_description)),
+    shortDescription: cleanDescription(str(props.short_description)),
     imageUrl: imageUrl(props),
     popularity: num(raw.popularity),
     disambiguation: str(raw.disambiguation),
@@ -201,7 +202,8 @@ export function normalizeInsights(body: unknown): InsightsResult {
 }
 
 export function normalizeEntities(body: unknown): QlooEntity[] {
-  if (!isObj(body)) throw new QlooError("invalid_response", "/entities", null, "expected an object");
+  if (!isObj(body))
+    throw new QlooError("invalid_response", "/entities", null, "expected an object");
   const results = Array.isArray(body.results) ? body.results : arr(obj(body.results).entities);
   return results.flatMap((raw) => normalizeEntity(raw) ?? []);
 }

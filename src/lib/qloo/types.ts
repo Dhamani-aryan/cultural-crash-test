@@ -37,6 +37,8 @@ export interface QlooEntity {
   type: string | null;
   subtype: string | null;
   description: string | null;
+  /** Qloo's one-line summary; for people it usually opens with their nationality. */
+  shortDescription: string | null;
   imageUrl: string | null;
   /** Qloo popularity percentile (0–1) when returned. */
   popularity: number | null;
