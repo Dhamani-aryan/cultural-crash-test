@@ -1,5 +1,12 @@
 import { createHttp, type HttpOptions, type QueryValue } from "./http";
-import { normalizeCompare, normalizeInsights, normalizeSearch, normalizeTags } from "./normalize";
+import {
+  normalizeCompare,
+  normalizeDemographics,
+  normalizeEntities,
+  normalizeInsights,
+  normalizeSearch,
+  normalizeTags,
+} from "./normalize";
 import type { InsightsInput, QlooClient } from "./types";
 
 export interface QlooClientOptions extends HttpOptions {
@@ -25,6 +32,8 @@ export function insightsParams(input: InsightsInput): Record<string, QueryValue>
     "filter.results.entities": input.resultEntities,
     "filter.exclude.entities": input.excludeEntities,
     "filter.tags": input.filterTags,
+    "operator.filter.tags": input.filterTagsOperator,
+    "signal.demographics.age": input.signalAge,
     "filter.location.query": input.filterLocationQuery,
     "signal.location.query": input.signalLocationQuery,
     "filter.popularity.min": input.popularityMin,
@@ -58,6 +67,17 @@ export function createQlooClient(opts: QlooClientOptions): QlooClient {
         "/search",
         { query: input.query, types: input.types, take: input.take },
         normalizeSearch,
+        (r) => r.length,
+      ),
+
+    getEntities: (ids) =>
+      call("/entities", { entity_ids: ids }, normalizeEntities, (r) => r.length),
+
+    getDemographics: (ids) =>
+      call(
+        "/v2/insights",
+        { "filter.type": "urn:demographics", "signal.interests.entities": ids },
+        normalizeDemographics,
         (r) => r.length,
       ),
 

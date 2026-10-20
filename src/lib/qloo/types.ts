@@ -15,19 +15,24 @@ export const QLOO_TYPES = {
   place: "urn:entity:place",
   podcast: "urn:entity:podcast",
   tvShow: "urn:entity:tv_show",
-  // Docs disagree: hackathon guide says `video_game`, API reference says `videogame`.
-  // See docs/DECISIONS.md. Step 1.5 must confirm.
   videoGame: "urn:entity:videogame",
   tag: "urn:tag",
+  demographics: "urn:demographics",
 } as const;
 
 export type QlooTypeKey = keyof typeof QLOO_TYPES;
 export type QlooTypeUrn = (typeof QLOO_TYPES)[QlooTypeKey];
 
-/** One entity as used inside COMMON GROUND. */
+/** One entity as used inside Transcreate. */
 export interface QlooEntity {
   id: string;
   name: string;
+  /** A Latin-script name for display: `name` when it is Latin, else the best English aka. */
+  displayName: string;
+  /** Alternative names in other languages and scripts. */
+  akas: string[];
+  /** `properties.release_country` for films and TV shows, e.g. "United Kingdom". */
+  releaseCountries: string[];
   /** Primary type URN, e.g. `urn:entity:movie`. */
   type: string | null;
   subtype: string | null;
@@ -78,6 +83,25 @@ export interface TagMatch {
 }
 
 /** A tag from Analysis Compare, merged across the seed pairs that produced it. */
+/** Qloo's age buckets, in order. */
+export const AGE_BUCKETS = [
+  "24_and_younger",
+  "25_to_29",
+  "30_to_34",
+  "35_to_44",
+  "45_to_54",
+  "55_and_older",
+] as const;
+export type AgeBucket = (typeof AGE_BUCKETS)[number];
+
+/** Audience skew for one entity: positive means over-represented, from about -1 to 1. */
+export interface Demographics {
+  entityId: string;
+  age: Record<AgeBucket, number>;
+  /** Positive = skews female, negative = skews male. */
+  femaleSkew: number;
+}
+
 export interface CompareTag {
   id: string;
   name: string;
@@ -134,6 +158,9 @@ export interface InsightsInput {
   filterLocationQuery?: string;
   /** Locality name used as a signal (`signal.location.query`). */
   signalLocationQuery?: string;
+  /** `operator.filter.tags`: "union" (any tag, Qloo's default) or "intersection" (all tags). */
+  filterTagsOperator?: "union" | "intersection";
+  signalAge?: AgeBucket[];
   popularityMin?: number;
   popularityMax?: number;
   biasTrends?: "off" | "very_low" | "low" | "mid" | "medium" | "high" | "very_high";
@@ -155,6 +182,10 @@ export interface CompareInput {
 
 export interface QlooClient {
   searchEntities(input: SearchInput): Promise<EntityMatch[]>;
+  /** Full entity records (all tags, akas, release country) by ID. */
+  getEntities(ids: string[]): Promise<QlooEntity[]>;
+  /** Age and gender skew for each entity. */
+  getDemographics(ids: string[]): Promise<Demographics[]>;
   searchTags(input: TagSearchInput): Promise<TagMatch[]>;
   getInsights(input: InsightsInput): Promise<InsightsResult>;
   compareProfiles(input: CompareInput): Promise<CompareResult>;

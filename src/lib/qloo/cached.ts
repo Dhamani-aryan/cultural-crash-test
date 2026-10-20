@@ -21,6 +21,8 @@ export function withCache(client: QlooClient, cache: Cache, ttl = QLOO_CACHE_TTL
     };
   return {
     searchEntities: cached("search", (i) => client.searchEntities(i)),
+    getEntities: cached("entities", (i) => client.getEntities(i)),
+    getDemographics: cached("demographics", (i) => client.getDemographics(i)),
     searchTags: cached("tags", (i) => client.searchTags(i)),
     getInsights: cached("insights", (i) => client.getInsights(i)),
     compareProfiles: cached("compare", (i) => client.compareProfiles(i)),

@@ -1,6 +1,9 @@
 import { QlooError } from "./errors";
+import { AGE_BUCKETS } from "./types";
 import type {
+  AgeBucket,
   CompareResult,
+  Demographics,
   CompareTag,
   EntityMatch,
   InsightsEntity,
@@ -12,7 +15,7 @@ import type {
 /**
  * Lenient normalizers for raw Qloo JSON. The docs describe the shapes only loosely, so
  * every field is optional here and missing values become `null` rather than errors.
- * The spike (steps 1.5–1.7) confirms real shapes; tighten these if needed then.
+ * Shapes were confirmed against the live hackathon API (see research/).
  */
 
 type Obj = Record<string, unknown>;
@@ -97,6 +100,31 @@ function aggregateMap(v: unknown): Record<string, number> | null {
   return scoreMap(e.all) ?? scoreMap(e.top_10);
 }
 
+/** Akas come as `{ language, value }` or `{ languages: [...], value }`. */
+function akasOf(props: Obj): { value: string; languages: string[] }[] {
+  return arr(props.akas).flatMap((a) => {
+    if (typeof a === "string") return [{ value: a, languages: [] }];
+    if (!isObj(a) || !str(a.value)) return [];
+    const languages = [str(a.language), ...arr(a.languages).map(str)].filter(
+      (l): l is string => l !== null,
+    );
+    return [{ value: str(a.value)!, languages }];
+  });
+}
+
+const LATIN = /^[\p{Script=Latin}\p{N}\p{P}\p{S}\s]+$/u;
+
+/** Prefer the name itself when it is Latin script, else an English (or any Latin) aka. */
+export function pickDisplayName(
+  name: string,
+  akas: { value: string; languages: string[] }[],
+): string {
+  if (LATIN.test(name)) return name;
+  const latin = akas.filter((a) => LATIN.test(a.value));
+  const english = latin.find((a) => a.languages.some((l) => l === "en" || l.startsWith("en_")));
+  return (english ?? latin[0])?.value ?? name;
+}
+
 export function normalizeEntity(raw: unknown): QlooEntity | null {
   if (!isObj(raw)) return null;
   const id = str(raw.entity_id) ?? str(raw.id);
@@ -104,9 +132,16 @@ export function normalizeEntity(raw: unknown): QlooEntity | null {
   if (!id || !name) return null;
   const props = obj(raw.properties);
   const geo = isObj(props.geocode) ? props.geocode : null;
+  const akas = akasOf(props);
+  const releaseCountry = props.release_country;
   return {
     id,
     name,
+    displayName: pickDisplayName(name, akas),
+    akas: [...new Set(akas.map((a) => a.value))],
+    releaseCountries: (Array.isArray(releaseCountry) ? releaseCountry : [releaseCountry])
+      .map(str)
+      .filter((c): c is string => c !== null),
     type: str(raw.type) ?? str(arr(raw.types)[0]),
     subtype: str(raw.subtype),
     description: cleanDescription(str(props.description) ?? str(props.short_description)),
@@ -163,6 +198,26 @@ export function normalizeInsights(body: unknown): InsightsResult {
     aggregateExplainability: aggregateMap(obj(b.query).explainability),
     durationMs: num(results.duration) ?? num(b.duration),
   };
+}
+
+export function normalizeEntities(body: unknown): QlooEntity[] {
+  if (!isObj(body)) throw new QlooError("invalid_response", "/entities", null, "expected an object");
+  const results = Array.isArray(body.results) ? body.results : arr(obj(body.results).entities);
+  return results.flatMap((raw) => normalizeEntity(raw) ?? []);
+}
+
+export function normalizeDemographics(body: unknown): Demographics[] {
+  const b = requireSuccess(body, "/v2/insights");
+  return arr(obj(b.results).demographics).flatMap((d) => {
+    if (!isObj(d) || !str(d.entity_id)) return [];
+    const q = obj(d.query);
+    const ageRaw = obj(q.age);
+    const age = Object.fromEntries(AGE_BUCKETS.map((k) => [k, num(ageRaw[k]) ?? 0])) as Record<
+      AgeBucket,
+      number
+    >;
+    return [{ entityId: str(d.entity_id)!, age, femaleSkew: num(obj(q.gender).female) ?? 0 }];
+  });
 }
 
 export function normalizeTags(body: unknown): TagMatch[] {
