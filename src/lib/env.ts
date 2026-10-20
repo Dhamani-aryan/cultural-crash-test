@@ -29,6 +29,15 @@ const qlooSchema = z.object({
   QLOO_BASE_URL: z.url().default("https://hackathon.api.qloo.com"),
 });
 
+const llmSchema = z.object({
+  LLM_PROVIDER: z.enum(["chatgpt"], { error: "LLM_PROVIDER must be: chatgpt" }).default("chatgpt"),
+  LLM_MODEL: z.string().trim().min(1).default("gpt-5.6-sol"),
+  LLM_REASONING_EFFORT: z.enum(["minimal", "low", "medium", "high"]).default("low"),
+  CHATGPT_AUTH_FILE: z.string().trim().min(1).default(".secrets/chatgpt-auth.json"),
+  /** "file" for local development, "redis" (Upstash) for deployments. */
+  CHATGPT_AUTH_STORE: z.enum(["file", "redis"]).default("file"),
+});
+
 const redisSchema = z.object({
   UPSTASH_REDIS_REST_URL: z.url({ error: "UPSTASH_REDIS_REST_URL must be a URL" }),
   UPSTASH_REDIS_REST_TOKEN: nonEmpty("UPSTASH_REDIS_REST_TOKEN"),
@@ -55,6 +64,17 @@ export interface QlooEnv {
 export function getQlooEnv(env: Env = process.env): QlooEnv {
   const e = load("Qloo API", qlooSchema, env);
   return { apiKey: e.QLOO_API_KEY, baseUrl: e.QLOO_BASE_URL.replace(/\/+$/, "") };
+}
+
+export function getLlmEnv(env: Env = process.env) {
+  const e = load("LLM", llmSchema, env);
+  return {
+    provider: e.LLM_PROVIDER,
+    model: e.LLM_MODEL,
+    reasoningEffort: e.LLM_REASONING_EFFORT,
+    chatgptAuthFile: e.CHATGPT_AUTH_FILE,
+    chatgptAuthStore: e.CHATGPT_AUTH_STORE,
+  };
 }
 
 export function getRedisEnv(env: Env = process.env) {
