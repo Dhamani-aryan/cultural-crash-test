@@ -51,8 +51,12 @@ export function fakeClient(opts: {
   const client: QlooClient = {
     async getInsights(input) {
       calls.push(input);
+      // Lists are keyed "City|type" for a specific entity type, or "City" for any type.
+      const loc = input.signalLocationQuery ?? input.filterLocationQuery ?? "";
       const list =
-        (input.page ?? 1) === 1 ? (opts.lists[input.signalLocationQuery ?? ""] ?? []) : [];
+        (input.page ?? 1) === 1
+          ? (opts.lists[`${loc}|${input.filterType}`] ?? opts.lists[loc] ?? [])
+          : [];
       return {
         entities: list.map((e, i) => ({
           ...e,
