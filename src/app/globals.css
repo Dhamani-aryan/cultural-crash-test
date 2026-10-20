@@ -1,1 +1,114 @@
 @import "tailwindcss";
+
+/*
+ * Transcreate: an editorial page, not a dashboard. Ink on paper; colour marks data only.
+ * Each market has its own colour, used for its column, its swaps and its evidence.
+ */
+:root {
+  --paper: #f7f5f0;
+  --paper-2: #efebe3;
+  --card: #fbfaf7;
+  --ink: #1a1917;
+  --ink-2: #3c3a35;
+  --muted: #78746b;
+  --line: #e0dbd1;
+  --swap-bg: #fff3c4;
+  --flag: #a6411f;
+  --flag-soft: #f8e4dc;
+  --keep: #5b5a55;
+  --ok: #2d7049;
+  --tokyo: #c0392b;
+  --london: #2458a0;
+  --mumbai: #c26a00;
+  --sao-paulo: #23825a;
+  --madrid: #8a3fa0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #131210;
+    --paper-2: #1d1b19;
+    --card: #191816;
+    --ink: #efebe4;
+    --ink-2: #cfc9bf;
+    --muted: #9a958b;
+    --line: #34312c;
+    --swap-bg: #4a3f12;
+    --flag: #f08b6a;
+    --flag-soft: #3a211a;
+    --keep: #b5b0a6;
+    --ok: #6fc394;
+    --tokyo: #f07466;
+    --london: #7aa7ea;
+    --mumbai: #f2a443;
+    --sao-paulo: #5fcf99;
+    --madrid: #c98ce0;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #131210;
+  --paper-2: #1d1b19;
+  --card: #191816;
+  --ink: #efebe4;
+  --ink-2: #cfc9bf;
+  --muted: #9a958b;
+  --line: #34312c;
+  --swap-bg: #4a3f12;
+  --flag: #f08b6a;
+  --flag-soft: #3a211a;
+  --keep: #b5b0a6;
+  --ok: #6fc394;
+  --tokyo: #f07466;
+  --london: #7aa7ea;
+  --mumbai: #f2a443;
+  --sao-paulo: #5fcf99;
+  --madrid: #c98ce0;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-flag: var(--flag);
+  --color-flag-soft: var(--flag-soft);
+  --color-ok: var(--ok);
+  --font-serif: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+mark.swap {
+  background: var(--swap-bg);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+  box-shadow: inset 0 -2px 0 var(--market, var(--ink));
+}
+
+mark.ref {
+  background: transparent;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--muted);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+@keyframes pulse-dot {
+  50% {
+    opacity: 0.3;
+  }
+}
+.pulse {
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}

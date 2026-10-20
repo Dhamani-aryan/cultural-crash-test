@@ -27,3 +27,6 @@ next-env.d.ts
 research/out/
 data/raw/
 eval/out/
+
+# local tool config
+.claude/
