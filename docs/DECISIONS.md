@@ -2,6 +2,20 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-21: Places rank by fame, with in-city co-affinity
+
+Sweep: Central Park, Times Square, Whole Foods, SNL, Home Alone, Beyoncé × 5 markets.
+
+- The superstar gate was removing famous landmarks (Hyde Park). Places are physically local, so they skip that gate and use Qloo popularity as *fame*.
+- A city's "distinctive" list can miss its most famous places. For places only, the pool also includes what the anchor's fans like *inside* the target city (`signal.interests.entities` + `filter.location.query`). That's safe because the location filter pins it to the city.
+- **Results:**
+  - Central Park → Hyde Park (London), Ibirapuera Park (São Paulo), Hanging Garden (Mumbai), Hibiya Park (Tokyo).
+  - Times Square → Shibuya Crossing (Tokyo), Puerta del Sol (Madrid), Girgaon Chowpatty (Mumbai).
+  - SNL → Late Motiv / La resistencia (Madrid), Zee Comedy Show (Mumbai), Never Mind the Buzzcocks (London), LOL Brasil.
+  - Beyoncé → Utada Hikaru (Tokyo), Craig David / Jessie Ware (London), Iza (São Paulo).
+  - Home Alone → *Minha Mãe é uma Peça 3* (São Paulo), Bollywood family comedies (Mumbai).
+- **Weak:** Whole Foods → Mumbai returns department stores (Shoppers Stop); Madrid returns Pescanova and Lidl. Retail categories are broad, so the agent should prefer "keep or describe" when role overlap is low.
+
 ## 2026-10-21: Equivalence engine v1 (`src/lib/engine/`)
 
 Tested live with `scripts/try-equivalents.ts` on Chipotle, Trader Joe's, The Office and Taylor Swift across all 5 markets.

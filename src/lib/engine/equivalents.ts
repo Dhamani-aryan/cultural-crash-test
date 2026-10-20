@@ -149,7 +149,22 @@ export async function findEquivalents(
   const cities = [market.qlooLocation, ...controls, ...SOURCE_LOCATIONS];
   const lists = await mapLimit(cities, 3, (city) => cityList(client, domain, city, category));
   result.qlooCalls += cities.length * POOL_PAGES;
-  const targetList = lists[0];
+  let targetList = lists[0];
+  if (domain === "place") {
+    // Places are pinned to the city by the location filter, so co-affinity with the anchor is
+    // safe here and finds the famous landmarks a "distinctive" list can miss (Hyde Park).
+    result.qlooCalls++;
+    const liked = await client.getInsights({
+      filterType: "urn:entity:place",
+      signalEntities: [anchor.id],
+      filterLocationQuery: market.qlooLocation,
+      filterTags: category.length ? category : undefined,
+      filterTagsOperator: category.length ? "union" : undefined,
+      take: 50,
+    });
+    const have = new Set(targetList.map((e) => e.id));
+    targetList = [...targetList, ...liked.entities.filter((e) => !have.has(e.id))];
+  }
   const keyOf = (e: QlooEntity) => (domain === "place" ? chainKey(e.name) : e.id);
   const controlSets = lists.slice(1, 1 + controls.length).map((list) => new Set(list.map(keyOf)));
   const sourceSet = new Set(lists.slice(1 + controls.length).flatMap((list) => list.map(keyOf)));
@@ -224,7 +239,10 @@ export async function findEquivalents(
     kept.push({ key, role: entityRole });
 
     const alsoIn = controls.filter((_, i) => controlSets[i].has(keyOf(entity)));
-    if (alsoIn.length >= GLOBAL_PRESENCE || (entity.popularity ?? 0) >= SUPERSTAR_POPULARITY) {
+    // Places are physically local, so a worldwide-famous landmark (Hyde Park) is exactly the
+    // equivalent we want; the superstar gate applies to media, people and brands only.
+    const superstar = domain !== "place" && (entity.popularity ?? 0) >= SUPERSTAR_POPULARITY;
+    if (alsoIn.length >= GLOBAL_PRESENCE || superstar) {
       reject("global");
       continue;
     }
@@ -260,7 +278,11 @@ export async function findEquivalents(
         role: role.score,
         locality: 1 - alsoIn.length / (controls.length || 1),
         audience: anchorDemo && demo ? clamp01((cosine(anchorDemo, demo) + 1) / 2) : null,
-        fame: 1 - (rank - 1) / Math.max(1, targetList.length - 1),
+        // For places, how famous the landmark is matters more than how distinctive it is.
+        fame:
+          domain === "place"
+            ? (entity.popularity ?? 0)
+            : 1 - (rank - 1) / Math.max(1, targetList.length - 1),
       },
       sharedTags: sharedNames.slice(0, 6),
       localRank: rank,
