@@ -1,5 +1,5 @@
 /**
- * One-time sign-in so COMMON GROUND can use your ChatGPT subscription as its LLM.
+ * One-time sign-in so Transcreate can use your ChatGPT subscription as its LLM.
  *
  *   npm run llm:login
  *
@@ -20,7 +20,7 @@ async function main() {
   });
   saveCredential(chatgptAuthFile, credential);
   console.log(`\nSigned in. Credential saved to ${chatgptAuthFile} (git-ignored).`);
-  console.log("Test it with: npm run spike spike/00-llm-ping.ts");
+  console.log("Test it with: npm run live scripts/llm-ping.ts");
 }
 
 main().catch((err) => {
