@@ -235,6 +235,9 @@ describe("roleFits", () => {
     expect(roleFits("event_place", { tags: [t(venue, "urn:tag:category:place"), t("urn:tag:category:place:hotel", "urn:tag:category:place")] }, null, venue)).toBe(false);
     expect(roleFits("event_place", { tags: [t("urn:tag:category:place:bar", "urn:tag:category:place")] }, null, venue)).toBe(false);
     expect(roleFits("event_place", { tags: [t(venue, "urn:tag:category:place")] }, null, venue)).toBe(true);
+    // Hilton Tokyo Bay: an event venue that is also a resort hotel.
+    expect(roleFits("event_place", { tags: [t(venue, "urn:tag:category:place"), t("urn:tag:category:place:resort_hotel", "urn:tag:category:place")] }, null, venue)).toBe(false);
+    expect(roleFits("event_place", { tags: [t(venue, "urn:tag:category:place"), t("urn:tag:genre:place:hotel", "urn:tag:genre:place")] }, null, null)).toBe(false);
   });
   it("keeps a partner brand in the same kind of business", () => {
     const beer = { tags: [t("urn:tag:genre:brand:beverage:beer", "urn:tag:genre:brand")] };

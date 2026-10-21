@@ -90,14 +90,19 @@ export function descriptionOrigin(text: string | null): string | null {
 export function originCountries(
   entity: Pick<QlooEntity, "tags" | "shortDescription" | "type" | "name">,
 ): string[] {
-  const keyMarkets = entity.tags
-    .filter((t) => t.type?.includes("key_market") && t.name)
-    .flatMap((t) => countriesIn(t.name!));
-  if (keyMarkets.length) return [...new Set(keyMarkets)];
+  // Wikipedia categories name where a company is from ("Clothing brands of Japan"). Key markets
+  // are where it sells (DC Shoes: US, Europe, Australia, Japan, Brazil), so they only stand in
+  // for origin when there is exactly one.
   const wiki = entity.tags
     .filter((t) => t.type?.includes("wikipedia_category") && t.name)
     .flatMap((t) => countriesIn(t.name!));
   if (wiki.length) return [...new Set(wiki)];
+  const keyMarkets = [
+    ...new Set(
+      entity.tags.filter((t) => t.type?.includes("key_market") && t.name).flatMap((t) => countriesIn(t.name!)),
+    ),
+  ];
+  if (keyMarkets.length === 1) return keyMarkets;
   // Descriptions name a person's nationality reliably; for brands and shows they often
   // describe the product ("Italian restaurant chain"), so only people use this signal.
   if (entity.type === "urn:entity:artist" || entity.type === "urn:entity:person") {

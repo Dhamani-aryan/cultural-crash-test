@@ -105,7 +105,7 @@ export function screenSummary(candidates: Pick<Candidate, "localWhy">[]): string
 
 /** Venues a launch event can't be held in, whatever the audience data says. */
 const UNSUITABLE_VENUE =
-  /:(hotel|motel|hostel|resort|lodging|bed_and_breakfast|apartment|serviced_apartment|outlet|factory_outlet|outlet_store|self_storage|storage|airport|hospital|clinic|car_rental|gas_station|parking)$/;
+  /^urn:tag:(category|genre):place:.*(hotel|motel|hostel|resort|lodging|bed_and_breakfast|apartment|outlet|storage|airport|hospital|clinic|car_rental|gas_station|parking)/;
 
 /**
  * The same job as the original: a brand from the same kind of business (shared genre tags), a
@@ -118,8 +118,8 @@ export function roleFits(
   placeCategory: string | null,
 ): boolean {
   if (slot === "event_place") {
+    if (candidate.tags.some((t) => UNSUITABLE_VENUE.test(t.id))) return false;
     const cats = candidate.tags.filter((t) => t.id.startsWith("urn:tag:category:place:")).map((t) => t.id);
-    if (cats.some((c) => UNSUITABLE_VENUE.test(c))) return false;
     return !placeCategory || cats.includes(placeCategory);
   }
   if (slot === "brand_collaboration" && original) {

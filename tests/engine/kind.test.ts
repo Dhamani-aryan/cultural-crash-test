@@ -47,3 +47,17 @@ describe("role tags with kinds", () => {
     expect(sim.shared.map((id) => kindLabel(id) ?? id)).toContain("Doughnut shops");
   });
 });
+
+import { originCountries } from "@/lib/engine/origin";
+
+describe("originCountries", () => {
+  const tag = (type: string, name: string) => ({ id: `${type}:${name}`, type, name });
+  it("reads origin from Wikipedia categories before key markets", () => {
+    const uniqlo = { name: "Uniqlo", type: "urn:entity:brand", shortDescription: null, tags: [tag("urn:tag:key_market:qloo", "China"), tag("urn:tag:wikipedia_category", "Clothing brands of Japan")] };
+    expect(originCountries(uniqlo)).toEqual(["JP"]);
+  });
+  it("doesn't treat a list of key markets as an origin", () => {
+    const dc = { name: "DC Shoes", type: "urn:entity:brand", shortDescription: null, tags: ["United States", "Japan", "Brazil"].map((n) => tag("urn:tag:key_market:qloo", n)) };
+    expect(originCountries(dc)).toEqual([]);
+  });
+});
