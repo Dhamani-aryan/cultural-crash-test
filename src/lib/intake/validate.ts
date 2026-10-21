@@ -96,3 +96,46 @@ const SENSITIVE =
 export function infersSensitiveTrait(text: string): boolean {
   return SENSITIVE.test(text);
 }
+
+/**
+ * An intake built straight from a structured brief (home-page examples): every field counts as
+ * the user's, choices keep their locks, and the user still has to confirm before a run.
+ */
+export function intakeFromBrief(brief: LaunchBriefInput, text: string, intakeId: string): IntakeState {
+  const locked = new Set((brief.constraints ?? []).flatMap((c) => (c.kind === "hard" && c.lockSlot ? [c.lockSlot] : [])));
+  const b: IntakeBrief = {
+    brandName: brief.brandName ?? "",
+    productCategory: brief.productCategory,
+    launchGoal: brief.launchGoal,
+    marketId: brief.marketId,
+    cityText: "",
+    audienceDescription: brief.audienceDescription,
+    audienceAnchors: brief.audienceAnchors ?? [],
+    brandAttributes: brief.brandAttributes ?? [],
+    budgetBand: brief.budgetBand ?? "",
+    website: brief.website ?? "",
+    choices: (brief.existingChoices ?? []).map((c) => ({ ...c, locked: locked.has(c.slot) })),
+    exclude: (brief.constraints ?? []).flatMap((c) => c.excludeNames ?? []),
+    otherRules: (brief.constraints ?? []).filter((c) => !c.lockSlot && !c.excludeNames?.length).map((c) => c.description),
+    exploreUserChoices: brief.exploreUserChoices ?? false,
+  };
+  const origins = Object.fromEntries(Object.keys(b).map((k) => [k, "user_supplied" as const]));
+  const now = new Date().toISOString();
+  return refresh({
+    intakeId,
+    mode: "validate_plan",
+    messages: [
+      { id: "u1", role: "user", text, createdAt: now },
+      { id: "a2", role: "assistant", text: "Here's the example as a brief. Check it, edit anything, then confirm.", createdAt: now },
+    ],
+    brief: b,
+    origins,
+    missingCriticalFields: [],
+    assumptions: [],
+    audienceHypotheses: [],
+    chips: [{ label: "Confirm brief", action: "confirm" }],
+    clarificationTurns: 0,
+    confirmed: false,
+    readyToRun: false,
+  });
+}

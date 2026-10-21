@@ -1,4 +1,5 @@
 import type { LlmClient } from "@/lib/llm/types";
+import { OUTCOME_LABEL, comparePlans } from "./compare";
 import {
   DIMENSION_LABEL,
   SLOT_LABEL,
@@ -78,6 +79,14 @@ export function toMarkdown(state: RunState): string {
     `- **Repair rounds:** ${state.currentIteration} of ${state.maxIterations}; **Qloo calls:** ${state.qlooCallsUsed} of ${state.maxQlooCalls}; **model calls:** ${state.llmCalls}`,
     "",
   );
+  const cmp = comparePlans(state);
+  if (cmp) {
+    out.push("## Compare plans", "", `**${OUTCOME_LABEL[cmp.outcome]}.** ${cmp.headline}`, "");
+    out.push("| Choice | LLM alone | Agent | Better supported | Evidence |", "|---|---|---|---|---|");
+    for (const c of cmp.componentComparisons)
+      out.push(`| ${SLOT_LABEL[c.slot]} | ${c.baselineChoice} | ${c.agentChoice} | ${OUTCOME_LABEL[c.outcome]} | ${c.evidenceIds.join(", ")} |`);
+    out.push("", `_${cmp.coverageCaveat} Decided by code from the recorded evaluations (rule: ${cmp.decidedBy.replace("_", " ")})._`, "");
+  }
   out.push("## Original plan (the model's first draft, no Qloo)", "", planTable(state.initialPlan));
   out.push("## Final plan", "", planTable(state.plan));
   out.push("## Component assessments", "");

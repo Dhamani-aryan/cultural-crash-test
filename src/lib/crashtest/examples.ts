@@ -1,42 +1,36 @@
-import type { QueryRequest } from "./query";
 import type { LaunchBriefInput } from "./types";
 
-/** Example launches in plain words, for the home page. The launching brands are fictional. */
-export const EXAMPLE_QUERIES: { id: string; title: string; query: QueryRequest }[] = [
+/**
+ * Home-page examples: the text a user might write, and the brief it stands for. Loading an
+ * example fills the intake from the brief directly (no model reading), so a recorded run of it
+ * replays exactly.
+ */
+export const EXAMPLE_INTAKES: { id: string; title: string; text: string; briefId: string }[] = [
   {
     id: "london",
     title: "Streetwear pop-up, London",
-    query: {
-      marketId: "london",
-      depth: "thorough",
-      query:
-        "Northbound Supply is a small streetwear and skate label launching with a weekend pop-up and a music night in East London. " +
-        "Our audience is 18–30 skate and streetwear fans, the kind who wear Stüssy, Palace and Carhartt. " +
-        "We want Travis Scott to headline. The pop-up is booked at BOXPARK Shoreditch and can't change. " +
-        "Creative direction: playful pastel colours with Y2K nostalgia. No collaboration with Supreme.",
-    },
+    briefId: "london",
+    text:
+      "Northbound Supply is a small streetwear and skate label launching with a weekend pop-up and a music night in East London. " +
+      "Our audience is 18–30 skate and streetwear fans, the kind who wear Stüssy, Palace and Carhartt. We're utilitarian, understated and community-led. " +
+      "We want Travis Scott to headline. The pop-up is booked at BOXPARK Shoreditch and can't change. " +
+      "Creative direction: playful pastel colours with Y2K nostalgia. No collaboration with Supreme.",
+  },
+  {
+    id: "northline",
+    title: "Sustainable capsule, London",
+    briefId: "northline",
+    text:
+      "We are Northline, a small sustainable streetwear label. We want to launch a limited capsule in East London for 18–30-year-old skate and independent-fashion fans. " +
+      "We are considering Village Underground, a UK electronic act and an industrial DIY look. The venue is fixed, the budget is modest, and we do not want a luxury collaboration. Help us test the plan.",
   },
   {
     id: "tokyo",
     title: "Sneaker drop, Tokyo",
-    query: {
-      marketId: "tokyo",
-      depth: "thorough",
-      query:
-        "Northbound Supply wants to enter Tokyo with a collaboration drop and a pop-up for young streetwear and sneaker collectors " +
-        "who follow Stüssy, Palace and Carhartt. The brand is utilitarian, understated and community-led.",
-    },
-  },
-  {
-    id: "sao-paulo",
-    title: "Skate launch, São Paulo",
-    query: {
-      marketId: "sao-paulo",
-      depth: "thorough",
-      query:
-        "A skate apparel brand launching in São Paulo with a skate-session event and a local music act, for skaters and street-culture " +
-        "fans aged 16–28 who like Thrasher, Vans and Element. The brand is rebellious, colourful and community-led.",
-    },
+    briefId: "tokyo",
+    text:
+      "Northbound Supply wants to enter Tokyo with a collaboration drop and a pop-up for young streetwear and sneaker collectors who follow Stüssy, Palace and Carhartt. " +
+      "The brand is utilitarian, understated and community-led.",
   },
 ];
 
@@ -62,6 +56,29 @@ export const EXAMPLE_BRIEFS: { id: string; title: string; brief: LaunchBriefInpu
       constraints: [
         { id: "c1", description: "Keep the venue: BOXPARK Shoreditch is already booked", kind: "hard", lockSlot: "event_place" },
         { id: "c2", description: "No collaboration with Supreme", kind: "hard", excludeNames: ["Supreme"] },
+      ],
+      depth: "thorough",
+    },
+  },
+  {
+    id: "northline",
+    title: "Sustainable capsule launch in East London",
+    brief: {
+      brandName: "Northline",
+      productCategory: "Sustainable streetwear",
+      launchGoal: "A limited capsule launch",
+      marketId: "london",
+      audienceDescription: "18–30-year-old skate and independent-fashion fans in East London",
+      audienceAnchors: [],
+      brandAttributes: ["sustainable", "independent", "DIY"],
+      budgetBand: "Modest",
+      existingChoices: [
+        { slot: "event_place", name: "Village Underground" },
+        { slot: "creative_direction", name: "Industrial DIY look" },
+      ],
+      constraints: [
+        { id: "lock-event_place", description: "Keep the pop-up venue: Village Underground", kind: "hard", lockSlot: "event_place" },
+        { id: "rule-0", description: "No luxury collaboration", kind: "hard" },
       ],
       depth: "thorough",
     },

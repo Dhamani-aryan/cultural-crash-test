@@ -153,7 +153,10 @@ export async function applyIntake(llm: LlmClient, input: IntakeRequest): Promise
     }
 
     case "update_brief": {
-      const patch = IntakeBriefSchema.partial().parse(req.patch ?? {});
+      // Only the fields the edit names: schema defaults must not blank the rest of the brief.
+      const named = new Set(Object.keys((input as { patch?: object }).patch ?? {}));
+      const parsed = IntakeBriefSchema.partial().parse(req.patch ?? {});
+      const patch = Object.fromEntries(Object.entries(parsed).filter(([k]) => named.has(k))) as Partial<IntakeState["brief"]>;
       const origins = { ...state.origins };
       for (const k of Object.keys(patch)) origins[k] = "user_confirmed";
       state = { ...state, brief: { ...state.brief, ...patch }, origins, confirmed: false };

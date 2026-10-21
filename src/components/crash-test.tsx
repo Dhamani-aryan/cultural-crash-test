@@ -1,20 +1,51 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { QueryRequest } from "@/lib/crashtest/query";
 import type { LaunchBriefInput } from "@/lib/crashtest/types";
+import type { IntakeState } from "@/lib/intake/types";
 import { AgentConsole } from "./agent-console";
 import { BriefForm } from "./brief-form";
-import { QueryBox } from "./query-box";
+import { IntakeChat } from "./intake-chat";
 import { Results } from "./results";
-import { useCrashTest } from "./use-crash-test";
+import { useCrashTest, type View } from "./use-crash-test";
+
+type RunInput = LaunchBriefInput | { intake: IntakeState; depth: "quick" | "thorough" };
+
+const PHASES = [
+  { label: "Brief confirmed", stages: [] as string[] },
+  { label: "LLM-only plan drafted, no Qloo", stages: ["draft", "resolve"] },
+  { label: "Qloo-grounded crash-test", stages: ["evaluate"] },
+  { label: "Targeted repair", stages: ["repair"] },
+  { label: "Re-test and comparison", stages: ["retest", "report"] },
+];
+
+function Phases({ view }: { view: View }) {
+  const seen = new Set(view.log.flatMap((l) => (l.kind === "stage" ? [l.stage] : [])));
+  const done = view.phase === "done";
+  const reached = PHASES.map((p, i) => i === 0 || done || p.stages.some((s) => seen.has(s)));
+  const current = done ? -1 : reached.lastIndexOf(true);
+  return (
+    <ol className="grid gap-2 text-xs sm:grid-cols-5" aria-label="Run phases">
+      {PHASES.map((p, i) => (
+        <li
+          key={p.label}
+          aria-current={i === current ? "step" : undefined}
+          className={`rounded-md border px-3 py-2 ${i === current ? "border-accent text-ink" : reached[i] ? "border-line text-ink-2" : "border-line text-muted opacity-60"}`}
+        >
+          <span className="mr-1 font-mono">{reached[i] && i !== current ? "✓" : i + 1}</span>
+          {p.label}
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 export function CrashTest() {
   const { view, run, cancel, reset } = useCrashTest();
-  const [input, setInput] = useState<LaunchBriefInput | QueryRequest | null>(null);
+  const [input, setInput] = useState<RunInput | null>(null);
   const [form, setForm] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
-  const start = (i: LaunchBriefInput | QueryRequest, fresh = false) => {
+  const start = (i: RunInput, fresh = false) => {
     setInput(i);
     run(i, fresh);
     requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -23,22 +54,28 @@ export function CrashTest() {
   const done = view.result && view.result.evaluations.length > 0;
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
+    <main className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
       <header className="mx-auto max-w-2xl text-center">
         <p className="text-xs uppercase tracking-[0.25em] text-accent">Cultural Crash-Test</p>
         <h1 className="mt-4 font-serif text-4xl leading-tight sm:text-5xl">Is your launch plan culturally right for the city?</h1>
         <p className="mt-4 text-ink-2">
-          Describe your launch. An LLM drafts the plan on its own; then the agent tests every choice against Qloo&apos;s taste data for
-          your audience in your city and fixes what the evidence contradicts. You see both, side by side.
+          Tell me about your launch in your own words. I&apos;ll ask only what&apos;s missing, you confirm the brief, then an LLM drafts a plan
+          on its own and the agent tests every choice against Qloo&apos;s taste data. You see both plans side by side.
         </p>
       </header>
 
-      <div className="mx-auto mt-10 max-w-3xl">
-        {form ? <BriefForm onRun={start} busy={running} /> : <QueryBox onRun={start} busy={running} />}
-        <div className="mt-3 flex justify-between text-xs text-muted">
-          <span>Aggregate taste data only: it doesn&apos;t identify or predict any person.</span>
-          <button type="button" onClick={() => setForm((f) => !f)} className="underline-offset-2 hover:text-ink hover:underline">
-            {form ? "Describe it in words instead" : "Use the detailed form"}
+      <div className="mx-auto mt-10 max-w-5xl">
+        {form ? (
+          <div className="mx-auto max-w-3xl rounded-xl border border-line bg-panel p-5">
+            <BriefForm onRun={start} busy={running} />
+          </div>
+        ) : (
+          <IntakeChat running={running} onStart={(intake, depth) => start({ intake, depth })} />
+        )}
+        <div className="mx-auto mt-3 flex max-w-5xl justify-between text-xs text-muted">
+          <span>Aggregate taste data only: it doesn&apos;t identify or predict any person, and audiences are never defined by sensitive traits.</span>
+          <button type="button" onClick={() => setForm((f) => !f)} className="shrink-0 pl-4 underline-offset-2 hover:text-ink hover:underline">
+            {form ? "Describe it in a conversation instead" : "Use the detailed form"}
           </button>
         </div>
       </div>
@@ -46,6 +83,7 @@ export function CrashTest() {
       <div ref={resultsRef} className="scroll-mt-6">
         {view.phase !== "idle" && (
           <div className="mt-14 space-y-6">
+            <Phases view={view} />
             {view.replay && (
               <p className="rounded-md border border-line bg-panel px-4 py-2 text-xs text-accent">
                 {view.replay}
@@ -76,7 +114,7 @@ export function CrashTest() {
                 </details>
                 <div className="text-center">
                   <button type="button" onClick={reset} className="text-sm text-muted hover:text-ink">
-                    Start over
+                    Clear results
                   </button>
                 </div>
               </>

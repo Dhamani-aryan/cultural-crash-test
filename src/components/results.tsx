@@ -1,5 +1,9 @@
 "use client";
 
+import { useState } from "react";
+import { comparePlans } from "@/lib/crashtest/compare";
+import { PlanComparisonView } from "./plan-comparison";
+
 import { DISCLAIMER, toMarkdown } from "@/lib/crashtest/report";
 import {
   DIMENSION_LABEL,
@@ -216,12 +220,29 @@ export function Results({ state }: { state: RunState }) {
   const name = slug(`${state.brief.brandName ?? "crash-test"}-${state.marketLabel}`);
   const kept = state.changes.filter((c) => !c.reverted).length;
   const tried = state.changes.length - kept;
+  const cmp = comparePlans(state);
+  const [showCompare, setShowCompare] = useState(false);
   return (
     <section aria-label="Results" className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-serif text-2xl">Results</h2>
+        {cmp && (
+          <button
+            type="button"
+            aria-expanded={showCompare}
+            aria-controls="compare-plans"
+            onClick={() => setShowCompare((v) => !v)}
+            className="rounded-md border border-accent px-4 py-1.5 text-sm text-ink hover:bg-panel-2"
+          >
+            {showCompare ? "Hide comparison" : "Compare plans"}
+          </button>
+        )}
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <ScoreCard label="LLM alone" sub="The model's own plan, no Qloo data" e={first} />
         <ScoreCard label="Agent" sub="Every choice tested against Qloo, contradicted ones fixed" e={last} accent />
       </div>
+      {cmp && showCompare && <PlanComparisonView cmp={cmp} ledger={state.evidenceLedger} />}
 
       {state.verdict && (
         <div className="rounded-lg border border-line bg-panel p-5">

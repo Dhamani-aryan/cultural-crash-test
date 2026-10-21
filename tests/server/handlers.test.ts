@@ -48,11 +48,13 @@ describe("handleCrashTest", () => {
     expect(events.at(-1)?.type).toBe("done");
   });
 
-  it("accepts a plain-words query", async () => {
-    const events = await readEvents(
-      await handleCrashTest(post({ query: { query: "A streetwear pop-up in London for skate fans", marketId: "london" } }), world),
-    );
-    expect(events[0]).toMatchObject({ type: "stage", stage: "understand" });
+  it("runs a confirmed intake, and refuses an unconfirmed one", async () => {
+    const { intakeFromBrief, refresh } = await import("@/lib/intake/validate");
+    const draft = intakeFromBrief(LONDON_BRIEF, "London streetwear launch", "t1");
+    const unconfirmed = await handleCrashTest(post({ intake: draft }), noDeps);
+    expect(unconfirmed.status).toBe(400);
+    const confirmed = refresh({ ...draft, brief: { ...draft.brief, brandAttributes: ["understated"] }, confirmed: true });
+    const events = await readEvents(await handleCrashTest(post({ intake: confirmed }), world));
     expect(events.at(-1)?.type).toBe("done");
   });
 
