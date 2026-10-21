@@ -65,6 +65,7 @@ export function fakeClient(opts: {
           affinityRank: null,
           explainability: null,
         })),
+        tags: [],
         aggregateExplainability: null,
         durationMs: null,
       };

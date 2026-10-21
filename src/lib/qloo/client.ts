@@ -33,6 +33,7 @@ export function insightsParams(input: InsightsInput): Record<string, QueryValue>
     "filter.exclude.entities": input.excludeEntities,
     "filter.tags": input.filterTags,
     "operator.filter.tags": input.filterTagsOperator,
+    "filter.tag.types": input.filterTagTypes,
     "signal.demographics.age": input.signalAge,
     "filter.location.query": input.filterLocationQuery,
     "signal.location.query": input.signalLocationQuery,
@@ -96,7 +97,7 @@ export function createQlooClient(opts: QlooClientOptions): QlooClient {
       ),
 
     getInsights: (input) =>
-      call("/v2/insights", insightsParams(input), normalizeInsights, (r) => r.entities.length),
+      call("/v2/insights", insightsParams(input), normalizeInsights, (r) => r.entities.length + r.tags.length),
 
     compareProfiles: (input) =>
       call(

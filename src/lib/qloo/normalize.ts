@@ -7,6 +7,7 @@ import type {
   CompareTag,
   EntityMatch,
   InsightsEntity,
+  InsightsTag,
   InsightsResult,
   QlooEntity,
   TagMatch,
@@ -195,8 +196,25 @@ export function normalizeInsights(body: unknown): InsightsResult {
       },
     ];
   });
+  const tags: InsightsTag[] = arr(results.tags).flatMap((raw, i) => {
+    if (!isObj(raw)) return [];
+    const id = str(raw.tag_id) ?? str(raw.id);
+    const name = str(raw.name);
+    if (!id || !name) return [];
+    return [
+      {
+        id,
+        name: name.trim(),
+        subtype: str(raw.subtype),
+        popularity: num(raw.popularity),
+        affinity: num(obj(raw.query).affinity),
+        rank: i + 1,
+      },
+    ];
+  });
   return {
     entities,
+    tags,
     aggregateExplainability: aggregateMap(obj(b.query).explainability),
     durationMs: num(results.duration) ?? num(b.duration),
   };

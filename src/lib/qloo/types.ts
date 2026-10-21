@@ -72,8 +72,21 @@ export interface InsightsEntity extends QlooEntity {
   explainability: Record<string, number> | null;
 }
 
+/** A tag returned by Insights with `filter.type=urn:tag`. */
+export interface InsightsTag {
+  id: string;
+  name: string;
+  /** e.g. `urn:tag:aesthetic_property:qloo`. */
+  subtype: string | null;
+  popularity: number | null;
+  affinity: number | null;
+  rank: number;
+}
+
 export interface InsightsResult {
   entities: InsightsEntity[];
+  /** Tags, when the request asked for `filter.type=urn:tag`. */
+  tags: InsightsTag[];
   /** Aggregate influence of each input entity across all results, when explainability is on. */
   aggregateExplainability: Record<string, number> | null;
   durationMs: number | null;
@@ -164,6 +177,8 @@ export interface InsightsInput {
   signalLocationQuery?: string;
   /** `operator.filter.tags`: "union" (any tag, Qloo's default) or "intersection" (all tags). */
   filterTagsOperator?: "union" | "intersection";
+  /** `filter.tag.types`, for tag results (`filterType: "urn:tag"`). */
+  filterTagTypes?: string[];
   signalAge?: AgeBucket[];
   popularityMin?: number;
   popularityMax?: number;
