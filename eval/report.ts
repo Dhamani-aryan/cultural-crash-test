@@ -181,4 +181,4 @@ out.push(
   "",
 );
 writeFileSync(TAG ? `docs/EVALUATION-${TAG}.md` : "docs/EVALUATION.md", out.join("\n"));
-console.log("wrote docs/EVALUATION.md");
+console.log(`wrote ${TAG ? `docs/EVALUATION-${TAG}.md` : "docs/EVALUATION.md"}`);
