@@ -202,11 +202,29 @@ function tagHits(lists: Awaited<ReturnType<typeof tagList>>, c: Component): List
   });
 }
 
-async function locality(ctx: GatherContext, c: Component): Promise<LocalFinding> {
-  const [full] = await ctx.client.getEntities([c.entity!.id]);
-  const check = await checkPick(ctx.client, { pick: full ?? null, anchor: null, market: ctx.market });
+async function locality(ctx: GatherContext, c: Component): Promise<LocalFinding | null> {
+  const purpose = `Is ${c.entity!.name} local to ${ctx.market.label}, or just famous?`;
+  let full: Awaited<ReturnType<QlooClient["getEntities"]>>[number] | undefined;
+  let check: Awaited<ReturnType<typeof checkPick>>;
+  try {
+    [full] = await ctx.client.getEntities([c.entity!.id]);
+    check = await checkPick(ctx.client, { pick: full ?? null, anchor: null, market: ctx.market });
+  } catch (err) {
+    if ((err as Error).name === "BudgetExceeded") throw err;
+    ctx.ledger.add({
+      purpose,
+      queryKind: "locality",
+      sanitizedRequest: { entity: c.entity!.id },
+      qlooEntityIds: [c.entity!.id],
+      results: [],
+      resultCount: 0,
+      coverageStatus: "error",
+      warnings: [err instanceof Error ? err.message : String(err)],
+    });
+    return null;
+  }
   const record = ctx.ledger.add({
-    purpose: `Is ${c.entity!.name} local to ${ctx.market.label}, or just famous?`,
+    purpose,
     queryKind: "locality",
     sanitizedRequest: {
       method: `${ctx.market.label}'s own top list for this kind and category, compared with 4 other world cities and 4 US cities (location-only Insights), plus Qloo's origin data`,

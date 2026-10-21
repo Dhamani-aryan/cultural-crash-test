@@ -221,6 +221,8 @@ export function assessComponent(
     total >= SUPPORTED.total &&
     (audience.score ?? 0) >= SUPPORTED.audience &&
     (local.score ?? 0) >= SUPPORTED.local &&
+    // Every part must be in the audience's list: a direction isn't supported by half its words.
+    (ev.audience ?? []).every((h) => h.inList) &&
     !ev.duplicateOf
   ) {
     status = "supported";

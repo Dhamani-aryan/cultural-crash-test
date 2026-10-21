@@ -38,6 +38,8 @@ export interface RunOptions {
   emit?: (e: RunEvent) => void;
   signal?: AbortSignal;
   runId?: string;
+  /** Override the depth's limits (tests, evaluation). */
+  limits?: { maxRepairs?: number; maxQlooCalls?: number };
 }
 
 /** Stop after this many rounds in a row without a material improvement. */
@@ -54,7 +56,7 @@ export async function runCrashTest(
   const brief = LaunchBriefSchema.parse(briefInput);
   const market = marketById(brief.marketId);
   if (!market) throw new Error(`Unsupported city: ${brief.marketId}`);
-  const depth = DEPTHS[brief.depth];
+  const depth = { ...DEPTHS[brief.depth], ...opts.limits };
 
   const state: RunState = {
     runId: opts.runId ?? randomUUID(),
@@ -148,6 +150,13 @@ export async function runCrashTest(
     while (true) {
       if (current.accepted) {
         stop("acceptance_criteria_met");
+        for (const c of current.components) {
+          const locked = state.plan!.components.find((x) => x.slot === c.slot)?.locked;
+          if (locked && c.status !== "supported")
+            state.unresolvedQuestions.push(
+              `${SLOT_LABEL[c.slot]} "${c.label}" is locked by your constraints but rated ${c.status.replace("_", " ")}: ${c.finding}`,
+            );
+        }
         break;
       }
       const target = current.weakest.find((s) => !exhausted.has(s));
