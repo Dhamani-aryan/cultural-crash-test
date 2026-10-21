@@ -2,6 +2,27 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-21: Five evaluation rounds — Qloo evidence vs. a blind LLM judge
+
+All five runs used the same 9 briefs. The left number in each Qloo column is the LLM-only draft; the right number is the agent's final plan, both scored the same way.
+
+| Run | Change to the agent | In-run supported (of 36) | Held-out supported | Judge: agent / draft / tie |
+|---|---|---|---|---|
+| 1 | Original loop | 7 → 29 | 5 → 16 of 32 | 0 / 9 / 0 |
+| 2 | Role gate (venue kind, brand business) + model veto | 9 → 30 | 5 → 18 | 0 / 9 / 0 |
+| 3 | Agent proposes its own candidates, scored in Qloo; up to 3 tried per round; more rounds | 8 → 34 | 6 → 23 | 0 / 9 / 0 |
+| 4 | Replace only choices the evidence contradicts; keep thin and unknown ones, flagged | 5 → 13 | 6 → 10 | 1 / 5 / 3 |
+| 5 | Anchor used as a choice tested against the other anchors | 6 → 17 | 3 → 11 | 0 / 7 / 2 |
+
+**Findings:**
+- **Qloo support always improves, with no losses.** On held-out anchors, support never fell in any brief in any run.
+- **The more the agent changes, the more it gains on Qloo's measures, and the more the judge prefers the draft.** The judge is the model that wrote the draft, and it never sees the evidence. It mostly rewards the canonical, best-known local names, which the model already knows. Qloo's affinity for the anchor brands' fans often ranks those names lower: Jordan Rakei, CASisDEAD, Sanrio, María José Llergo.
+- **Real faults the judge exposed, all fixed:**
+  - wrong-role swaps (hotels, apps, outlets);
+  - swapping authentic local picks that Qloo doesn't list;
+  - anchors failing against themselves.
+- **Run-to-run variance is high,** because the draft itself differs every run. With 9 briefs, differences of one or two judgements are noise.
+
 ## 2026-10-21: Pivot to Cultural Crash-Test; agent loop and rubric crash-v1 (`src/lib/crashtest/`)
 
 The owner chose the Crash-Test spec over Transcreate. Transcreate stays at the tag `transcreate-final`. Its Qloo engine is reused here: the client, the locality gates (`checkPick`), role tags and measured city coverage.
