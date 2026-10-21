@@ -20,6 +20,7 @@ export const W = {
   anchorB: entity("a2", { name: "Deckhouse", type: T.brand }),
   usRapper: entity("us1", { name: "Big Tex", type: T.artist, shortDescription: "American rapper.", popularity: 0.999 }),
   localRapper: entity("uk1", { name: "Grey Lane", type: T.artist, shortDescription: "British rapper from Northampton." }),
+  canalEcho: entity("uk2", { name: "Canal Echo", type: T.artist, shortDescription: "English DJ and producer." }),
   otherUs: entity("us2", { name: "Coast Kid", type: T.artist, shortDescription: "American singer." }),
   localBrand: entity("b1", { name: "Mossgrove", type: T.brand, shortDescription: "Streetwear label" }),
   altBrand: entity("b2", { name: "Fieldnote", type: T.brand, shortDescription: "Workwear label" }),
@@ -124,7 +125,9 @@ export function worldClient(opts: WorldOptions = {}) {
 }
 
 /** A fake model that answers each step of a crash test by recognising its system prompt. */
-export function worldLlm(over: { draft?: Record<string, unknown>; pick?: string; reason?: string } = {}) {
+export function worldLlm(
+  over: { draft?: Record<string, unknown>; pick?: string | string[]; reason?: string; propose?: string[] } = {},
+) {
   const prompts: string[] = [];
   const llm: LlmClient = {
     provider: "fake",
@@ -145,8 +148,14 @@ export function worldLlm(over: { draft?: Record<string, unknown>; pick?: string;
         });
       if (system.startsWith("Map a creative direction"))
         return reply({ tags: ["Industrial", "Utilitarian"], note: "Close match." });
-      if (system.startsWith("You repair one weak choice"))
-        return reply({ id: over.pick ?? W.localRapper.id, reason: over.reason ?? "Ranks first for this audience in London and is from here.", expectedEffect: "Audience affinity found." });
+      if (system.startsWith("You are a cultural strategist who lives in")) return reply({ names: over.propose ?? [] });
+      if (system.startsWith("You repair one weak choice")) {
+        const ids = over.pick === undefined ? [W.localRapper.id] : [over.pick].flat();
+        if (ids[0] === "none") return reply({ choices: [], none: over.reason ?? "None fits." });
+        return reply({
+          choices: ids.map((id) => ({ id, reason: over.reason ?? "Ranks first for this audience in London and is from here.", expectedEffect: "Audience affinity found." })),
+        });
+      }
       if (system.startsWith("Revise a launch's creative direction"))
         return reply({ tags: ["Industrial"], direction: "Industrial", reason: "Top here.", expectedEffect: "Supported." });
       if (system.startsWith("Write a 2-3 sentence")) return reply("Verdict from the recorded facts.");

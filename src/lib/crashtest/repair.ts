@@ -9,7 +9,8 @@ import { CONTROL_LOCATIONS, SOURCE_LOCATIONS, type Domain } from "@/lib/markets"
 import type { QlooEntity } from "@/lib/qloo";
 import { LIST_SIZE, tagList, type GatherContext } from "./gather";
 import { itemsFrom, sanitizeInsights } from "./ledger";
-import { briefText, toRef } from "./plan";
+import { findByName } from "@/lib/agent/check";
+import { briefText, findPlace, toRef } from "./plan";
 import {
   SLOT_LABEL,
   SLOT_TYPE,
@@ -25,8 +26,10 @@ import {
  * the model choose among the survivors only. Code checks that the choice is one of them.
  */
 
-export const SHORTLIST = 5;
+export const SHORTLIST = 6;
 const SCREEN = 40;
+/** Candidates re-tested per round, in the model's order, before the round gives up. */
+export const MAX_TRIALS = 3;
 
 export interface Candidate {
   entity: QlooEntity;
@@ -131,15 +134,65 @@ export function roleFits(
 const tagNames = (e: QlooEntity, prefix: string) =>
   e.tags.filter((t) => t.id.startsWith(prefix) && t.name).map((t) => t.name!).slice(0, 3);
 
-const pickSchema = z.object({
-  id: z.string().describe(`the chosen candidate's id, copied exactly, or "none" when no candidate can do this job`),
-  reason: z.string().describe("one or two sentences citing the evidence given"),
-  expectedEffect: z
-    .string()
-    .describe("which test should improve in the re-test (audience affinity, local relevance or fit with the plan), in one line"),
+// ---------- candidate sources ----------
+
+const proposeSchema = z.object({
+  names: z.array(z.string()).describe("up to 6 real names, exactly as usually written"),
 });
 
-const PICK_SYSTEM = `You repair one weak choice in a launch plan. Choose the candidate that best keeps the brand's intent while fixing the weakness. It must credibly do the same job for this brand: a venue that can host this launch, a partner brand that makes sense for this product, an act that suits the event. If no candidate can, answer "none" and say why; a forced bad fit is worse than an open question. Use only the evidence given; never claim anything it doesn't show, and never predict sales, engagement or attendance: the expected effect names which test should improve. Answer with the candidate's id exactly as given.`;
+/**
+ * The model's own candidates. Qloo's lists rank what is distinctive for the audience, which can
+ * miss the obvious right answer for the job; the model knows what does the job. Every name it
+ * gives is looked up and scored in Qloo like any other candidate, and dropped if Qloo can't
+ * find it or shows no affinity for it.
+ */
+async function proposeNames(input: {
+  llm: LlmClient;
+  ctx: GatherContext;
+  brief: LaunchBrief;
+  slot: Exclude<Slot, "creative_direction">;
+  current: Component;
+  finding: string;
+  avoid: string[];
+}): Promise<string[]> {
+  const { ctx } = input;
+  const what =
+    input.slot === "artist_music"
+      ? "music acts (artists or DJs) who could headline this launch"
+      : input.slot === "brand_collaboration"
+        ? "brands that would make a credible collaboration partner for this product"
+        : `venues in ${ctx.market.label} that could host this launch event`;
+  const { data } = await generateStructured(input.llm, {
+    schema: proposeSchema,
+    system: `You are a cultural strategist who lives in ${ctx.market.label}. Name up to 6 real ${what}. Prefer ones from ${ctx.market.label}'s own scene that this audience follows, over global defaults. Exact names only.`,
+    prompt: [
+      briefText(input.brief, ctx.market),
+      `Current ${SLOT_LABEL[input.slot].toLowerCase()}: ${input.current.label}. Why it is being replaced: ${input.finding}`,
+      input.avoid.length ? `Don't suggest: ${input.avoid.join(", ")}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    label: `propose:${input.slot}`,
+  });
+  return data.names.slice(0, 6);
+}
+
+const rankSchema = z.object({
+  choices: z
+    .array(
+      z.object({
+        id: z.string().describe("a candidate's id, copied exactly"),
+        reason: z.string().describe("one or two sentences citing the evidence given"),
+        expectedEffect: z
+          .string()
+          .describe("which test should improve in the re-test (audience affinity, local relevance or fit with the plan)"),
+      }),
+    )
+    .describe("up to 3 candidates, best first; empty when none can do the job"),
+  none: z.string().optional().describe("when choices is empty: why no candidate fits the role"),
+});
+
+const PICK_SYSTEM = `You repair one weak choice in a launch plan. Rank up to 3 candidates, best first, that credibly do the same job for this brand: a venue that can host this launch, a partner brand that makes sense for this product, an act that suits the event and audience. Prefer what a local expert would actually pick, among candidates with strong evidence. If none can do the job, return no choices and say why: a forced bad fit is worse than an open question. Use only the evidence given; never predict sales, engagement or attendance. Copy ids exactly.`;
 
 export async function repairEntity(input: {
   llm: LlmClient;
@@ -149,21 +202,24 @@ export async function repairEntity(input: {
   slot: Exclude<Slot, "creative_direction">;
   assessment: ComponentAssessment;
   rejected: string[];
-}): Promise<RepairProposal | null> {
+}): Promise<RepairProposal[]> {
   const { ctx, plan, slot, brief } = input;
   const current = plan.components.find((c) => c.slot === slot)!;
   const domain = domainOf(slot);
+  const place = slot === "event_place";
   const others = plan.components.filter((c) => c.slot !== slot && c.entity).map((c) => c.entity!.id);
   const signal = [...plan.anchors.map((a) => a.id), ...others];
-  const banned = new Set(
-    [
-      ...brief.constraints.flatMap((c) => (c.kind === "hard" ? (c.excludeNames ?? []) : [])),
-      ...input.rejected,
-      ...plan.anchors.map((a) => a.name),
-      ...plan.components.flatMap((c) => (c.entity ? [c.entity.name] : [])),
-    ].map(nameKey),
-  );
-  const place = slot === "event_place";
+  const bannedNames = [
+    ...brief.constraints.flatMap((c) => (c.kind === "hard" ? (c.excludeNames ?? []) : [])),
+    ...input.rejected,
+    ...plan.anchors.map((a) => a.name),
+    ...plan.components.flatMap((c) => (c.entity ? [c.entity.name] : [])),
+    current.label,
+  ];
+  const banned = new Set(bannedNames.map(nameKey));
+  const allowed = (e: QlooEntity) => !banned.has(nameKey(e.name)) && !banned.has(nameKey(e.displayName));
+
+  // Source 1: what this audience, with the rest of the plan, has affinity for in the city.
   const query = {
     filterType: SLOT_TYPE[slot],
     signalEntities: signal,
@@ -185,64 +241,131 @@ export async function repairEntity(input: {
     coverageStatus: result.entities.length >= 10 ? "usable" : result.entities.length ? "partial" : "empty",
     warnings: [],
   });
-  const pool = result.entities.filter((e) => !banned.has(nameKey(e.name)) && !banned.has(nameKey(e.displayName)));
-  if (!pool.length) return null;
+  const listAff = result.entities.map((e) => e.affinity ?? 0);
+  const rankOf = (aff: number) => 1 + listAff.filter((a) => a > aff).length;
+
+  // Source 2: the agent's own suggestions, found and scored in Qloo under the same signal.
+  const names = await proposeNames({
+    llm: input.llm,
+    ctx,
+    brief,
+    slot,
+    current,
+    finding: input.assessment.finding,
+    avoid: bannedNames,
+  }).catch(() => [] as string[]);
+  const found = await mapLimit(names, 3, (n) =>
+    (place ? findPlace(ctx.client, n, ctx.market) : findByName(ctx.client, n, domain)).catch(() => null),
+  );
+  const proposals = found.filter((e): e is QlooEntity => e !== null && allowed(e));
+  const proposalFit = new Map<string, { affinity: number; rank: number }>();
+  let proposalRecordId: string | null = null;
+  if (proposals.length) {
+    const scoring = {
+      ...query,
+      filterTags: undefined,
+      excludeEntities: undefined,
+      resultEntities: proposals.map((e) => e.id),
+      take: proposals.length,
+    };
+    const scored = await ctx.client.getInsights(scoring);
+    for (const e of scored.entities)
+      if (e.affinity !== null) proposalFit.set(e.id, { affinity: e.affinity, rank: rankOf(e.affinity) });
+    proposalRecordId = ctx.ledger.add({
+      purpose: `Score the agent's own ${SLOT_LABEL[slot].toLowerCase()} suggestions for this audience and plan in ${ctx.market.label}`,
+      queryKind: "insights",
+      sanitizedRequest: sanitizeInsights(scoring),
+      qlooEntityIds: proposals.map((e) => e.id),
+      results: itemsFrom(scored),
+      resultCount: scored.entities.length,
+      coverageStatus: scored.entities.length ? "usable" : "empty",
+      warnings: [
+        ...names.filter((_, i) => !found[i]).map((n) => `"${n}" isn't in Qloo.`),
+        ...proposals.filter((e) => !proposalFit.has(e.id)).map((e) => `No affinity returned for ${e.displayName}.`),
+      ],
+    }).evidenceId;
+  }
+
+  const fromList = result.entities.filter(allowed).slice(0, SCREEN);
+  const seen = new Set<string>();
+  const pool: { e: QlooEntity; rank: number; proposed: boolean }[] = [];
+  for (const p of [
+    ...proposals.filter((e) => proposalFit.has(e.id)).map((e) => ({ e, rank: proposalFit.get(e.id)!.rank, proposed: true })),
+    ...fromList.map((e) => ({ e: e as QlooEntity, rank: e.rank, proposed: false })),
+  ]) {
+    if (seen.has(p.e.id)) continue;
+    seen.add(p.e.id);
+    pool.push(p);
+  }
+  if (!pool.length) return [];
 
   // Full records carry the origin and role tags the screen needs.
-  const top = pool.slice(0, SCREEN);
-  const full = await ctx.client.getEntities(top.map((e) => e.id));
+  const full = await ctx.client.getEntities(pool.map((p) => p.e.id));
   const byId = new Map(full.map((e) => [e.id, e]));
-  const records = top.map((e) => ({ ...e, ...(byId.get(e.id) ?? {}) }));
+  const records = pool.map((p) => ({ ...p, e: { ...p.e, ...(byId.get(p.e.id) ?? {}) } }));
   const [original] = current.entity ? await ctx.client.getEntities([current.entity.id]) : [];
   const category = original ? categoryTags(original, domain) : [];
-  const local = await screen(ctx, domain, category, records);
-  const fits = new Map(records.map((e) => [e.id, roleFits(slot, e, original ?? null, current.placeCategory)]));
+  const local = await screen(
+    ctx,
+    domain,
+    category,
+    records.map((r) => r.e),
+  );
   const originalRole = original ? roleTags(original) : new Map<string, number>();
 
-  const candidates: Candidate[] = records.map((e, i) => {
-    const l = local.get(e.id)!;
-    if (!fits.get(e.id)) l.why = place ? "not a venue of the planned kind" : "a different kind of business";
+  const candidates: (Candidate & { proposed: boolean })[] = records.map(({ e, rank, proposed }) => {
+    const l = { ...local.get(e.id)! };
+    // The agent's venue suggestions may be of another kind than the draft's; only unsuitable venues are out.
+    const fits = roleFits(slot, e, original ?? null, proposed ? null : current.placeCategory);
+    if (!fits) l.why = place ? "not a venue of the planned kind" : "a different kind of business";
     const role = original ? roleSimilarity(originalRole, roleTags(e)) : { score: 0, shared: [] as string[] };
     const shared = role.shared.map((id) => kindLabel(id) ?? e.tags.find((t) => t.id === id)?.name ?? id);
+    const fit = Math.max(0, 1 - (rank - 1) / LIST_SIZE);
     return {
       entity: e,
-      fitRank: top[i].rank,
-      local: l.local,
+      fitRank: rank,
+      local: l.local && fits,
       localWhy: l.why,
       role: role.score,
       sharedRole: shared,
-      score: 0.5 * (1 - (top[i].rank - 1) / LIST_SIZE) + 0.3 * role.score + (l.local ? 0.2 : 0),
+      proposed,
+      score: 0.5 * fit + 0.3 * role.score + (l.local ? 0.2 : 0),
     };
   });
   const shortlist = candidates
-    .filter((c) => c.local && fits.get(c.entity.id))
+    .filter((c) => c.local)
     .sort((a, b) => b.score - a.score)
     .slice(0, SHORTLIST);
   const screenRecord = ctx.ledger.add({
     purpose: `Screen candidates for locality in ${ctx.market.label} and for the same job as ${current.label}`,
     queryKind: "locality",
     sanitizedRequest: {
-      method: `${ctx.market.label}'s own top list vs 4 other world cities and 4 US cities, plus origin data`,
-      candidates: top.map((e) => e.id),
+      method: `${ctx.market.label}'s own top list vs 4 other world cities and 4 US cities, plus origin data and the role check`,
+      candidates: records.map((r) => r.e.id),
     },
-    qlooEntityIds: top.map((e) => e.id),
-    results: candidates.slice(0, 10).map((c) => ({ id: c.entity.id, name: c.entity.displayName, rank: c.fitRank, popularity: c.entity.popularity ?? undefined })),
+    qlooEntityIds: records.map((r) => r.e.id),
+    results: shortlist.map((c) => ({
+      id: c.entity.id,
+      name: c.entity.displayName,
+      rank: c.fitRank,
+      popularity: c.entity.popularity ?? undefined,
+    })),
     resultCount: candidates.length,
     coverageStatus: shortlist.length ? "usable" : "empty",
     warnings: shortlist.length ? [] : [`No candidate passed the screen: ${screenSummary(candidates)}.`],
   });
-  if (!shortlist.length) return null;
+  if (!shortlist.length) return [];
 
   const lines = shortlist.map(
     (c) =>
-      `id ${c.entity.id}: ${c.entity.displayName} — #${c.fitRank} for this audience with the plan in ${ctx.market.label}; ${c.localWhy}` +
+      `id ${c.entity.id}: ${c.entity.displayName}${c.proposed ? " (your suggestion, scored by Qloo)" : ""} — #${c.fitRank} for this audience with the plan in ${ctx.market.label}; ${c.localWhy}` +
       (c.sharedRole.length ? `; same role: ${c.sharedRole.slice(0, 4).join(", ")}` : "") +
       (place ? `; kind: ${tagNames(c.entity, "urn:tag:category:place:").join(", ")}` : "") +
       (slot === "brand_collaboration" ? `; business: ${tagNames(c.entity, "urn:tag:genre:brand").join(", ")}` : "") +
       (c.entity.shortDescription ? `; ${c.entity.shortDescription}` : ""),
   );
   const { data } = await generateStructured(input.llm, {
-    schema: pickSchema,
+    schema: rankSchema,
     system: PICK_SYSTEM,
     prompt: [
       briefText(brief, ctx.market),
@@ -251,7 +374,7 @@ export async function repairEntity(input: {
     ].join("\n\n"),
     label: `repair:${slot}`,
   });
-  if (/^none$/i.test(data.id.trim())) {
+  if (!data.choices.length) {
     ctx.ledger.add({
       purpose: `The model judged that none of the screened candidates can do the job of the ${SLOT_LABEL[slot].toLowerCase()}`,
       queryKind: "locality",
@@ -260,29 +383,50 @@ export async function repairEntity(input: {
       results: shortlist.map((c) => ({ id: c.entity.id, name: c.entity.displayName })),
       resultCount: shortlist.length,
       coverageStatus: "empty",
-      warnings: [`No candidate passed the screen: the model found none fit the role (${data.reason.replace(/\.$/, "")}).`],
+      warnings: [
+        `No candidate passed the screen: the model found none fit the role (${(data.none ?? "no reason given").replace(/\.$/, "")}).`,
+      ],
     });
-    return null;
+    return [];
   }
-  const chosen = shortlist.find((c) => c.entity.id === data.id.trim()) ?? shortlist[0];
-  const after: Component = {
+  // Only ids from the shortlist count; an unknown id falls back to the top-ranked candidate.
+  const picks = data.choices.flatMap((ch) => {
+    const c = shortlist.find((x) => x.entity.id === ch.id.trim());
+    return c ? [{ c, reason: ch.reason, expectedEffect: ch.expectedEffect }] : [];
+  });
+  if (!picks.length)
+    picks.push({
+      c: shortlist[0],
+      reason: "Top-ranked screened candidate (the model's pick wasn't on the list).",
+      expectedEffect: data.choices[0].expectedEffect,
+    });
+  const evidenceIds = [record.evidenceId, ...(proposalRecordId ? [proposalRecordId] : []), screenRecord.evidenceId];
+  return picks.slice(0, MAX_TRIALS).map(({ c, reason, expectedEffect }) => ({
     slot,
-    label: chosen.entity.displayName,
-    origin: "agent_repair",
-    locked: false,
-    resolution: "resolved",
-    entity: toRef(chosen.entity),
-    tags: [],
-    placeCategory: place ? current.placeCategory : null,
-  };
-  return {
-    slot,
-    after,
-    reason: chosen.entity.id === data.id.trim() ? data.reason : `Top-ranked screened candidate (the model's pick wasn't on the list).`,
-    expectedEffect: data.expectedEffect,
-    evidenceIds: [record.evidenceId, screenRecord.evidenceId],
-    considered: shortlist.map((c) => c.entity.displayName),
-  };
+    after: {
+      slot,
+      label: c.entity.displayName,
+      origin: "agent_repair",
+      locked: false,
+      resolution: "resolved",
+      entity: toRef(c.entity),
+      tags: [],
+      placeCategory: place ? ((c.proposed ? categoryOfVenue(c.entity) : null) ?? current.placeCategory) : null,
+    },
+    reason: c.proposed ? `${reason} (Suggested by the agent, then scored in Qloo.)` : reason,
+    expectedEffect,
+    evidenceIds,
+    considered: shortlist.map((x) => x.entity.displayName),
+  }));
+}
+
+/** The first suitable category a venue is filed under, to test it among venues of its own kind. */
+function categoryOfVenue(e: QlooEntity): string | null {
+  return (
+    e.tags
+      .map((t) => t.id)
+      .find((id) => id.startsWith("urn:tag:category:place:") && !UNSUITABLE_VENUE.test(id)) ?? null
+  );
 }
 
 const directionSchema = z.object({

@@ -30,37 +30,86 @@ function choiceText(c: Component | undefined) {
   return c.tags.length ? `${c.label} (${c.tags.map((t) => t.name).join(", ")})` : c.label;
 }
 
-function PlanCompare({ before, after, final }: { before: CulturalPlan | null; after: CulturalPlan | null; final: ComponentAssessment[] }) {
-  const first = (s: string, p: CulturalPlan | null) => p?.components.find((c) => c.slot === s);
+function PlanSide({
+  label,
+  sub,
+  component,
+  assessment,
+  strike,
+}: {
+  label: string;
+  sub: string;
+  component?: Component;
+  assessment?: ComponentAssessment;
+  strike?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] uppercase tracking-wide text-muted sm:hidden">
+        {label} <span className="normal-case">{sub}</span>
+      </p>
+      <p className={strike ? "text-ink-2" : "font-medium text-ink"}>{choiceText(component)}</p>
+      {assessment && (
+        <div className="mt-1">
+          <StatusBadge status={assessment.status} />
+          <p className="mt-0.5 text-xs leading-snug text-muted">{assessment.finding}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The comparison judges care about: what the model alone recommended, what the agent ended up
+ * recommending, and what Qloo's evidence says about each. Both sides are scored by the same
+ * rubric; the left column is the model's first draft, before it saw any Qloo data.
+ */
+function PlanCompare({ state }: { state: RunState }) {
+  const first = state.evaluations[0];
+  const last = state.evaluations.at(-1);
+  const find = (p: CulturalPlan | null, s: string) => p?.components.find((c) => c.slot === s);
   return (
     <div className="overflow-hidden rounded-lg border border-line">
-      <div className="grid grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)_minmax(0,1fr)] gap-x-4 border-b border-line bg-panel-2 px-4 py-2 text-xs uppercase tracking-wide text-muted">
-        <span>Choice</span>
-        <span>First draft</span>
-        <span>After crash-test</span>
+      <div className="hidden grid-cols-[minmax(0,0.55fr)_minmax(0,1fr)_minmax(0,1fr)] gap-x-5 border-b border-line bg-panel-2 px-4 py-3 sm:grid">
+        <span className="text-xs uppercase tracking-wide text-muted">Choice</span>
+        <span>
+          <span className="block text-xs uppercase tracking-wide text-muted">LLM alone</span>
+          <span className="text-xs text-muted">no Qloo data · {first?.supported ?? 0} of {first?.components.length ?? 0} supported</span>
+        </span>
+        <span>
+          <span className="block text-xs uppercase tracking-wide text-accent">Agent</span>
+          <span className="text-xs text-muted">tested against Qloo · {last?.supported ?? 0} of {last?.components.length ?? 0} supported</span>
+        </span>
       </div>
-      {(after?.components ?? []).map((c) => {
-        const b = first(c.slot, before);
+      {(state.plan?.components ?? []).map((c) => {
+        const b = find(state.initialPlan, c.slot);
         const changed = b?.label !== c.label;
-        const a = final.find((x) => x.slot === c.slot);
         return (
-          <div key={c.slot} className="grid grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)_minmax(0,1fr)] gap-x-4 border-b border-line px-4 py-3 text-sm last:border-0">
+          <div
+            key={c.slot}
+            className="grid gap-x-5 gap-y-3 border-b border-line px-4 py-4 text-sm last:border-0 sm:grid-cols-[minmax(0,0.55fr)_minmax(0,1fr)_minmax(0,1fr)]"
+          >
             <span className="text-muted">
               {SLOT_LABEL[c.slot]}
+              {b?.origin === "user_provided" && <span className="block text-xs">your choice</span>}
               {c.locked && <span className="block text-xs">locked</span>}
             </span>
-            <span className={changed ? "text-muted line-through decoration-1" : "text-ink-2"}>
-              {choiceText(b)}
-              {b?.origin === "user_provided" && <span className="block text-xs no-underline">yours</span>}
-            </span>
-            <span>
-              <span className={changed ? "font-medium text-ink" : "text-ink-2"}>{choiceText(c)}</span>
-              {a && (
-                <span className="mt-1 block">
-                  <StatusBadge status={a.status} />
-                </span>
-              )}
-            </span>
+            <PlanSide
+              label="LLM alone"
+              sub="(no Qloo data)"
+              component={b}
+              assessment={first?.components.find((x) => x.slot === c.slot)}
+              strike={changed}
+            />
+            <div className={changed ? "rounded-md border-l-2 border-accent pl-3" : ""}>
+              <PlanSide
+                label="Agent"
+                sub="(tested against Qloo)"
+                component={c}
+                assessment={last?.components.find((x) => x.slot === c.slot)}
+              />
+              {!changed && <p className="mt-1 text-xs text-muted">Kept: the evidence supports the original.</p>}
+            </div>
           </div>
         );
       })}
@@ -119,6 +168,14 @@ export function Results({ state, onRerun }: { state: RunState; onRerun?: () => v
   const name = slug(`${state.brief.brandName ?? "crash-test"}-${state.marketLabel}`);
   return (
     <section aria-label="Results" className="space-y-8">
+      <div>
+        <h3 className="font-serif text-2xl">What the LLM alone recommends vs. what the agent recommends</h3>
+        <p className="mb-3 mt-1 text-sm text-muted">
+          Same brief, same model. The left column is the model&apos;s plan before it saw any Qloo data; the right is the plan after the agent
+          tested every choice and repaired the weak ones. Both are judged by the same Qloo tests.
+        </p>
+        <PlanCompare state={state} />
+      </div>
       <div className="rounded-lg border border-line bg-panel p-5">
         <p className="text-xs uppercase tracking-wide text-muted">Verdict</p>
         {state.verdict ? (
@@ -146,10 +203,6 @@ export function Results({ state, onRerun }: { state: RunState; onRerun?: () => v
         </p>
       </div>
 
-      <div>
-        <h3 className="mb-3 font-serif text-2xl">First draft vs. final plan</h3>
-        <PlanCompare before={state.initialPlan} after={state.plan} final={last?.components ?? []} />
-      </div>
 
       {last && (
         <div>
@@ -173,7 +226,7 @@ export function Results({ state, onRerun }: { state: RunState; onRerun?: () => v
                 <p className="text-sm">
                   <span className="text-muted">Round {c.iteration} · {SLOT_LABEL[c.slot]}: </span>
                   <span className="line-through decoration-1 text-muted">{c.before}</span> → <strong>{c.after}</strong>
-                  {c.reverted && <span className="ml-2 text-xs text-weak">reverted</span>}
+                  {c.reverted && <span className="ml-2 text-xs text-weak">tested, not kept</span>}
                 </p>
                 <p className="mt-1 text-sm text-ink-2">{c.reason}</p>
                 <p className="mt-1 text-xs text-muted">Expected: {c.expectedEffect}</p>

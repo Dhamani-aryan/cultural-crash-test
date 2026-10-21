@@ -40,8 +40,8 @@ brief ─► draft (model alone) ─► resolve in Qloo ─► test every choice
 - **Stop.** Code checks four conditions:
   - acceptance;
   - no material improvement for 2 rounds;
-  - the repair-round limit (2 quick, 3 thorough);
-  - the Qloo call budget (400 / 700), enforced before each call.
+  - the repair-round limit (3 quick, 6 thorough);
+  - the Qloo call budget (700 / 1,400), enforced before each call.
 
   The report says which one stopped the run.
 - **Report.**

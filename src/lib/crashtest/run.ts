@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { LlmClient } from "@/lib/llm/types";
 import { marketById } from "@/lib/markets";
 import type { QlooClient } from "@/lib/qloo";
-import { MATERIAL_DELTA, compareEvaluations, evaluatePlan } from "./evaluate";
+import { MATERIAL_DELTA, compareEvaluations, evaluatePlan, type Progress } from "./evaluate";
 import { gatherEvidence, type GatherContext } from "./gather";
 import { BudgetExceeded, budgeted, createLedger } from "./ledger";
 import { buildPlan, draftPlan } from "./plan";
@@ -14,6 +14,7 @@ import {
   SLOT_LABEL,
   type CulturalPlan,
   type LaunchBriefInput,
+  type PlanChange,
   type PlanEvaluation,
   type RunEvent,
   type RunState,
@@ -187,21 +188,19 @@ export async function runCrashTest(
       stage("repair", `Researching a better-supported ${SLOT_LABEL[target].toLowerCase()} in Qloo`);
 
       const before = state.plan!;
-      let proposal: RepairProposal | null;
-      if (target === "creative_direction") {
-        proposal = await repairDirection({ llm, ctx, brief, plan: before, assessment });
-      } else {
-        proposal = await repairEntity({
-          llm,
-          ctx,
-          brief,
-          plan: before,
-          slot: target,
-          assessment,
-          rejected: state.rejected[target] ?? [],
-        });
-      }
-      if (!proposal) {
+      const proposals: RepairProposal[] =
+        target === "creative_direction"
+          ? [await repairDirection({ llm, ctx, brief, plan: before, assessment })].filter((p): p is RepairProposal => p !== null)
+          : await repairEntity({
+              llm,
+              ctx,
+              brief,
+              plan: before,
+              slot: target,
+              assessment,
+              rejected: state.rejected[target] ?? [],
+            });
+      if (!proposals.length) {
         exhausted.add(target);
         const screen = ledger.records.at(-1)?.warnings[0];
         state.unresolvedQuestions.push(
@@ -212,40 +211,50 @@ export async function runCrashTest(
         continue;
       }
 
-      stage("retest", `Re-testing the plan with ${proposal.after.label} as the ${SLOT_LABEL[target].toLowerCase()}`);
-      const revised = applyRepair(before, proposal);
-      const next = await evaluate(revised, current);
-      const was = assessment.total;
-      const now = next.components.find((c) => c.slot === target)!;
-      const progress = compareEvaluations(current, next, target);
-      const worse = !progress.better;
-      const change = {
-        iteration: state.currentIteration,
-        slot: target,
-        before: assessment.label,
-        after: proposal.after.label,
-        reason: proposal.reason,
-        triggeringEvidenceIds: [...new Set([...assessment.dimensions.flatMap((d) => d.evidenceIds), ...proposal.evidenceIds])],
-        expectedEffect: proposal.expectedEffect,
-        observedEffect:
-          `${SLOT_LABEL[target]} ${was?.toFixed(2) ?? "n/a"} → ${now.total?.toFixed(2) ?? "n/a"} (${now.status.replace("_", " ")}); ` +
-          `plan ${current.supported}/${current.components.length} supported, score ${current.totalScore?.toFixed(2) ?? "n/a"} → ` +
-          `${next.supported}/${next.components.length}, ${next.totalScore?.toFixed(2) ?? "n/a"}.`,
-        reverted: worse || undefined,
-      };
-      state.changes.push(change);
-      emit({ type: "change", change });
-      if (worse) {
-        // Keep the previous plan; don't offer this candidate again.
-        (state.rejected[target] ??= []).push(proposal.after.label);
+      // Re-test candidates in the model's order. The first that makes this choice Supported
+      // without costing the plan anything wins; otherwise the best improvement wins.
+      let best: { proposal: RepairProposal; next: PlanEvaluation; progress: Progress; change: PlanChange } | null = null;
+      const tried: PlanChange[] = [];
+      for (const proposal of proposals) {
+        stage("retest", `Re-testing the plan with ${proposal.after.label} as the ${SLOT_LABEL[target].toLowerCase()}`);
+        const next = await evaluate(applyRepair(before, proposal), current);
+        const now = next.components.find((c) => c.slot === target)!;
+        const progress = compareEvaluations(current, next, target);
+        const change: PlanChange = {
+          iteration: state.currentIteration,
+          slot: target,
+          before: assessment.label,
+          after: proposal.after.label,
+          reason: proposal.reason,
+          triggeringEvidenceIds: [...new Set([...assessment.dimensions.flatMap((d) => d.evidenceIds), ...proposal.evidenceIds])],
+          expectedEffect: proposal.expectedEffect,
+          observedEffect:
+            `${SLOT_LABEL[target]} ${assessment.total?.toFixed(2) ?? "n/a"} → ${now.total?.toFixed(2) ?? "n/a"} (${now.status.replace("_", " ")}); ` +
+            `plan ${current.supported}/${current.components.length} supported, score ${current.totalScore?.toFixed(2) ?? "n/a"} → ` +
+            `${next.supported}/${next.components.length}, ${next.totalScore?.toFixed(2) ?? "n/a"}.`,
+        };
+        tried.push(change);
+        if (progress.better && (!best || compareEvaluations(best.next, next, target).better))
+          best = { proposal, next, progress, change };
+        if (progress.better && now.status === "supported") break;
+      }
+      for (const change of tried) {
+        if (change !== best?.change) {
+          change.reverted = true;
+          (state.rejected[target] ??= []).push(change.after);
+        }
+        state.changes.push(change);
+        emit({ type: "change", change });
+      }
+      if (!best) {
         stall++;
       } else {
-        state.plan = revised;
-        current = next;
-        state.evaluations.push(next);
-        emit({ type: "plan", plan: revised, label: "revised" });
-        emit({ type: "evaluation", evaluation: next });
-        stall = progress.material ? 0 : stall + 1;
+        state.plan = applyRepair(before, best.proposal);
+        current = best.next;
+        state.evaluations.push(current);
+        emit({ type: "plan", plan: state.plan, label: "revised" });
+        emit({ type: "evaluation", evaluation: current });
+        stall = best.progress.material ? 0 : stall + 1;
       }
       if (stall >= STALL_ROUNDS) {
         stop(

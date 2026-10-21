@@ -201,11 +201,11 @@ export function BriefForm({ onRun, busy }: { onRun: (brief: LaunchBriefInput) =>
         <div className="flex flex-wrap gap-4 text-sm">
           <label className="flex items-center gap-2">
             <input type="radio" name="depth" checked={f.depth === "quick"} onChange={() => set("depth", "quick")} />
-            Quick: up to 2 repair rounds, 400 Qloo calls
+            Quick: up to 3 repair rounds, 700 Qloo calls
           </label>
           <label className="flex items-center gap-2">
             <input type="radio" name="depth" checked={f.depth === "thorough"} onChange={() => set("depth", "thorough")} />
-            Thorough: up to 3 rounds, 700 Qloo calls
+            Thorough: up to 6 rounds, 1,400 Qloo calls
           </label>
         </div>
       </fieldset>

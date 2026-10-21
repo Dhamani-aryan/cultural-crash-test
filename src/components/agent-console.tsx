@@ -103,7 +103,7 @@ export function AgentConsole({ view, onCancel }: { view: View; onCancel: () => v
                 <p>
                   <span className="text-muted">{SLOT_LABEL[c.slot as Slot]}:</span>{" "}
                   <span className="text-muted line-through">{c.before}</span> → <span className="font-medium text-ink">{c.after}</span>
-                  {c.reverted && <span className="ml-2 text-xs text-weak">reverted: the re-test came out worse</span>}
+                  {c.reverted && <span className="ml-2 text-xs text-weak">tested, not kept</span>}
                 </p>
                 <p className="mt-0.5 text-xs text-muted">{c.observedEffect}</p>
               </li>

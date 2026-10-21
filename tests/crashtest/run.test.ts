@@ -85,6 +85,24 @@ describe("runCrashTest", () => {
     expect(state.unresolvedQuestions.join(" ")).toMatch(/none fit the role \(None of these acts suits a skate launch\)/);
   });
 
+  it("scores the agent's own suggestions in Qloo and can pick one outside Qloo's list", async () => {
+    const { client } = worldClient();
+    const { llm } = worldLlm({ propose: ["Canal Echo", "Not A Real Act"], pick: [W.canalEcho.id] });
+    const state = await runCrashTest({ qloo: client, llm }, LONDON_BRIEF);
+    expect(state.changes[0]).toMatchObject({ slot: "artist_music", after: "Canal Echo" });
+    expect(state.changes[0].reason).toMatch(/Suggested by the agent, then scored in Qloo/);
+    const scoring = state.evidenceLedger.find((r) => /agent's own music act suggestions/.test(r.purpose));
+    expect(scoring?.warnings.join(" ")).toMatch(/"Not A Real Act" isn't in Qloo/);
+  });
+
+  it("stops trying candidates once one makes the choice supported", async () => {
+    const { client } = worldClient();
+    const { llm } = worldLlm({ propose: ["Canal Echo"], pick: [W.localRapper.id, W.canalEcho.id] });
+    const state = await runCrashTest({ qloo: client, llm }, LONDON_BRIEF);
+    expect(state.changes.filter((c) => c.iteration === 1)).toHaveLength(1);
+    expect(state.changes[0].after).toBe("Grey Lane");
+  });
+
   it("ignores a model pick that isn't on the screened list", async () => {
     const { client } = worldClient();
     const { llm } = worldLlm({ pick: "made-up-id" });

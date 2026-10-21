@@ -23,8 +23,8 @@ export const SLOT_TYPE: Record<Exclude<Slot, "creative_direction">, string> = {
 };
 
 export const DEPTHS = {
-  quick: { maxRepairs: 2, maxQlooCalls: 400 },
-  thorough: { maxRepairs: 3, maxQlooCalls: 700 },
+  quick: { maxRepairs: 3, maxQlooCalls: 700 },
+  thorough: { maxRepairs: 6, maxQlooCalls: 1400 },
 } as const;
 export type Depth = keyof typeof DEPTHS;
 
@@ -208,7 +208,7 @@ export interface PlanChange {
   triggeringEvidenceIds: string[];
   expectedEffect: string;
   observedEffect?: string;
-  /** Set when the change was reverted because the re-test came out worse. */
+  /** Set when the candidate was tested but not kept (worse, or another candidate tested better). */
   reverted?: boolean;
 }
 
