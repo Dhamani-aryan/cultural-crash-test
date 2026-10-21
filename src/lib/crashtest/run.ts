@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { LlmClient } from "@/lib/llm/types";
 import { marketById } from "@/lib/markets";
 import type { QlooClient } from "@/lib/qloo";
+import { unverifiableRules } from "./constraints";
 import { MATERIAL_DELTA, compareEvaluations, evaluatePlan, type Progress } from "./evaluate";
 import { gatherEvidence, type GatherContext } from "./gather";
 import { BudgetExceeded, budgeted, createLedger } from "./ledger";
@@ -172,6 +173,7 @@ export async function runCrashTest(
 
     const exhausted = new Set<Slot>();
     const upgradeTried = new Set<Slot>();
+    const unverified = unverifiableRules(brief.constraints);
     let stall = 0;
     while (true) {
       // Once nothing is contradicted, spare rounds go to upgrading thinly supported choices,
@@ -190,7 +192,10 @@ export async function runCrashTest(
                 !upgradeTried.has(c.slot) &&
                 !state.plan!.components.find((x) => x.slot === c.slot)?.locked &&
                 // The user's own choices are explored only when they switched exploration on.
-                (brief.exploreUserChoices || state.plan!.components.find((x) => x.slot === c.slot)?.origin !== "user_provided"),
+                (brief.exploreUserChoices || state.plan!.components.find((x) => x.slot === c.slot)?.origin !== "user_provided") &&
+                // A collaboration brand Qloo doesn't know stays when the brief has a hard rule
+                // code can't verify: no candidate's fit with that rule can be proven either.
+                !(c.slot === "brand_collaboration" && c.status === "unresolved" && unverified.length),
             )
             .sort((a, b) => (a.total ?? 0) - (b.total ?? 0))
         : [];
@@ -338,6 +343,13 @@ export async function runCrashTest(
   for (const c of last?.components ?? []) {
     const comp = state.plan?.components.find((x) => x.slot === c.slot);
     if (!comp || comp.locked || c.contradicted || c.status === "supported") continue;
+    const rules = unverifiableRules(brief.constraints);
+    if (c.slot === "brand_collaboration" && c.status === "unresolved" && rules.length) {
+      state.unresolvedQuestions.push(
+        `${SLOT_LABEL[c.slot]} "${c.label}" was kept unresolved: Qloo ${comp.resolution === "ambiguous" ? `only knows a different "${c.label}"` : "doesn't know it"}, and code can't verify the brief's rule${rules.length > 1 ? "s" : ""} (${rules.map((r) => `"${r}"`).join("; ")}) for any replacement. Please confirm by hand that "${c.label}" meets ${rules.length > 1 ? "them" : "it"}.`,
+      );
+      continue;
+    }
     state.unresolvedQuestions.push(
       c.status === "unresolved"
         ? `${SLOT_LABEL[c.slot]} "${c.label}" was kept but couldn't be tested: ${comp.resolution === "ambiguous" ? `Qloo only knows a different "${c.label}"` : "Qloo doesn't know it"}. Check it by hand.`

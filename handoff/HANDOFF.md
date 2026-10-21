@@ -72,7 +72,7 @@ Other parts of the code:
   - `role.ts` provides role and kind tags.
 - **`src/lib/markets.ts`:** the 5 cities, with coverage grades from `data/coverage.json`.
 - **`src/lib/llm/`:** the LLM is OpenAI through the owner's ChatGPT subscription (model `gpt-6-luna` by default since 2026-10-21; it matched `gpt-5.6-sol` in `docs/MODEL-COMPARISON.md`; no API key), signed in with `npm run llm:login` into the git-ignored `.secrets/`. `generateStructured` does Zod-validated JSON with one repair retry.
-- **`src/lib/server/handlers.ts`:** `POST /api/crashtest` takes `{brief}` or `{query:{query, marketId, depth}}`. It streams SSE; replays a recorded run (labelled "recorded on <date>") unless `fresh:true`; stores finished live runs; rate-limits live runs to 3 per 10 minutes per IP. **Bump `RUN_VERSION`** (currently `crash:v11`) whenever agent behaviour changes, or old recordings will replay.
+- **`src/lib/server/handlers.ts`:** `POST /api/crashtest` takes `{brief}` or `{query:{query, marketId, depth}}`. It streams SSE; replays a recorded run (labelled "recorded on <date>") unless `fresh:true`; stores finished live runs; rate-limits live runs to 3 per 10 minutes per IP. **Bump `RUN_VERSION`** (currently `crash:v12`) whenever agent behaviour changes, or old recordings will replay.
 - **UI, `src/components/`:**
   - `crash-test.tsx`: the page.
   - `intake-chat.tsx`, `brief-review.tsx`, `use-intake.ts`: the conversational intake and the editable brief, with per-choice locks and the exploration switch.
