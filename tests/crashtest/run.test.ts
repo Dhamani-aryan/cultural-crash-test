@@ -103,6 +103,20 @@ describe("runCrashTest", () => {
     expect(state.changes[0].after).toBe("Grey Lane");
   });
 
+  it("keeps a local choice with thin evidence, and one Qloo doesn't know, as open questions", async () => {
+    const { client } = worldClient();
+    const { llm } = worldLlm({ draft: { artist: "Canal Echo", brand: "Unknown Collective" } });
+    const state = await runCrashTest({ qloo: client, llm }, LONDON_BRIEF);
+    expect(state.changes).toHaveLength(0);
+    expect(state.stopReason).toBe("acceptance_criteria_met");
+    const final = state.evaluations.at(-1)!;
+    expect(final.components.find((c) => c.slot === "artist_music")).toMatchObject({ status: "weak", contradicted: false });
+    expect(final.components.find((c) => c.slot === "brand_collaboration")).toMatchObject({ status: "unresolved", contradicted: false });
+    const open = state.unresolvedQuestions.join(" ");
+    expect(open).toMatch(/"Canal Echo" was kept: the evidence is thin/);
+    expect(open).toMatch(/"Unknown Collective" was kept but couldn't be tested/);
+  });
+
   it("ignores a model pick that isn't on the screened list", async () => {
     const { client } = worldClient();
     const { llm } = worldLlm({ pick: "made-up-id" });

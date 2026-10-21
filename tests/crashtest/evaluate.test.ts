@@ -162,13 +162,17 @@ describe("evaluatePlan", () => {
 });
 
 describe("compareEvaluations", () => {
-  const ev0 = (supported: number, total: number, status = "weak"): PlanEvaluation =>
+  const ev0 = (supported: number, total: number, status = "weak", contradicted = 0): PlanEvaluation =>
     ({
       supported,
+      contradicted,
       totalScore: total,
       components: [{ slot: "artist_music", status }],
     }) as unknown as PlanEvaluation;
 
+  it("counts fewer contradicted choices first", () => {
+    expect(compareEvaluations(ev0(2, 0.9, "weak", 1), ev0(1, 0.7, "weak", 0), "artist_music").better).toBe(true);
+  });
   it("prefers more supported choices over a higher score", () => {
     expect(compareEvaluations(ev0(1, 0.9), ev0(2, 0.7), "artist_music").better).toBe(true);
     expect(compareEvaluations(ev0(2, 0.7), ev0(1, 0.9), "artist_music").worse).toBe(true);

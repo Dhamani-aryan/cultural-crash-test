@@ -167,7 +167,7 @@ export async function runCrashTest(
           "no_material_improvement",
           locked.length && !current.weakest.length
             ? `The remaining weak choices are locked by your constraints: ${locked.map((c) => c.label).join(", ")}.`
-            : "No better-supported alternative was found for the remaining weak choices.",
+            : "No better-supported alternative was found for the remaining contradicted choices.",
         );
         break;
       }
@@ -271,6 +271,18 @@ export async function runCrashTest(
     } else {
       stop("error", err instanceof Error ? err.message : String(err));
     }
+  }
+
+  // Choices kept without strong evidence are the human's to check, not silently passed.
+  const last = state.evaluations.at(-1);
+  for (const c of last?.components ?? []) {
+    const comp = state.plan?.components.find((x) => x.slot === c.slot);
+    if (!comp || comp.locked || c.contradicted || c.status === "supported") continue;
+    state.unresolvedQuestions.push(
+      c.status === "unresolved"
+        ? `${SLOT_LABEL[c.slot]} "${c.label}" was kept but couldn't be tested: Qloo doesn't know it. Check it by hand.`
+        : `${SLOT_LABEL[c.slot]} "${c.label}" was kept: the evidence is thin but doesn't contradict it (${c.finding.replace(/\.$/, "")}).`,
+    );
   }
 
   state.qlooCallsUsed = counted.used();

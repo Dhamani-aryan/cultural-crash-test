@@ -309,7 +309,8 @@ export async function gatherEvidence(
       plan.components.find(
         (o) => o !== c && o.entity && (o.entity.id === e.id || nameKey(o.entity.name) === nameKey(e.name)),
       ) ?? null;
-    ev.duplicateOf = dup ? dup.label : plan.anchors.some((a) => a.id === e.id) ? `audience anchor ${e.name}` : null;
+    // An anchor as a choice (DIVINE headlining for DIVINE's fans) is a fit, not a repeat.
+    ev.duplicateOf = dup ? dup.label : null;
 
     const others = entityIds.filter((id) => id !== e.id);
     const [audience, coherence, local] = await Promise.all([

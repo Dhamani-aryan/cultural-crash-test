@@ -59,6 +59,14 @@ function PlanSide({
   );
 }
 
+function keptNote(a?: ComponentAssessment): string {
+  if (!a) return "Kept.";
+  if (a.status === "supported") return "Kept: the evidence supports it.";
+  if (a.status === "unresolved") return "Kept: Qloo doesn't know it, so it couldn't be tested. Check it by hand.";
+  if (a.contradicted) return "Kept: no better-supported alternative was found. Worth a human look.";
+  return "Kept: the evidence is thin, but nothing contradicts it.";
+}
+
 /**
  * The comparison judges care about: what the model alone recommended, what the agent ended up
  * recommending, and what Qloo's evidence says about each. Both sides are scored by the same
@@ -74,11 +82,15 @@ function PlanCompare({ state }: { state: RunState }) {
         <span className="text-xs uppercase tracking-wide text-muted">Choice</span>
         <span>
           <span className="block text-xs uppercase tracking-wide text-muted">LLM alone</span>
-          <span className="text-xs text-muted">no Qloo data · {first?.supported ?? 0} of {first?.components.length ?? 0} supported</span>
+          <span className="text-xs text-muted">
+            no Qloo data · {first?.supported ?? 0} of {first?.components.length ?? 0} supported · {first?.contradicted ?? 0} contradicted
+          </span>
         </span>
         <span>
           <span className="block text-xs uppercase tracking-wide text-accent">Agent</span>
-          <span className="text-xs text-muted">tested against Qloo · {last?.supported ?? 0} of {last?.components.length ?? 0} supported</span>
+          <span className="text-xs text-muted">
+            tested against Qloo · {last?.supported ?? 0} of {last?.components.length ?? 0} supported · {last?.contradicted ?? 0} contradicted
+          </span>
         </span>
       </div>
       {(state.plan?.components ?? []).map((c) => {
@@ -108,7 +120,7 @@ function PlanCompare({ state }: { state: RunState }) {
                 component={c}
                 assessment={last?.components.find((x) => x.slot === c.slot)}
               />
-              {!changed && <p className="mt-1 text-xs text-muted">Kept: the evidence supports the original.</p>}
+              {!changed && <p className="mt-1 text-xs text-muted">{keptNote(last?.components.find((x) => x.slot === c.slot))}</p>}
             </div>
           </div>
         );
@@ -172,7 +184,8 @@ export function Results({ state, onRerun }: { state: RunState; onRerun?: () => v
         <h3 className="font-serif text-2xl">What the LLM alone recommends vs. what the agent recommends</h3>
         <p className="mb-3 mt-1 text-sm text-muted">
           Same brief, same model. The left column is the model&apos;s plan before it saw any Qloo data; the right is the plan after the agent
-          tested every choice and repaired the weak ones. Both are judged by the same Qloo tests.
+          tested every choice and replaced the ones Qloo&apos;s evidence contradicts. Choices with thin evidence are kept and flagged, not
+          swapped for the sake of a score. Both sides are judged by the same Qloo tests.
         </p>
         <PlanCompare state={state} />
       </div>
@@ -290,7 +303,9 @@ export function Results({ state, onRerun }: { state: RunState; onRerun?: () => v
             </li>
           </ul>
           <p>
-            Dimensions without evidence are left out and the weights renormalise; coverage is shown separately. A choice is
+            The agent replaces a choice only when the evidence <em>contradicts</em> it: no support for this audience here, a hard
+            constraint broken, a global or foreign import, or a direction this audience here doesn&apos;t lean to. Dimensions without
+            evidence are left out and the weights renormalise; coverage is shown separately. A choice is
             <em> Supported</em> when its score, audience affinity and local relevance are all at least 60 and every part of it is in the
             audience&apos;s list. Affinity and ranks are Qloo&apos;s; the combination is this app&apos;s, and it is not a probability.
           </p>

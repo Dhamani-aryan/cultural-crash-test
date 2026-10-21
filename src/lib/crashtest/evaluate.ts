@@ -170,6 +170,7 @@ export function assessComponent(
     return {
       ...base,
       status: "unresolved",
+      contradicted: false,
       coverage: "insufficient",
       dimensions: [],
       finding:
@@ -215,7 +216,7 @@ export function assessComponent(
     // stand in for that, so it gets no total rather than a flattering one.
     status = "no_support";
     finding = audience.explanation;
-    return { ...base, status, total: undefined, coverage, dimensions: dims, finding };
+    return { ...base, status, total: undefined, coverage, dimensions: dims, finding, contradicted: true };
   } else if (
     total !== undefined &&
     total >= SUPPORTED.total &&
@@ -235,7 +236,14 @@ export function assessComponent(
       .sort((a, b) => a.score! - b.score!)[0];
     finding = worst?.explanation ?? "Too little evidence to call it supported.";
   }
-  return { ...base, status, total, coverage, dimensions: dims, finding };
+  // Weak is a contradiction only when the evidence points against the choice: a global or
+  // foreign import (low local relevance), or a direction most of whose words this audience
+  // here doesn't lean to. Thin evidence for a local choice is left for a human to judge.
+  const contradicted =
+    status === "constraint_conflict" ||
+    (status === "weak" &&
+      (c.slot === "creative_direction" ? (audience.score ?? 0) < 0.5 : (local.score ?? 1) < 0.5));
+  return { ...base, status, total, coverage, dimensions: dims, finding, contradicted };
 }
 
 const STATUS_ORDER: ComponentStatus[] = ["constraint_conflict", "no_support", "unresolved", "weak", "supported"];
@@ -253,22 +261,22 @@ export function evaluatePlan(input: EvaluateInput): PlanEvaluation {
     .map((c) => `${c.label}: ${c.finding}`);
   const locked = new Set(input.plan.components.filter((c) => c.locked).map((c) => c.slot));
   const weakest = components
-    .filter((c) => c.status !== "supported" && !locked.has(c.slot))
+    .filter((c) => c.contradicted && !locked.has(c.slot))
     .sort(
       (a, b) =>
         STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) ||
         (a.total ?? 0) - (b.total ?? 0),
     )
     .map((c) => c.slot);
-  const accepted =
-    hardConstraintViolations.length === 0 &&
-    components.every((c) => locked.has(c.slot) || c.status === "supported");
+  const contradicted = components.filter((c) => c.contradicted && !locked.has(c.slot)).length;
+  const accepted = hardConstraintViolations.length === 0 && contradicted === 0;
   const prev = input.previous?.totalScore;
   return {
     iteration: input.iteration,
     rubricVersion: RUBRIC_VERSION,
     totalScore,
     supported: components.filter((c) => c.status === "supported").length,
+    contradicted,
     scored: totals.length,
     components,
     hardConstraintViolations,
@@ -287,11 +295,13 @@ export interface Progress {
 }
 
 /**
- * Did a repair help? Supported choices count first, then the repaired choice's own status,
- * then the plan score. Comparing scores alone would mislead when a choice moves from "no
+ * Did a repair help? Fewer contradicted choices count first, then supported choices, then the
+ * repaired choice's own status, then the plan score. Comparing scores alone would mislead when a choice moves from "no
  * support" (no score) to a scored status.
  */
 export function compareEvaluations(prev: PlanEvaluation, next: PlanEvaluation, slot: Slot): Progress {
+  const k = prev.contradicted - next.contradicted;
+  if (k !== 0) return { better: k > 0, worse: k < 0, material: k > 0 };
   const s = next.supported - prev.supported;
   if (s !== 0) return { better: s > 0, worse: s < 0, material: s > 0 };
   const rank = (e: PlanEvaluation) => STATUS_ORDER.indexOf(e.components.find((c) => c.slot === slot)!.status);

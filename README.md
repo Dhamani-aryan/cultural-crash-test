@@ -34,9 +34,13 @@ brief ─► draft (model alone) ─► resolve in Qloo ─► test every choice
   - A dimension without evidence is left out rather than scored zero, and coverage is shown separately.
   - Statuses are written out: *Supported*, *Weak evidence*, *No support found*, *Unresolved*, *Constraint conflict*.
 - **Repair.**
-  - The weakest unlocked choice gets one targeted action. The agent queries Qloo for candidates that fit the audience *and* the rest of the plan in the city, then screens them for locality and role.
-  - The model picks one **from that list only**, and code checks that it did.
-  - Only that slot changes. A repair that tests worse is reverted.
+  - Only choices the evidence **contradicts** are replaced: no support for this audience here, a hard constraint broken, a global or foreign import, or a creative direction this audience here doesn't lean to. A local choice with thin evidence, or a name Qloo doesn't know, is kept and flagged for a human. Swapping it for a better-scoring but less fitting name would game the score, not improve the plan.
+  - The weakest contradicted choice gets one targeted action. Candidates come from two sources:
+    - Qloo's list of what the audience *and* the rest of the plan have affinity for in the city;
+    - the agent's own suggestions for the job, each looked up and scored in Qloo under the same signal (names Qloo can't find, or shows no affinity for, are dropped).
+  - All candidates are screened for locality and role: a partner brand in the same kind of business, a venue that can host the event.
+  - The model ranks up to three survivors, and code checks every ID. Each is re-tested in turn; the first that makes the choice *Supported* wins, otherwise the best improvement. If none can do the job, the model says so and it becomes an open question.
+  - Only that slot changes. Candidates that don't test better are recorded as tried, not kept.
 - **Stop.** Code checks four conditions:
   - acceptance;
   - no material improvement for 2 rounds;

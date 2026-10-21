@@ -178,6 +178,12 @@ export interface ComponentAssessment {
   dimensions: DimensionScore[];
   /** One line on the main reason for the status. */
   finding: string;
+  /**
+   * The evidence contradicts this choice (no support, a constraint conflict, or a global or
+   * foreign import), so the agent should replace it. Thin evidence or a name Qloo doesn't know
+   * is not a contradiction: those choices stay and are flagged for a human.
+   */
+  contradicted: boolean;
 }
 
 export interface PlanEvaluation {
@@ -189,6 +195,8 @@ export interface PlanEvaluation {
   supported: number;
   /** Components with a score at all (no-support and unresolved ones have none). */
   scored: number;
+  /** Adjustable components the evidence contradicts. Zero means the plan is accepted. */
+  contradicted: number;
   components: ComponentAssessment[];
   hardConstraintViolations: string[];
   /** Weakest unlocked component first; empty when nothing can be improved. */
@@ -222,7 +230,7 @@ export type StopReason =
   | "error";
 
 export const STOP_LABEL: Record<StopReason, string> = {
-  acceptance_criteria_met: "Every adjustable choice is supported",
+  acceptance_criteria_met: "No adjustable choice is contradicted by the evidence",
   no_material_improvement: "Further repairs stopped improving the plan",
   iteration_limit: "Reached the repair-round limit",
   api_budget_limit: "Reached the Qloo call budget",
