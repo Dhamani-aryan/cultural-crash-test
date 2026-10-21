@@ -2,6 +2,30 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-21: Run 10 (gpt-6-luna): intake, exploration rules, venue gate; the London demo choice
+
+This is the first full eval with `gpt-6-luna` everywhere, including the judges. It runs after the event-format venue gate and the exploration rules were added.
+
+**Results:**
+- **Held-out supported:** 5 → 22 of 36 (+17, the largest gain so far), up in all 9 briefs.
+- **Evidence judge:** 8 / 1 / 0; on held-out briefs only, 5 / 1 / 0.
+- **Blind reference judge:** prefers the draft in most briefs, as before.
+
+**The loss: Madrid sustainable fashion.**
+- The LLM drafted Thinking MU as the collaborator. Qloo doesn't know it, so the agent upgraded it to Arizona Vintage, a reseller of mainstream brands.
+- That's a poor fit for a sustainable label that rules out fast fashion. The judge said so, citing Qloo's own description.
+- The role gate couldn't apply because there was no resolved original to compare business genres against.
+- **Open fix:** when the original is unresolved, require the candidate to fit the brief's attributes and constraints on evidence, or skip the upgrade.
+
+**London demo choice.** Each scenario was run twice live (`research/out/demos.txt`, git-ignored):
+
+| Scenario | Both runs |
+|---|---|
+| Travis Scott / BOXPARK | 1/4 → 3/4. Travis Scott (no support) → slowthai; the drafted brand (no support) → Dxpe Chef; the locked BOXPARK is kept and flagged. The same repairs both times. |
+| Northline / Village Underground | 2/4 → 4/4. The unknown collaborator → Fred Perry; the drafted act upgraded, differently each run (Idles, then Skepta). |
+
+The **Travis Scott / BOXPARK** scenario stays the main demo. Its win comes from fixing contradicted choices, and it repeats exactly. Northline is the second example; it was not tuned.
+
 ## 2026-10-21: gpt-6-luna is the default model everywhere
 
 The same 9 briefs were run with the agent on `gpt-6-luna`; the judges stayed on `gpt-5.6-sol` (`docs/MODEL-COMPARISON.md`). Results against run 9:
