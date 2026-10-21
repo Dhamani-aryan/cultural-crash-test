@@ -8,7 +8,12 @@ import { SLOT_LABEL, STOP_LABEL, type Slot, type StopReason } from "../src/lib/c
 import { CASES } from "./cases";
 import type { CaseRow, Scored } from "./run";
 
-const { ranAt, cases } = JSON.parse(readFileSync("eval/out/results.json", "utf8")) as { ranAt: string; cases: CaseRow[] };
+// EVAL_TAG reads results-<tag>.json and writes docs/EVALUATION-<tag>.md.
+const TAG = process.env.EVAL_TAG;
+const { ranAt, cases } = JSON.parse(readFileSync(TAG ? `eval/out/results-${TAG}.json` : "eval/out/results.json", "utf8")) as {
+  ranAt: string;
+  cases: CaseRow[];
+};
 const ok = cases.filter((c) => c.inRun);
 const pct = (x: number | null | undefined) => (x === null || x === undefined ? "–" : String(Math.round(x * 100)));
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
@@ -175,5 +180,5 @@ out.push(
   "- Held-out anchors are the strongest check here, but they are still Qloo signals, scored by the same rubric.",
   "",
 );
-writeFileSync("docs/EVALUATION.md", out.join("\n"));
+writeFileSync(TAG ? `docs/EVALUATION-${TAG}.md` : "docs/EVALUATION.md", out.join("\n"));
 console.log("wrote docs/EVALUATION.md");

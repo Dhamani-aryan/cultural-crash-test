@@ -24,7 +24,10 @@ import { findInMarket, toRef } from "../src/lib/crashtest/plan";
 import { runCrashTest } from "../src/lib/crashtest/run";
 import type { CulturalPlan, PlanEvaluation, RunState } from "../src/lib/crashtest/types";
 import { getQlooEnv } from "../src/lib/env";
-import { getLlm } from "../src/lib/llm";
+import { getLlmEnv } from "../src/lib/env";
+import { createChatGptLlm, getLlm } from "../src/lib/llm";
+import { createFileStore } from "../src/lib/llm/credential-store";
+import type { LlmClient } from "../src/lib/llm/types";
 import { marketById, type Market } from "../src/lib/markets";
 import { createQlooClient, type QlooClient } from "../src/lib/qloo";
 import { withCache } from "../src/lib/qloo/cached";
@@ -32,7 +35,50 @@ import { CASES, type EvalCase } from "./cases";
 import { judgePlans, judgeWithEvidence, type EvidenceVerdict, type Verdict } from "./judge";
 
 const OUT = "eval/out";
-const FILE = `${OUT}/results.json`;
+// EVAL_TAG writes to results-<tag>.json, so a model comparison never overwrites the main run.
+const FILE = process.env.EVAL_TAG ? `${OUT}/results-${process.env.EVAL_TAG}.json` : `${OUT}/results.json`;
+
+/**
+ * The agent's model comes from LLM_MODEL as usual. JUDGE_MODEL pins the judges to one model, so
+ * comparing agent models doesn't also change who judges them.
+ */
+const agentLlm = getLlm();
+const judgeLlm: LlmClient = process.env.JUDGE_MODEL
+  ? createChatGptLlm({
+      store: createFileStore(getLlmEnv().chatgptAuthFile),
+      model: process.env.JUDGE_MODEL,
+      reasoningEffort: getLlmEnv().reasoningEffort,
+    })
+  : agentLlm;
+
+/** Token usage of the agent's model calls, as the provider reports it; unknown stays null. */
+export interface Usage {
+  model: string;
+  calls: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  /** Calls whose response carried no usage. */
+  unknownCalls: number;
+}
+
+function metered(llm: LlmClient) {
+  const usage: Usage = { model: llm.model, calls: 0, inputTokens: null, outputTokens: null, unknownCalls: 0 };
+  const client: LlmClient = {
+    provider: llm.provider,
+    model: llm.model,
+    async generateText(req) {
+      const r = await llm.generateText(req);
+      usage.calls++;
+      const i = r.usage?.inputTokens ?? null;
+      const o = r.usage?.outputTokens ?? null;
+      if (i === null && o === null) usage.unknownCalls++;
+      if (i !== null) usage.inputTokens = (usage.inputTokens ?? 0) + i;
+      if (o !== null) usage.outputTokens = (usage.outputTokens ?? 0) + o;
+      return r;
+    },
+  };
+  return { client, usage };
+}
 
 export interface Scored {
   supported: number;
@@ -57,6 +103,7 @@ export interface CaseRow {
   judge: Verdict | null;
   run: Pick<RunState, "stopReason" | "stopDetail" | "currentIteration" | "qlooCallsUsed" | "llmCalls"> & {
     ms: number;
+    usage?: Usage;
     changes: { slot: string; before: string; after: string; reverted: boolean }[];
   };
   error: string | null;
@@ -92,7 +139,7 @@ async function heldOutScore(qloo: QlooClient, market: Market, c: EvalCase, state
 async function runCase(qloo: QlooClient, c: EvalCase): Promise<CaseRow> {
   const market = marketById(c.brief.marketId)!;
   const started = Date.now();
-  const llm = getLlm();
+  const { client: llm, usage } = metered(agentLlm);
   const state = await runCrashTest({ qloo, llm }, c.brief);
   const ms = Date.now() - started;
   const run = {
@@ -101,6 +148,7 @@ async function runCase(qloo: QlooClient, c: EvalCase): Promise<CaseRow> {
     currentIteration: state.currentIteration,
     qlooCallsUsed: state.qlooCallsUsed,
     llmCalls: state.llmCalls,
+    usage,
     ms,
     changes: state.changes.map((x) => ({ slot: x.slot, before: x.before, after: x.after, reverted: Boolean(x.reverted) })),
   };
@@ -118,11 +166,11 @@ async function runCase(qloo: QlooClient, c: EvalCase): Promise<CaseRow> {
   }
   const inRun = { draft: scored(state.evaluations[0]), final: scored(state.evaluations.at(-1)!) };
   const held = await heldOutScore(qloo, market, c, state);
-  const judge = await judgePlans(llm, state.brief, market, state.plan, state.initialPlan).catch(() => null);
+  const judge = await judgePlans(judgeLlm, state.brief, market, state.plan, state.initialPlan).catch(() => null);
   const evidenceJudge =
     held.draft && held.final
       ? await judgeWithEvidence(
-          llm,
+          judgeLlm,
           state.brief,
           market,
           held.anchors,
