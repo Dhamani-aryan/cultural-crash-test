@@ -26,7 +26,7 @@ import {
  */
 
 export const SHORTLIST = 5;
-const SCREEN = 15;
+const SCREEN = 40;
 
 export interface Candidate {
   entity: QlooEntity;
@@ -92,6 +92,13 @@ async function screen(
     out.set(e.id, { local, why });
   }
   return out;
+}
+
+/** "38 from another country, 2 just as big elsewhere" */
+export function screenSummary(candidates: Pick<Candidate, "localWhy">[]): string {
+  const counts = new Map<string, number>();
+  for (const c of candidates) counts.set(c.localWhy, (counts.get(c.localWhy) ?? 0) + 1);
+  return `of the top ${candidates.length} for this audience, ${[...counts].map(([why, n]) => `${n} ${why}`).join(", ")}`;
 }
 
 const pickSchema = z.object({
@@ -190,7 +197,7 @@ export async function repairEntity(input: {
     results: candidates.slice(0, 10).map((c) => ({ id: c.entity.id, name: c.entity.displayName, rank: c.fitRank, popularity: c.entity.popularity ?? undefined })),
     resultCount: candidates.length,
     coverageStatus: shortlist.length ? "usable" : "empty",
-    warnings: shortlist.length ? [] : ["No candidate passed the locality screen."],
+    warnings: shortlist.length ? [] : [`No candidate passed the locality screen: ${screenSummary(candidates)}.`],
   });
   if (!shortlist.length) return null;
 

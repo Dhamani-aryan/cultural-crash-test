@@ -203,8 +203,11 @@ export async function runCrashTest(
       }
       if (!proposal) {
         exhausted.add(target);
+        const screen = ledger.records.at(-1)?.warnings[0];
         state.unresolvedQuestions.push(
-          `${SLOT_LABEL[target]}: Qloo had no candidate that fits this audience, is local to ${market.label} and passes the constraints. Worth a human look.`,
+          `${SLOT_LABEL[target]}: Qloo had no candidate that fits this audience, is local to ${market.label} and passes the constraints` +
+            (screen ? ` (${screen.replace(/^No candidate passed the locality screen: /, "").replace(/\.$/, "")})` : "") +
+            ". Worth a human look: keep an international choice, or test a local one by name.",
         );
         continue;
       }

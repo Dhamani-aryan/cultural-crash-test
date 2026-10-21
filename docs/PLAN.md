@@ -134,7 +134,7 @@ The story: one weak choice is found, repaired with Qloo evidence and re-tested, 
 10. README, `.env.example`, deploy to Vercel, submission text, video
 
 ## 8. Questions for the owner
-Answers change what gets built. Defaults are in brackets and are used until told otherwise.
+Answered 2026-10-21: Crash-Test replaces Transcreate; the demo is in London; the 5 measured cities only; a blind LLM judge, no human reviewers. Questions 5 and 6 use their defaults.
 
 1. **One submission or two?** Does Crash-Test replace Transcreate as the entry (alongside Common Ground), or should Transcreate stay deployable? [Crash-Test replaces it; Transcreate is kept at the `transcreate-final` tag.]
 2. **Demo city.** [London. It has the deepest streetwear brand and music data. Tokyo is the contrast city.]

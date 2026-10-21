@@ -2,6 +2,30 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-21: Pivot to Cultural Crash-Test; agent loop and rubric crash-v1 (`src/lib/crashtest/`)
+
+The owner chose the Crash-Test spec over Transcreate. Transcreate stays at the tag `transcreate-final`. Its Qloo engine is reused here: the client, the locality gates (`checkPick`), role tags and measured city coverage.
+
+**Live findings that shaped the design** (`research/crashtest/c1–c6`):
+- **Explainability works.** `feature.explainability` returns each seed's contribution per result, so each audience-affinity finding names its strongest anchor.
+- **Audience × city × candidate scoring works.** With `filter.results.entities`, Skepta scores 0.962 for a Stüssy/Palace/Carhartt audience in London and isn't returned in Tokyo.
+- **Seeded lists are audience-shaped but not local.** Kendrick Lamar is #2 for that London audience. So locality is its own dimension, measured with the control-city gates.
+- **Venues need a category filter.** Without one, seeded places return hotels.
+- **Creative direction can be tested.** Tag insights (`filter.type=urn:tag`, `filter.tag.types=aesthetic_property / emotional_tone`) give an audience's aesthetics per city. "Playful" is #1 in Tokyo and absent from London's top 15, where Industrial and Utilitarian lead.
+
+**Design decisions:**
+- **No-support choices get no total.** If Qloo returns nothing for a choice under the audience and city signals, it gets no total. The other dimensions renormalising gave Vans a 1.00, which made correct repairs look worse and got them reverted.
+- **Progress counts supported choices first,** then the repaired choice's status, then the plan score. Score alone can't compare a plan where a choice moved from "no support" (no score) to scored.
+- **A creative direction is supported only when every word of it is in the audience's list.** Half-matching directions passed on the average before.
+- **A locked choice that isn't supported** doesn't block acceptance (nothing can change it), but it is recorded as an open risk.
+- **Repair prompts** may not predict sales or engagement. The expected effect names which test should improve.
+
+**First live demo run** (London, the founder's choices Travis Scott, BOXPARK Shoreditch locked, "playful pastel Y2K"; thorough depth):
+- Travis Scott: *No support found* → slowthai (#1 for the audience; strongest link Palace).
+- Vans (drafted): *No support* → END. Clothing (#2).
+- Creative direction → "Industrial utility in monochrome" (#2, #6, #7 in London).
+- Result: 1 of 4 → 4 of 4 supported, score 68 → 90. That took 350 Qloo calls, 6 model calls and about 70 s.
+
 ## 2026-10-21: Engine v2 after the first evaluation (`eval/`, `docs/EVALUATION.md`)
 
 The first full evaluation (13 texts, 35 city outputs, blind judge) showed the model alone beating Transcreate 26 to 7, even though 96% of Transcreate's picks passed Qloo's locality checks against 35% of the model's. The judge's reasons pointed to real faults, not just bias:
