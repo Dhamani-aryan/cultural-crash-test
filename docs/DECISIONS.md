@@ -2,6 +2,26 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-21: Runs 7–8 — local-only upgrades and fixed gates
+
+**São Paulo diagnosis.** Upgrades only tried the agent's own suggestions, even though Qloo's audience list had Brazilian acts in it, and creative direction was never upgraded.
+- Upgrades now draw on the agent's suggestions *and* the audience list, but every candidate must be from the city's own country (venues: in it).
+- Creative direction can be upgraded, keeping the words this audience already leans to.
+- A popular local name with no returned affinity is left alone.
+
+**Gate bugs found in run 7:**
+- **DC Shoes passed as Brazilian.** Its key markets include Brazil. Origin now comes from Wikipedia categories first; key markets count only when there is exactly one.
+- **Hilton Tokyo Bay passed the venue gate.** It is tagged `resort_hotel` / genre `hotel`. The gate now matches hotel-type words in any category or genre tag.
+
+**Results:**
+
+| Run | Held-out supported (of 36) | Rose / fell | Evidence judge (agent / draft / tie) | Held-out briefs only | Blind reference judge |
+|---|---|---|---|---|---|
+| 7 | 4 → 18 | 8 / 0 | 9 / 0 / 0 | 6 / 0 / 0 | 0 / 9 / 0 |
+| 8 | 4 → 22 | 9 / 0 | 9 / 0 / 0 | 6 / 0 / 0 | 0 / 9 / 0 |
+
+**Still imperfect.** Some swaps are evidence-supported but a weaker creative idea, such as Sanrio → Uniqlo for a skincare brand, and DIVINE → Badshah. The blind judge, which sees no evidence and is the model that wrote the draft, prefers the draft in every brief.
+
 ## 2026-10-21: Run 6 — measurement fixes, upgrade rounds, and an evidence-based judge
 
 **Why the agent was losing.** Re-running three lost briefs and tracing every decision showed that the agent was mostly *mis-measuring* good picks, then replacing them:

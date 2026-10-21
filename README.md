@@ -62,9 +62,9 @@ The model is used for four things only: the draft, mapping a direction onto Qloo
 - **An evidence-based judge.** It is blind to which plan is the agent's and runs in both orders. It sees the same held-out Qloo evidence for both plans and must judge from it, not from taste.
 
 Latest run:
-- **Evidence judge:** prefers the agent's plan in 7 of 9 briefs, the LLM-only plan in none, with 2 ties.
-- **Supported choices on held-out anchors:** 3 → 10, and no brief got worse.
-- **A no-evidence "taste" judge** is also reported as a reference. It went from preferring the LLM plan 9/9 in early runs to 1 agent / 3 LLM / 5 ties.
+- **Evidence judge:** prefers the agent's plan in all 9 briefs, including all 6 never used for tuning.
+- **Supported choices on held-out anchors:** 4 → 22, and support rose in every brief.
+- **A no-evidence "taste" judge** is also reported, as a reference only. It is the same model that wrote the LLM-only plan and sees no evidence, and it still prefers that plan in every brief.
 
 The sample is small and the report states its limits, including the earlier runs the agent lost and why.
 
