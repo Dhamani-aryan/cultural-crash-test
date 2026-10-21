@@ -17,6 +17,15 @@ import type {
 } from "./types";
 
 export const MAX_MARKETS = 3;
+
+/** Retry once after a transient failure (model timeout, dropped stream, Qloo hiccup). */
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch {
+    return fn();
+  }
+}
 const CANDIDATES = 5;
 
 export interface TranscreateInput {
@@ -80,7 +89,32 @@ export async function runTranscreate(
       stage: `market:${market.id}`,
       message: `Searching ${market.label}'s taste data`,
     });
-    const result = await translateForMarket({ qloo, llm }, text, market, resolved, emit);
+    let result: MarketResult;
+    try {
+      result = await withRetry(() =>
+        translateForMarket({ qloo, llm }, text, market, resolved, emit),
+      );
+    } catch (err) {
+      // One market failing (a model timeout, a Qloo outage) must not sink the others.
+      const message = err instanceof Error ? err.message : String(err);
+      result = {
+        marketId: market.id,
+        text,
+        decisions: resolved.map((r) => ({
+          ref: r.ref,
+          action: "flag" as const,
+          choice: null,
+          alternatives: [],
+          domain: r.domain,
+          confidence: null,
+          reason: "This market couldn't be completed; try again.",
+          triedDomain: null,
+        })),
+        replacements: [],
+        guardIssues: [],
+        note: `${market.label} failed: ${message.slice(0, 200)}`,
+      };
+    }
     emit({ type: "market", result });
     return result;
   });

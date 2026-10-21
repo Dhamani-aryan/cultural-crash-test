@@ -102,7 +102,7 @@ export function createChatGptLlm(opts: ChatGptLlmOptions): LlmClient {
             Authorization: `Bearer ${credential.access}`,
             "chatgpt-account-id": credential.accountId,
             "OpenAI-Beta": "responses=experimental",
-            originator: "common_ground",
+            originator: "transcreate",
             accept: "text/event-stream",
             "content-type": "application/json",
           },
@@ -131,7 +131,18 @@ export function createChatGptLlm(opts: ChatGptLlmOptions): LlmClient {
 
       let text = "";
       let usage: LlmResponse["usage"] = null;
-      for await (const event of parseSse(res.body)) {
+      // A timeout can also fire while the reply streams in; report it as an LlmError so callers
+      // see one error type instead of a bare DOMException.
+      const events = (async function* () {
+        try {
+          yield* parseSse(res.body!);
+        } catch (err) {
+          throw err instanceof LlmError
+            ? err
+            : new LlmError(`ChatGPT stream failed: ${(err as Error).message}`);
+        }
+      })();
+      for await (const event of events) {
         if (event.type === "response.output_text.delta" && event.delta) {
           text += event.delta;
         } else if (event.type === "response.completed") {

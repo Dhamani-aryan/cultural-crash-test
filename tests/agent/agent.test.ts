@@ -291,3 +291,28 @@ describe("runTranscreate", () => {
     );
   });
 });
+
+describe("runTranscreate resilience", () => {
+  it("returns a flagged market instead of failing the whole run", async () => {
+    const anchor = entity("chip", { name: "Chipotle", tags: [DINING] });
+    const { client } = fakeClient({ lists: {}, full: { chip: anchor } });
+    const qloo: QlooClient = {
+      ...client,
+      async searchEntities() {
+        return [{ ...anchor, rank: 1 }];
+      },
+    };
+    const llm = scriptedLlm((s) =>
+      s.includes("find the cultural references")
+        ? { references: [{ surface: "Chipotle", name: "Chipotle", kind: "brand", job: "lunch" }] }
+        : null,
+    );
+    const result = await runTranscreate(
+      { qloo, llm },
+      { text: "Cheaper than Chipotle.", marketIds: ["madrid"], skipBaseline: true },
+    );
+    expect(result.markets[0].note).toMatch(/Madrid failed/);
+    expect(result.markets[0].decisions[0].action).toBe("flag");
+    expect(result.markets[0].text).toBe("Cheaper than Chipotle.");
+  });
+});

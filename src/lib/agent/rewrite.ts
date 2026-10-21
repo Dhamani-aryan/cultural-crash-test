@@ -32,9 +32,10 @@ function instruction(r: ResolvedReference, d: Decision): string {
  */
 export function allowedNames(original: string, decisions: Decision[], market: Market): Set<string> {
   const words = new Set<string>();
+  // Split on apostrophes too: "We're" allows "We", "Joe's" allows "Joe".
   const add = (s: string) =>
     s
-      .split(/[^\p{L}\p{N}']+/u)
+      .split(/[^\p{L}\p{N}]+/u)
       .filter(Boolean)
       .forEach((w) => words.add(nameKey(w)));
   add(original);

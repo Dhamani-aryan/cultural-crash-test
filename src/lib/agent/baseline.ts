@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { cityList } from "@/lib/engine/equivalents";
 import { isForeignOrigin } from "@/lib/engine/origin";
+import { categoryTags } from "@/lib/engine/role";
 import { nameKey } from "@/lib/engine/stats";
 import { generateStructured } from "@/lib/llm/structured";
 import type { LlmClient } from "@/lib/llm/types";
@@ -60,9 +61,12 @@ export async function runBaseline(
           const [full] = await client.getEntities([hit.id]);
           const e = full ?? hit;
           if (isForeignOrigin(e, market.country)) return { ...s, check: "foreign" as const };
-          // Local evidence: the pick appears in the city's own Qloo taste list for its kind.
+          // Local evidence: the pick appears in the city's own Qloo taste list for its kind
+          // (and category, the same list the engine searches), so the two are judged alike.
           const domain = domainOf(e.type);
-          const list = domain ? await cityList(client, domain, market.qlooLocation, []) : [];
+          const list = domain
+            ? await cityList(client, domain, market.qlooLocation, categoryTags(e, domain))
+            : [];
           return {
             ...s,
             check: list.some((x) => x.id === e.id)
