@@ -17,6 +17,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createMemoryCache } from "../src/lib/cache/cache";
+import { nameKey } from "../src/lib/engine/stats";
 import { evaluatePlan } from "../src/lib/crashtest/evaluate";
 import { gatherEvidence } from "../src/lib/crashtest/gather";
 import { createLedger } from "../src/lib/crashtest/ledger";
@@ -96,7 +97,7 @@ export interface CaseRow {
   /** Draft choices Qloo couldn't find at all. */
   draftUnresolved: string[];
   inRun: { draft: Scored; final: Scored } | null;
-  heldOut: { anchors: string[]; missing: string[]; draft: Scored; final: Scored } | null;
+  heldOut: { anchors: string[]; missing: string[]; excluded?: string[]; draft: Scored; final: Scored } | null;
   /** Primary: judges from the held-out Qloo evidence, blind to which plan is the agent's. */
   evidenceJudge: EvidenceVerdict | null;
   /** Reference only: a judge with no evidence, choosing on its own taste. */
@@ -118,10 +119,18 @@ const scored = (e: PlanEvaluation): Scored => ({
 const labels = (p: CulturalPlan | null) => (p?.components ?? []).map((c) => `${c.slot}: ${c.label}`);
 
 async function heldOutScore(qloo: QlooClient, market: Market, c: EvalCase, state: RunState) {
-  const found = await Promise.all(c.heldOutAnchors.map((n) => findInMarket(qloo, n, ["brand", "artist"], market)));
-  const anchors = found.flatMap((e) => (e ? [toRef(e)] : []));
-  const missing = c.heldOutAnchors.filter((_, i) => !found[i]);
-  if (anchors.length < 2) return { anchors: anchors.map((a) => a.name), missing, draft: null, final: null };
+  // Every entity either plan uses as a choice: none of them may also be a held-out anchor.
+  const chosen = [state.initialPlan, state.plan].flatMap((p) => p?.components ?? []);
+  const isChoice = (e: { id: string; name: string }) =>
+    chosen.some((x) => x.entity?.id === e.id || nameKey(x.label) === nameKey(e.name));
+  const names = [...c.heldOutAnchors, ...(c.heldOutSpares ?? [])];
+  const found = await Promise.all(names.map((n) => findInMarket(qloo, n, ["brand", "artist"], market)));
+  const missing = names.filter((_, i) => !found[i]);
+  const excluded = found.flatMap((e) => (e && isChoice(e) ? [e.displayName] : []));
+  const anchors = found
+    .flatMap((e) => (e && !isChoice(e) ? [toRef(e)] : []))
+    .slice(0, c.heldOutAnchors.length);
+  if (anchors.length < 2) return { anchors: anchors.map((a) => a.name), missing, excluded, draft: null, final: null };
   const score = async (plan: CulturalPlan) => {
     const ctx = { client: qloo, ledger: createLedger(() => 0), market };
     const p = { ...plan, anchors };
@@ -131,6 +140,7 @@ async function heldOutScore(qloo: QlooClient, market: Market, c: EvalCase, state
   return {
     anchors: anchors.map((a) => a.name),
     missing,
+    excluded,
     draft: await score(state.initialPlan!),
     final: await score(state.plan!),
   };
@@ -183,7 +193,7 @@ async function runCase(qloo: QlooClient, c: EvalCase): Promise<CaseRow> {
     inRun,
     heldOut:
       held.draft && held.final
-        ? { anchors: held.anchors, missing: held.missing, draft: scored(held.draft), final: scored(held.final) }
+        ? { anchors: held.anchors, missing: held.missing, excluded: held.excluded, draft: scored(held.draft), final: scored(held.final) }
         : null,
     evidenceJudge,
     judge,

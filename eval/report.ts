@@ -68,7 +68,7 @@ out.push(
   "Three measurements, from least to most independent:",
   "",
   "1. **In-run scores.** Both plans as the agent's evaluator scored them during the run. The agent optimises exactly this, so a gain here shows the loop does what it claims. It does **not** show the plan is better.",
-  "2. **Held-out anchors.** Both plans re-scored by the same rubric, but with a *different* set of brands or artists standing for the same audience (for example Patta, A-Cold-Wall and Skepta instead of Stüssy, Palace and Carhartt). The agent never saw these anchors, so a gain here means the improvement carries beyond the exact signal it optimised.",
+  "2. **Held-out anchors.** Both plans re-scored by the same rubric, but with a *different* set of brands or artists standing for the same audience (for example Patta, A-Cold-Wall and Skepta instead of Stüssy, Palace and Carhartt). The agent never saw these anchors, so a gain here means the improvement carries beyond the exact signal it optimised. An anchor that either plan uses as a choice is swapped for a spare from the case: Qloo leaves signal entities out of its results, so it would otherwise test that choice against itself.",
   "3. **Evidence-based judge (primary).** A model judge audits the two plans as A/B, blind to which is the agent's, in both orders (a preference counts only when both orders agree). For every choice it sees the same Qloo evidence, gathered with the held-out anchors, and Qloo's own description of what the choice is. It must judge from that evidence and the brief only, not from its own sense of who is famous. A choice Qloo doesn't know counts as unverified, not as bad.",
   "4. **Blind preference judge (reference).** The same A/B setup with no evidence at all. That judge is choosing on its own taste rather than judging, and it is the model that wrote the draft, so its self-preference favours the draft. It is shown for transparency, not as the measure.",
   "",
@@ -150,7 +150,7 @@ out.push("## Plans", "");
 for (const c of cases) {
   const k = CASES.find((x) => x.id === c.id);
   out.push(`### ${c.id} (${c.city})`, "");
-  out.push(`Audience: ${k?.brief.audienceDescription}. Run anchors: ${k?.brief.audienceAnchors?.join(", ")}. Held-out anchors: ${c.heldOut?.anchors.join(", ") ?? "–"}.`, "");
+  out.push(`Audience: ${k?.brief.audienceDescription}. Run anchors: ${k?.brief.audienceAnchors?.join(", ")}. Held-out anchors: ${c.heldOut?.anchors.join(", ") ?? "–"}${c.heldOut?.excluded?.length ? ` (left out because a plan uses them as a choice: ${c.heldOut.excluded.join(", ")})` : ""}.`, "");
   out.push("| Choice | Draft | Agent | Held-out status (draft → agent) |", "|---|---|---|---|");
   for (let i = 0; i < c.draft.length; i++) {
     const cut = (s: string) => [s.slice(0, s.indexOf(": ")), s.slice(s.indexOf(": ") + 2)];

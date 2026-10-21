@@ -15,6 +15,12 @@ export interface EvalCase {
   split: "dev" | "heldout";
   brief: LaunchBriefInput;
   heldOutAnchors: string[];
+  /**
+   * Stand-ins, in order, for any held-out anchor that one of the two plans uses as a choice.
+   * An anchor can't also be judged as a choice: Qloo leaves signal entities out of results, so
+   * the overlap would test the choice against itself.
+   */
+  heldOutSpares?: string[];
 }
 
 const base = { brandAttributes: [], existingChoices: [], constraints: [], depth: "thorough" as const };
@@ -34,6 +40,7 @@ export const CASES: EvalCase[] = [
       brandAttributes: ["utilitarian", "understated", "community-led"],
     },
     heldOutAnchors: ["Patta", "A-Cold-Wall", "Skepta"],
+    heldOutSpares: ["Wood Wood", "Aries"],
   },
   {
     id: "tokyo-sneakers",
@@ -49,6 +56,7 @@ export const CASES: EvalCase[] = [
       brandAttributes: ["utilitarian", "understated", "community-led"],
     },
     heldOutAnchors: ["Neighborhood", "WTAPS", "Nujabes"],
+    heldOutSpares: ["Kapital", "Cav Empt"],
   },
   {
     id: "sao-paulo-skate",
@@ -64,6 +72,7 @@ export const CASES: EvalCase[] = [
       brandAttributes: ["rebellious", "community-led", "colourful"],
     },
     heldOutAnchors: ["Charlie Brown Jr.", "Independent Truck Company", "Supreme"],
+    heldOutSpares: ["Emicida", "DC Shoes"],
   },
   {
     id: "london-coffee",
@@ -79,6 +88,7 @@ export const CASES: EvalCase[] = [
       brandAttributes: ["calm", "crafted", "minimal"],
     },
     heldOutAnchors: ["Muji", "COS", "Bon Iver"],
+    heldOutSpares: ["Toast", "Floating Points"],
   },
   {
     id: "tokyo-skincare",
@@ -94,6 +104,7 @@ export const CASES: EvalCase[] = [
       brandAttributes: ["gentle", "playful", "clean"],
     },
     heldOutAnchors: ["Uniqlo", "Aimyon"],
+    heldOutSpares: ["Muji", "Perfume"],
   },
   {
     id: "sao-paulo-running",
@@ -109,6 +120,7 @@ export const CASES: EvalCase[] = [
       brandAttributes: ["energetic", "inclusive", "technical"],
     },
     heldOutAnchors: ["Adidas", "Garmin"],
+    heldOutSpares: ["Nike", "Olympikus"],
   },
   {
     id: "madrid-beer",
@@ -124,6 +136,7 @@ export const CASES: EvalCase[] = [
       brandAttributes: ["warm", "local", "unpretentious"],
     },
     heldOutAnchors: ["Estrella Galicia", "Love of Lesbian"],
+    heldOutSpares: ["Sidonie", "Mad Cool Festival"],
   },
   {
     id: "madrid-sustainable",
@@ -140,6 +153,7 @@ export const CASES: EvalCase[] = [
       constraints: [{ id: "c1", description: "No fast-fashion collaborators", kind: "hard", excludeNames: ["Zara", "H&M", "Shein"] }],
     },
     heldOutAnchors: ["Veja", "C. Tangana"],
+    heldOutSpares: ["Camper", "Bad Gyal"],
   },
   {
     id: "mumbai-sneakers",
@@ -155,5 +169,6 @@ export const CASES: EvalCase[] = [
       brandAttributes: ["bold", "street", "homegrown"],
     },
     heldOutAnchors: ["Puma", "Badshah"],
+    heldOutSpares: ["Adidas", "Raftaar"],
   },
 ];
