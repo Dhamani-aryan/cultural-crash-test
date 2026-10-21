@@ -2,6 +2,17 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-21: gpt-6-luna is the default model everywhere
+
+The same 9 briefs were run with the agent on `gpt-6-luna`; the judges stayed on `gpt-5.6-sol` (`docs/MODEL-COMPARISON.md`). Results against run 9:
+- **Evidence judge:** 9 / 0 / 0, the same.
+- **Held-out gain:** +11 supported choices, the same.
+- **Held-out support:** rose in 9 of 9 briefs.
+- **Speed:** about 36% faster.
+- **Tokens:** about 4.5k in and 1k out per brief.
+
+The owner chose Luna as the only model. It's set by the default in `src/lib/env.ts` and `.env.example`; `LLM_MODEL` still overrides it. Eval judges follow the default too, unless `JUDGE_MODEL` is set. `RUN_VERSION` was bumped to `crash:v9`, so recordings made with the old model don't replay. `gpt-6.1-luna` isn't available on the ChatGPT account.
+
 ## 2026-10-21: Run 9 — namesakes, origin from descriptions, one-box brief
 
 Fixes since run 8:
