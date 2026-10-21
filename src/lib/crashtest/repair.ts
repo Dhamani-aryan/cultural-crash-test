@@ -9,8 +9,7 @@ import { CONTROL_LOCATIONS, SOURCE_LOCATIONS, type Domain } from "@/lib/markets"
 import type { QlooEntity } from "@/lib/qloo";
 import { LIST_SIZE, tagList, type GatherContext } from "./gather";
 import { itemsFrom, sanitizeInsights } from "./ledger";
-import { findByName } from "@/lib/agent/check";
-import { briefText, findPlace, toRef } from "./plan";
+import { briefText, findInMarket, findPlace, toRef } from "./plan";
 import {
   SLOT_LABEL,
   SLOT_TYPE,
@@ -202,6 +201,12 @@ export async function repairEntity(input: {
   slot: Exclude<Slot, "creative_direction">;
   assessment: ComponentAssessment;
   rejected: string[];
+  /**
+   * Upgrade a choice the evidence doesn't contradict but only thinly supports. Then only the
+   * agent's own suggestions for the job count: an upgrade must be a sensible pick for the role,
+   * not merely a higher-scoring name from the audience list.
+   */
+  upgrade?: boolean;
 }): Promise<RepairProposal[]> {
   const { ctx, plan, slot, brief } = input;
   const current = plan.components.find((c) => c.slot === slot)!;
@@ -255,7 +260,10 @@ export async function repairEntity(input: {
     avoid: bannedNames,
   }).catch(() => [] as string[]);
   const found = await mapLimit(names, 3, (n) =>
-    (place ? findPlace(ctx.client, n, ctx.market) : findByName(ctx.client, n, domain)).catch(() => null),
+    (place
+      ? findPlace(ctx.client, n, ctx.market)
+      : findInMarket(ctx.client, n, [domain as "artist" | "brand"], ctx.market)
+    ).catch(() => null),
   );
   const proposals = found.filter((e): e is QlooEntity => e !== null && allowed(e));
   const proposalFit = new Map<string, { affinity: number; rank: number }>();
@@ -286,7 +294,7 @@ export async function repairEntity(input: {
     }).evidenceId;
   }
 
-  const fromList = result.entities.filter(allowed).slice(0, SCREEN);
+  const fromList = input.upgrade ? [] : result.entities.filter(allowed).slice(0, SCREEN);
   const seen = new Set<string>();
   const pool: { e: QlooEntity; rank: number; proposed: boolean }[] = [];
   for (const p of [

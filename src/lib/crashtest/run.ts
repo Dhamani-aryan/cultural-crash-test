@@ -147,9 +147,24 @@ export async function runCrashTest(
     emit({ type: "evaluation", evaluation: current });
 
     const exhausted = new Set<Slot>();
+    const upgradeTried = new Set<Slot>();
     let stall = 0;
     while (true) {
-      if (current.accepted) {
+      // Once nothing is contradicted, spare rounds go to upgrading thinly supported choices,
+      // weakest first. Creative direction isn't upgraded: its words are the brand's voice.
+      const thin = current.accepted
+        ? current.components
+            .filter(
+              (c) =>
+                !c.contradicted &&
+                c.status !== "supported" &&
+                c.slot !== "creative_direction" &&
+                !upgradeTried.has(c.slot) &&
+                !state.plan!.components.find((x) => x.slot === c.slot)?.locked,
+            )
+            .sort((a, b) => (a.total ?? 0) - (b.total ?? 0))
+        : [];
+      if (current.accepted && (!thin.length || state.currentIteration >= state.maxIterations)) {
         stop("acceptance_criteria_met");
         for (const c of current.components) {
           const locked = state.plan!.components.find((x) => x.slot === c.slot)?.locked;
@@ -160,7 +175,9 @@ export async function runCrashTest(
         }
         break;
       }
-      const target = current.weakest.find((s) => !exhausted.has(s));
+      const upgrade = current.accepted;
+      const target = upgrade ? thin[0].slot : current.weakest.find((s) => !exhausted.has(s));
+      if (upgrade) upgradeTried.add(target!);
       if (!target) {
         const locked = current.components.filter((c) => c.status !== "supported" && state.plan!.components.find((x) => x.slot === c.slot)?.locked);
         stop(
@@ -181,7 +198,9 @@ export async function runCrashTest(
         iteration: state.currentIteration,
         kind: target === "creative_direction" ? ("retest_direction" as const) : ("find_alternatives" as const),
         slot: target,
-        why: `${SLOT_LABEL[target]} "${assessment.label}" is the weakest adjustable choice (${assessment.status.replace("_", " ")}): ${assessment.finding}`,
+        why: upgrade
+          ? `Nothing in the plan is contradicted. ${SLOT_LABEL[target]} "${assessment.label}" has the thinnest support (${assessment.status.replace("_", " ")}): ${assessment.finding} Trying the agent's own suggestions; one is kept only if Qloo rates it Supported.`
+          : `${SLOT_LABEL[target]} "${assessment.label}" is the weakest adjustable choice (${assessment.status.replace("_", " ")}): ${assessment.finding}`,
       };
       state.actions.push(action);
       emit({ type: "action", action });
@@ -199,7 +218,9 @@ export async function runCrashTest(
               slot: target,
               assessment,
               rejected: state.rejected[target] ?? [],
+              upgrade,
             });
+      if (!proposals.length && upgrade) continue;
       if (!proposals.length) {
         exhausted.add(target);
         const screen = ledger.records.at(-1)?.warnings[0];
@@ -234,7 +255,9 @@ export async function runCrashTest(
             `${next.supported}/${next.components.length}, ${next.totalScore?.toFixed(2) ?? "n/a"}.`,
         };
         tried.push(change);
-        if (progress.better && (!best || compareEvaluations(best.next, next, target).better))
+        // An upgrade must land on Supported; a sideways move between thin choices isn't one.
+        const counts = progress.better && (!upgrade || now.status === "supported");
+        if (counts && (!best || compareEvaluations(best.next, next, target).better))
           best = { proposal, next, progress, change };
         if (progress.better && now.status === "supported") break;
       }
@@ -247,7 +270,8 @@ export async function runCrashTest(
         emit({ type: "change", change });
       }
       if (!best) {
-        stall++;
+        // A failed upgrade leaves an accepted plan accepted; only failed repairs count as a stall.
+        if (!upgrade) stall++;
       } else {
         state.plan = applyRepair(before, best.proposal);
         current = best.next;

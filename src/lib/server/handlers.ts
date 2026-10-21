@@ -20,7 +20,7 @@ export const CrashTestRequestSchema = z.object({
 });
 
 /** Bump when the agent, rubric or prompts change in a way that should invalidate recordings. */
-export const RUN_VERSION = "crash:v4";
+export const RUN_VERSION = "crash:v5";
 const RECORDING_TTL = 14 * 24 * 60 * 60;
 
 export function runKey(brief: unknown): string {

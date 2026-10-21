@@ -64,7 +64,8 @@ out.push(
   "",
   "1. **In-run scores.** Both plans as the agent's evaluator scored them during the run. The agent optimises exactly this, so a gain here shows the loop does what it claims. It does **not** show the plan is better.",
   "2. **Held-out anchors.** Both plans re-scored by the same rubric, but with a *different* set of brands or artists standing for the same audience (for example Patta, A-Cold-Wall and Skepta instead of Stüssy, Palace and Carhartt). The agent never saw these anchors, so a gain here means the improvement carries beyond the exact signal it optimised.",
-  "3. **Blind judge.** A model judge compares the two plans as A/B, in both orders. A preference counts only when both orders agree; otherwise it's a tie. The judge is the same model family that wrote the draft, so any self-preference bias favours the draft.",
+  "3. **Evidence-based judge (primary).** A model judge audits the two plans as A/B, blind to which is the agent's, in both orders (a preference counts only when both orders agree). For every choice it sees the same Qloo evidence, gathered with the held-out anchors, and Qloo's own description of what the choice is. It must judge from that evidence and the brief only, not from its own sense of who is famous. A choice Qloo doesn't know counts as unverified, not as bad.",
+  "4. **Blind preference judge (reference).** The same A/B setup with no evidence at all. That judge is choosing on its own taste rather than judging, and it is the model that wrote the draft, so its self-preference favours the draft. It is shown for transparency, not as the measure.",
   "",
 );
 
@@ -83,9 +84,35 @@ out.push(
   `| Draft choices not found in Qloo at all | ${sum(ok.map((c) => c.draftUnresolved.length))} of ${ok.length * 4} | – |`,
   "",
 );
+function evidenceTally(rows: CaseRow[]) {
+  const j = rows.flatMap((r) => (r.evidenceJudge ? [r.evidenceJudge] : []));
+  return {
+    n: j.length,
+    agent: j.filter((v) => v.preferred === "agent").length,
+    draft: j.filter((v) => v.preferred === "draft").length,
+    tie: j.filter((v) => v.preferred === "tie").length,
+    consistent: j.filter((v) => v.consistent).length,
+    dims: (["audienceFit", "localFit", "coherence", "briefFit"] as const).map((k) => ({
+      k,
+      agent: mean(j.map((v) => v.agent[k])),
+      draft: mean(j.map((v) => v.draft[k])),
+    })),
+  };
+}
+const e = evidenceTally(ok);
+out.push(
+  "### Evidence-based judge (primary)",
+  "",
+  `${e.n} pairs. Prefers the agent's plan in **${e.agent}**, the draft in **${e.draft}**, tie in **${e.tie}**. The two orders agreed on ${e.consistent} of ${e.n}.`,
+  "",
+  "| Mean rating (1–5, both orders) | Draft | Agent |",
+  "|---|---|---|",
+  ...e.dims.map((d) => `| ${d.k} | ${f1(d.draft)} | ${f1(d.agent)} |`),
+  "",
+);
 const j = judgeTally(ok);
 out.push(
-  "### Blind judge",
+  "### Blind preference judge (reference, no evidence)",
   "",
   `${j.n} pairs. Prefers the agent's plan in **${j.agent}**, the draft in **${j.draft}**, tie in **${j.tie}**. The two orders agreed on ${j.consistent} of ${j.n}.`,
   "",
@@ -97,18 +124,19 @@ out.push(
 
 const heldSplit = aggregate(ok.filter((c) => c.split === "heldout"), (c) => c.heldOut);
 const jh = judgeTally(ok.filter((c) => c.split === "heldout"));
+const eh = evidenceTally(ok.filter((c) => c.split === "heldout"));
 out.push(
   "### Held-out briefs only",
   "",
-  `${heldSplit.n} briefs never used for tuning: supported choices with held-out anchors ${heldSplit.draftSupported} → ${heldSplit.finalSupported} of ${heldSplit.slots}; judge agent ${jh.agent} / draft ${jh.draft} / tie ${jh.tie}.`,
+  `${heldSplit.n} briefs never used for tuning: supported choices with held-out anchors ${heldSplit.draftSupported} → ${heldSplit.finalSupported} of ${heldSplit.slots}; evidence judge agent ${eh.agent} / draft ${eh.draft} / tie ${eh.tie}; blind judge agent ${jh.agent} / draft ${jh.draft} / tie ${jh.tie}.`,
   "",
 );
 
-out.push("## Per brief", "", "| Brief | City | Split | Changes | In-run supported | Held-out supported | Judge | Stopped |", "|---|---|---|---|---|---|---|---|");
+out.push("## Per brief", "", "| Brief | City | Split | Changes | In-run supported | Held-out supported | Evidence judge | Blind judge | Stopped |", "|---|---|---|---|---|---|---|---|---|");
 for (const c of cases) {
   const changes = c.run.changes.filter((x) => !x.reverted);
   out.push(
-    `| ${c.id} | ${c.city} | ${c.split} | ${changes.map((x) => `${x.before} → ${x.after}`).join("; ") || "none"} | ${c.inRun ? `${c.inRun.draft.supported} → ${c.inRun.final.supported}` : "–"} | ${c.heldOut ? `${c.heldOut.draft.supported} → ${c.heldOut.final.supported}` : "–"} | ${c.judge?.preferred ?? "–"} | ${c.run.stopReason ? STOP_LABEL[c.run.stopReason as StopReason] : "–"} |`,
+    `| ${c.id} | ${c.city} | ${c.split} | ${changes.map((x) => `${x.before} → ${x.after}`).join("; ") || "none"} | ${c.inRun ? `${c.inRun.draft.supported} → ${c.inRun.final.supported}` : "–"} | ${c.heldOut ? `${c.heldOut.draft.supported} → ${c.heldOut.final.supported}` : "–"} | ${c.evidenceJudge?.preferred ?? "–"} | ${c.judge?.preferred ?? "–"} | ${c.run.stopReason ? STOP_LABEL[c.run.stopReason as StopReason] : "–"} |`,
   );
 }
 out.push("");
@@ -126,7 +154,8 @@ for (const c of cases) {
     const hs = c.heldOut ? `${c.heldOut.draft.statuses[slot]} → ${c.heldOut.final.statuses[slot]}` : "–";
     out.push(`| ${SLOT_LABEL[slot as Slot] ?? slot} | ${d} | ${a === d ? "(same)" : a} | ${hs.replaceAll("_", " ")} |`);
   }
-  if (c.judge) out.push("", `Judge: _${c.judge.reason}_`);
+  if (c.evidenceJudge) out.push("", `Evidence judge: _${c.evidenceJudge.reason}_`);
+  if (c.judge) out.push("", `Blind judge: _${c.judge.reason}_`);
   if (c.error) out.push("", `Note: ${c.error}`);
   out.push("");
 }
@@ -141,7 +170,8 @@ out.push(
   "",
   `- ${cases.length} briefs is a small sample. No significance is claimed.`,
   "- Every score is the app's rubric built on Qloo affinity, not a measure of campaign performance.",
-  "- The judge is a model, not people from these cities. No human review was run.",
+  "- Both judges are models, not people from these cities. No human review was run.",
+  "- The evidence judge reads this app's own explanations of Qloo results. The evidence is gathered with held-out anchors, identically for both plans, but its wording comes from the same rubric the agent works with.",
   "- Held-out anchors are the strongest check here, but they are still Qloo signals, scored by the same rubric.",
   "",
 );

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { findByName } from "@/lib/agent/check";
+import { domainOf } from "@/lib/agent/resolve";
+import { isLocalOrigin } from "@/lib/engine/equivalents";
 import { mapLimit, nameKey } from "@/lib/engine/stats";
 import { generateStructured } from "@/lib/llm/structured";
 import type { LlmClient } from "@/lib/llm/types";
@@ -98,6 +99,34 @@ export const toRef = (e: QlooEntity): EntityRef => ({
   shortDescription: e.shortDescription,
 });
 
+/**
+ * An artist or brand by exact name, preferring the one from the target market. Names collide
+ * ("Divine" is a Mumbai rapper and an American performer); the first search hit is often the
+ * wrong one for the city, which poisons every test after it.
+ */
+export async function findInMarket(
+  client: QlooClient,
+  name: string,
+  domains: ("artist" | "brand")[],
+  market: Market,
+): Promise<QlooEntity | null> {
+  const k = nameKey(name);
+  const hits = (
+    await Promise.all(domains.map((d) => client.searchEntities({ query: name, types: [`urn:entity:${d}`], take: 8 })))
+  ).flat();
+  const exact = hits.filter((h) => [h.name, h.displayName, ...h.akas].some((n) => nameKey(n) === k)).slice(0, 6);
+  if (!exact.length) return null;
+  const full = await client.getEntities([...new Set(exact.map((h) => h.id))]);
+  const records = exact.map((h) => full.find((f) => f.id === h.id) ?? h);
+  const local = (e: QlooEntity) => {
+    const d = domainOf(e.type);
+    return d ? isLocalOrigin(e, d, market) : false;
+  };
+  return [...records].sort(
+    (a, b) => Number(local(b)) - Number(local(a)) || (b.popularity ?? 0) - (a.popularity ?? 0),
+  )[0];
+}
+
 /** A venue by name, in the target city. Chains share names, so the city must match. */
 export async function findPlace(
   client: QlooClient,
@@ -135,7 +164,7 @@ export async function resolveEntityComponent(
   const e =
     slot === "event_place"
       ? await findPlace(client, name, market)
-      : await findByName(client, name, slot === "artist_music" ? "artist" : "brand");
+      : await findInMarket(client, name, [slot === "artist_music" ? "artist" : "brand"], market);
   return {
     slot,
     label: e?.displayName ?? name,
@@ -200,7 +229,7 @@ export async function buildPlan(input: {
   const { llm, ctx, brief, draft } = input;
   const notes: string[] = [];
   const anchorHits = await mapLimit(draft.anchors, 2, async (name) => {
-    const e = (await findByName(ctx.client, name, "brand")) ?? (await findByName(ctx.client, name, "artist"));
+    const e = await findInMarket(ctx.client, name, ["brand", "artist"], ctx.market);
     if (!e) notes.push(`Audience anchor "${name}" isn't in Qloo and was left out.`);
     return e;
   });

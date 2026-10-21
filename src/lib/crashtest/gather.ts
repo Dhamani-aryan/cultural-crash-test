@@ -290,7 +290,8 @@ export async function gatherEvidence(
 
     if (c.slot === "creative_direction") {
       if (dirLists?.audience) ev.audience = tagHits(dirLists.audience, c);
-      if (dirLists?.package) ev.coherence = tagHits(dirLists.package, c);
+      // An empty package list means nothing to test against, not "outside the top 0".
+      if (dirLists?.package?.some((l) => l.tags.length)) ev.coherence = tagHits(dirLists.package, c);
       if (dirLists?.audience && dirLists.source) {
         const city = tagHits(dirLists.audience, c);
         const src = tagHits(dirLists.source, c);

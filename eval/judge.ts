@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { briefText } from "../src/lib/crashtest/plan";
-import { SLOT_LABEL, type CulturalPlan, type LaunchBrief } from "../src/lib/crashtest/types";
+import { SLOT_LABEL, type CulturalPlan, type LaunchBrief, type PlanEvaluation } from "../src/lib/crashtest/types";
 import { generateStructured } from "../src/lib/llm/structured";
 import type { LlmClient } from "../src/lib/llm/types";
 import type { Market } from "../src/lib/markets";
@@ -81,6 +81,107 @@ export async function judgePlans(
   return {
     agent: avg(clamp(first.A), clamp(second.B)),
     draft: avg(clamp(first.B), clamp(second.A)),
+    preferred: consistent ? p1 : "tie",
+    consistent,
+    reason: first.reason,
+  };
+}
+
+// ---------- evidence-based judge ----------
+
+/**
+ * The primary judge. It audits rather than chooses: each plan comes with the same Qloo evidence
+ * for every choice (gathered with held-out audience anchors the agent never optimised against,
+ * identically for both plans) and Qloo's own description of what each choice is. It must
+ * judge from that evidence and the brief only, not from its own sense of who is famous.
+ * Still blind to which plan is the agent's, and run in both orders.
+ */
+
+export interface EvidenceScores {
+  audienceFit: number;
+  localFit: number;
+  coherence: number;
+  briefFit: number;
+}
+
+export interface EvidenceVerdict {
+  agent: EvidenceScores;
+  draft: EvidenceScores;
+  preferred: "agent" | "draft" | "tie";
+  consistent: boolean;
+  reason: string;
+}
+
+const evScores = z.object({
+  audienceFit: z.number(),
+  localFit: z.number(),
+  coherence: z.number(),
+  briefFit: z.number(),
+});
+const evSchema = z.object({ A: evScores, B: evScores, preferred: z.enum(["A", "B", "tie"]), reason: z.string() });
+
+const EVIDENCE_SYSTEM = `You are an independent auditor of launch plans. You judge from evidence, not taste. For each choice in Plan A and Plan B you get Qloo taste-data evidence, gathered the same way for both plans, and Qloo's own description of what the choice is.
+
+Rules:
+- Use only the evidence shown and the brief. Do not use your own knowledge of how famous, cool or fitting a name is.
+- A choice marked "not in Qloo" is unverified: it earns no credit for fit, but it is not evidence of a bad fit either.
+- Judge role fit (does the choice do the job the brief needs: a venue that can host the event, a credible partner brand for this product, an act for this audience) only from Qloo's description of the choice and the brief.
+
+Rate each plan 1-5 on:
+- audienceFit: how strongly the evidence shows this audience in this city has affinity for the plan's choices;
+- localFit: how strongly the evidence shows the choices are local or distinctive to this city rather than generic global defaults;
+- coherence: how strongly the evidence shows the choices fit together;
+- briefFit: whether each choice can do its job for this brief, per Qloo's descriptions, and respects the constraints.
+Then prefer the plan the evidence supports better, or "tie" if it supports them equally. Cite the evidence in one or two sentences.`;
+
+export function evidenceText(plan: CulturalPlan, evaluation: PlanEvaluation): string {
+  return plan.components
+    .map((c) => {
+      const a = evaluation.components.find((x) => x.slot === c.slot);
+      const what = c.entity?.shortDescription ? ` — Qloo: "${c.entity.shortDescription}"` : c.tags.length ? ` — Qloo tags: ${c.tags.map((t) => t.name).join(", ")}` : "";
+      const lines =
+        !a || a.status === "unresolved"
+          ? ["  not in Qloo: no evidence either way"]
+          : a.dimensions.filter((d) => !d.heuristic).map((d) => `  ${d.key}: ${d.explanation}`);
+      return `- ${SLOT_LABEL[c.slot]}: ${c.label}${what}\n${lines.join("\n")}`;
+    })
+    .join("\n");
+}
+
+const clampE = (s: EvidenceScores): EvidenceScores =>
+  Object.fromEntries(Object.entries(s).map(([k, v]) => [k, Math.min(5, Math.max(1, v))])) as unknown as EvidenceScores;
+const avgE = (a: EvidenceScores, b: EvidenceScores): EvidenceScores =>
+  Object.fromEntries(Object.keys(a).map((k) => [k, (a[k as keyof EvidenceScores] + b[k as keyof EvidenceScores]) / 2])) as unknown as EvidenceScores;
+
+async function onceE(llm: LlmClient, brief: string, anchors: string, a: string, b: string) {
+  const { data } = await generateStructured(llm, {
+    schema: evSchema,
+    system: EVIDENCE_SYSTEM,
+    prompt: `Brief:\n${brief}\n\nAudience signal used for the evidence (fans of): ${anchors}\n\nPlan A:\n${a}\n\nPlan B:\n${b}`,
+    label: "judge:evidence",
+  });
+  return data;
+}
+
+export async function judgeWithEvidence(
+  llm: LlmClient,
+  brief: LaunchBrief,
+  market: Market,
+  anchors: string[],
+  agent: { plan: CulturalPlan; evaluation: PlanEvaluation },
+  draft: { plan: CulturalPlan; evaluation: PlanEvaluation },
+): Promise<EvidenceVerdict> {
+  const text = briefText(brief, market).replace(/^Audience is fans of: .*$/m, "");
+  const ours = evidenceText(agent.plan, agent.evaluation);
+  const theirs = evidenceText(draft.plan, draft.evaluation);
+  const who = anchors.join(", ");
+  const [first, second] = await Promise.all([onceE(llm, text, who, ours, theirs), onceE(llm, text, who, theirs, ours)]);
+  const p1 = first.preferred === "A" ? "agent" : first.preferred === "B" ? "draft" : "tie";
+  const p2 = second.preferred === "A" ? "draft" : second.preferred === "B" ? "agent" : "tie";
+  const consistent = p1 === p2;
+  return {
+    agent: avgE(clampE(first.A), clampE(second.B)),
+    draft: avgE(clampE(first.B), clampE(second.A)),
     preferred: consistent ? p1 : "tie",
     consistent,
     reason: first.reason,

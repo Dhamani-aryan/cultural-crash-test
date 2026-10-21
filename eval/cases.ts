@@ -63,7 +63,7 @@ export const CASES: EvalCase[] = [
       audienceAnchors: ["Thrasher", "Vans", "Element Skateboards"],
       brandAttributes: ["rebellious", "community-led", "colourful"],
     },
-    heldOutAnchors: ["Santa Cruz Skateboards", "Charlie Brown Jr."],
+    heldOutAnchors: ["Charlie Brown Jr.", "Independent Truck Company", "Supreme"],
   },
   {
     id: "london-coffee",

@@ -90,7 +90,20 @@ describe("assessComponent", () => {
   it("calls a global name weak even when the audience likes it", () => {
     const a = evaluate(ev("artist_music", { local: local({ inCityList: false, global: true }) }));
     expect(a.status).toBe("weak");
-    expect(a.finding).toMatch(/global name/);
+    expect(a.finding).toMatch(/global default/);
+    expect(a.contradicted).toBe(true);
+  });
+
+  it("treats a foreign choice missing from the city list as thin evidence, not a contradiction", () => {
+    const a = evaluate(ev("brand_collaboration", { audience: [hit({ inList: false, rank: undefined })], local: local({ inCityList: false, foreign: true, origins: ["DK"] }) }));
+    expect(a.status).toBe("weak");
+    expect(a.contradicted).toBe(false);
+  });
+
+  it("doesn't treat no returned affinity as a contradiction for a name from here", () => {
+    const none = [hit({ inList: false, rank: undefined, returned: false })];
+    expect(evaluate(ev("brand_collaboration", { audience: none, local: local({ inCityList: false, fromHere: true }) })).contradicted).toBe(false);
+    expect(evaluate(ev("brand_collaboration", { audience: none, local: local({ inCityList: false, foreign: true }) })).contradicted).toBe(true);
   });
 
   it("renormalises over measured dimensions and lowers coverage", () => {

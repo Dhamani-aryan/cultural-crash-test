@@ -127,6 +127,23 @@ describe("runCrashTest", () => {
     expect(state.evaluations[0].components.find((c) => c.slot === "brand_collaboration")?.status).not.toBe("no_support");
   });
 
+  it("upgrades a thin choice only to an agent suggestion Qloo rates Supported", async () => {
+    const { client } = worldClient();
+    const { llm } = worldLlm({ draft: { artist: "Canal Echo" }, propose: ["Grey Lane"], pick: [W.localRapper.id] });
+    const state = await runCrashTest({ qloo: client, llm }, LONDON_BRIEF);
+    expect(state.changes[0]).toMatchObject({ before: "Canal Echo", after: "Grey Lane" });
+    expect(state.actions[0].why).toMatch(/Nothing in the plan is contradicted/);
+    expect(state.stopReason).toBe("acceptance_criteria_met");
+  });
+
+  it("keeps the thin choice when the upgrade wouldn't be Supported", async () => {
+    const { client } = worldClient();
+    const { llm } = worldLlm({ draft: { artist: "Canal Echo", brand: "Unknown Collective" }, propose: ["Unknown Collective"] });
+    const state = await runCrashTest({ qloo: client, llm }, LONDON_BRIEF);
+    expect(state.plan!.components.find((c) => c.slot === "artist_music")?.label).toBe("Canal Echo");
+    expect(state.stopReason).toBe("acceptance_criteria_met");
+  });
+
   it("ignores a model pick that isn't on the screened list", async () => {
     const { client } = worldClient();
     const { llm } = worldLlm({ pick: "made-up-id" });

@@ -124,9 +124,6 @@ function localDimension(ev: ComponentEvidence, what: string, city: string): Dime
   } else if (l.fromHere) {
     score = 1;
     explanation = `Qloo places ${what}'s origin in ${city}'s country.`;
-  } else if (l.foreign && !l.inCityList) {
-    score = 0.1;
-    explanation = `From ${l.origins.join(", ") || "another country"} and not in ${city}'s own top list.`;
   } else if (l.inCityList && !l.global && !l.familiarInSource) {
     score = 1;
     explanation = `In ${city}'s own top list and not in other cities' lists: distinctive here.`;
@@ -134,11 +131,18 @@ function localDimension(ev: ComponentEvidence, what: string, city: string): Dime
     score = 0.6;
     explanation = `In ${city}'s top list, but just as big ${l.global ? "in other world cities" : "in US cities"}.`;
   } else if (l.global) {
+    score = 0.2;
+    explanation = `A global default, not distinctive to ${city}: absent from its own top list.`;
+  } else if (l.familiarInSource) {
     score = 0.3;
-    explanation = `A global name, not distinctive to ${city}: absent from its own top list.`;
+    explanation = `Big in US cities' lists but absent from ${city}'s own top list.`;
   } else {
-    score = 0.3;
-    explanation = `Not in ${city}'s own top list for its kind${l.familiarInSource ? ", while it is in US cities' lists" : ""}.`;
+    // Not from here and not in the city's list is thin evidence, not a contradiction: a Danish
+    // design brand can be a fine London collaborator.
+    score = 0.4;
+    explanation =
+      `Not in ${city}'s own top list for its kind` +
+      (l.foreign && l.origins.length ? `; Qloo ties it to ${l.origins.join(", ")}.` : ".");
   }
   return { key: "local", score, weight, evidenceIds: [l.evidenceId], explanation };
 }
@@ -213,10 +217,15 @@ export function assessComponent(
     finding = `Breaks a hard constraint: ${banned.description}`;
   } else if (ev.audience && audience.score === undefined) {
     // Qloo returned nothing for it under this audience and city. Its other dimensions can't
-    // stand in for that, so it gets no total rather than a flattering one.
+    // stand in for that, so it gets no total rather than a flattering one. For a name Qloo
+    // places in the city's own country that is thin evidence, not a contradiction: under a
+    // location signal Qloo often leaves out very popular local names (Sanrio in Tokyo).
     status = "no_support";
-    finding = audience.explanation;
-    return { ...base, status, total: undefined, coverage, dimensions: dims, finding, contradicted: true };
+    const fromHere = Boolean(ev.local?.fromHere) && !ev.local?.place;
+    finding = fromHere
+      ? `${audience.explanation} It is from here, and Qloo often leaves out very popular local names under a city signal, so this is thin evidence, not a contradiction.`
+      : audience.explanation;
+    return { ...base, status, total: undefined, coverage, dimensions: dims, finding, contradicted: !fromHere };
   } else if (
     total !== undefined &&
     total >= SUPPORTED.total &&
@@ -239,10 +248,13 @@ export function assessComponent(
   // Weak is a contradiction only when the evidence points against the choice: a global or
   // foreign import (low local relevance), or a direction most of whose words this audience
   // here doesn't lean to. Thin evidence for a local choice is left for a human to judge.
+  // A generic global default (absent from the city's own list but big elsewhere or in the US)
+  // is the contradiction; being from another country or thinly evidenced is not.
+  const l = ev.local;
+  const globalDefault = Boolean(l && !l.place && !l.fromHere && !l.inCityList && (l.global || l.familiarInSource));
   const contradicted =
     status === "constraint_conflict" ||
-    (status === "weak" &&
-      (c.slot === "creative_direction" ? (audience.score ?? 0) < 0.5 : (local.score ?? 1) < 0.5));
+    (status === "weak" && (c.slot === "creative_direction" ? (audience.score ?? 0) < 0.5 : globalDefault));
   return { ...base, status, total, coverage, dimensions: dims, finding, contradicted };
 }
 

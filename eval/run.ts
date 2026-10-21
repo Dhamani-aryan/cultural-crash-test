@@ -16,12 +16,11 @@
  * by eval/report.ts.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { findByName } from "../src/lib/agent/check";
 import { createMemoryCache } from "../src/lib/cache/cache";
 import { evaluatePlan } from "../src/lib/crashtest/evaluate";
 import { gatherEvidence } from "../src/lib/crashtest/gather";
 import { createLedger } from "../src/lib/crashtest/ledger";
-import { toRef } from "../src/lib/crashtest/plan";
+import { findInMarket, toRef } from "../src/lib/crashtest/plan";
 import { runCrashTest } from "../src/lib/crashtest/run";
 import type { CulturalPlan, PlanEvaluation, RunState } from "../src/lib/crashtest/types";
 import { getQlooEnv } from "../src/lib/env";
@@ -30,7 +29,7 @@ import { marketById, type Market } from "../src/lib/markets";
 import { createQlooClient, type QlooClient } from "../src/lib/qloo";
 import { withCache } from "../src/lib/qloo/cached";
 import { CASES, type EvalCase } from "./cases";
-import { judgePlans, type Verdict } from "./judge";
+import { judgePlans, judgeWithEvidence, type EvidenceVerdict, type Verdict } from "./judge";
 
 const OUT = "eval/out";
 const FILE = `${OUT}/results.json`;
@@ -52,6 +51,9 @@ export interface CaseRow {
   draftUnresolved: string[];
   inRun: { draft: Scored; final: Scored } | null;
   heldOut: { anchors: string[]; missing: string[]; draft: Scored; final: Scored } | null;
+  /** Primary: judges from the held-out Qloo evidence, blind to which plan is the agent's. */
+  evidenceJudge: EvidenceVerdict | null;
+  /** Reference only: a judge with no evidence, choosing on its own taste. */
   judge: Verdict | null;
   run: Pick<RunState, "stopReason" | "stopDetail" | "currentIteration" | "qlooCallsUsed" | "llmCalls"> & {
     ms: number;
@@ -69,9 +71,7 @@ const scored = (e: PlanEvaluation): Scored => ({
 const labels = (p: CulturalPlan | null) => (p?.components ?? []).map((c) => `${c.slot}: ${c.label}`);
 
 async function heldOutScore(qloo: QlooClient, market: Market, c: EvalCase, state: RunState) {
-  const found = await Promise.all(
-    c.heldOutAnchors.map(async (n) => (await findByName(qloo, n, "brand")) ?? (await findByName(qloo, n, "artist"))),
-  );
+  const found = await Promise.all(c.heldOutAnchors.map((n) => findInMarket(qloo, n, ["brand", "artist"], market)));
   const anchors = found.flatMap((e) => (e ? [toRef(e)] : []));
   const missing = c.heldOutAnchors.filter((_, i) => !found[i]);
   if (anchors.length < 2) return { anchors: anchors.map((a) => a.name), missing, draft: null, final: null };
@@ -79,7 +79,7 @@ async function heldOutScore(qloo: QlooClient, market: Market, c: EvalCase, state
     const ctx = { client: qloo, ledger: createLedger(() => 0), market };
     const p = { ...plan, anchors };
     const evidence = await gatherEvidence(ctx, p);
-    return scored(evaluatePlan({ plan: p, evidence, constraints: state.brief.constraints, city: market.label, iteration: 0 }));
+    return evaluatePlan({ plan: p, evidence, constraints: state.brief.constraints, city: market.label, iteration: 0 });
   };
   return {
     anchors: anchors.map((a) => a.name),
@@ -114,15 +114,30 @@ async function runCase(qloo: QlooClient, c: EvalCase): Promise<CaseRow> {
     run,
   };
   if (!state.initialPlan || !state.plan || !state.evaluations.length) {
-    return { ...base, inRun: null, heldOut: null, judge: null, error: state.stopDetail ?? "no evaluation" };
+    return { ...base, inRun: null, heldOut: null, evidenceJudge: null, judge: null, error: state.stopDetail ?? "no evaluation" };
   }
   const inRun = { draft: scored(state.evaluations[0]), final: scored(state.evaluations.at(-1)!) };
   const held = await heldOutScore(qloo, market, c, state);
   const judge = await judgePlans(llm, state.brief, market, state.plan, state.initialPlan).catch(() => null);
+  const evidenceJudge =
+    held.draft && held.final
+      ? await judgeWithEvidence(
+          llm,
+          state.brief,
+          market,
+          held.anchors,
+          { plan: state.plan, evaluation: held.final },
+          { plan: state.initialPlan, evaluation: held.draft },
+        ).catch(() => null)
+      : null;
   return {
     ...base,
     inRun,
-    heldOut: held.draft && held.final ? { anchors: held.anchors, missing: held.missing, draft: held.draft, final: held.final } : null,
+    heldOut:
+      held.draft && held.final
+        ? { anchors: held.anchors, missing: held.missing, draft: scored(held.draft), final: scored(held.final) }
+        : null,
+    evidenceJudge,
     judge,
     error: held.draft ? null : `held-out anchors not found: ${held.missing.join(", ")}`,
   };
@@ -152,6 +167,7 @@ for (const c of CASES.filter((x) => only.length === 0 || only.includes(x.id))) {
       draftUnresolved: [],
       inRun: null,
       heldOut: null,
+      evidenceJudge: null,
       judge: null,
       run: { stopReason: "error", stopDetail: undefined, currentIteration: 0, qlooCallsUsed: 0, llmCalls: 0, ms: 0, changes: [] },
       error: err instanceof Error ? err.message : String(err),
@@ -161,7 +177,7 @@ for (const c of CASES.filter((x) => only.length === 0 || only.includes(x.id))) {
   console.log(
     row.error && !row.inRun
       ? `ERROR ${row.error}`
-      : `${Math.round(row.run.ms / 1000)} s, ${row.run.changes.length} changes, in-run ${row.inRun?.draft.supported}→${row.inRun?.final.supported}, held-out ${row.heldOut?.draft.supported ?? "-"}→${row.heldOut?.final.supported ?? "-"}, judge ${row.judge?.preferred ?? "-"}${row.error ? ` (${row.error})` : ""}`,
+      : `${Math.round(row.run.ms / 1000)} s, ${row.run.changes.length} changes, in-run ${row.inRun?.draft.supported}→${row.inRun?.final.supported}, held-out ${row.heldOut?.draft.supported ?? "-"}→${row.heldOut?.final.supported ?? "-"}, evidence judge ${row.evidenceJudge?.preferred ?? "-"}, blind judge ${row.judge?.preferred ?? "-"}${row.error ? ` (${row.error})` : ""}`,
   );
   const ordered = CASES.flatMap((x) => (rows.has(x.id) ? [rows.get(x.id)!] : []));
   writeFileSync(FILE, JSON.stringify({ ranAt: new Date().toISOString(), cases: ordered }, null, 2));
