@@ -48,6 +48,14 @@ describe("handleCrashTest", () => {
     expect(events.at(-1)?.type).toBe("done");
   });
 
+  it("accepts a plain-words query", async () => {
+    const events = await readEvents(
+      await handleCrashTest(post({ query: { query: "A streetwear pop-up in London for skate fans", marketId: "london" } }), world),
+    );
+    expect(events[0]).toMatchObject({ type: "stage", stage: "understand" });
+    expect(events.at(-1)?.type).toBe("done");
+  });
+
   it("refuses a live run when the limiter says so, but never a replay", async () => {
     const refuse = async () => new Response("slow down", { status: 429 });
     const res = await handleCrashTest(post({ brief: LONDON_BRIEF }), noDeps, () => createMemoryCache(10, new Map()), refuse);

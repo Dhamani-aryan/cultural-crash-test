@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import type { QueryRequest } from "@/lib/crashtest/query";
 import type {
   CulturalPlan,
   EvidenceRecord,
@@ -100,7 +101,7 @@ export function useCrashTest() {
   const [view, setView] = useState<View>(initial);
   const abort = useRef<AbortController | null>(null);
 
-  const run = useCallback(async (brief: LaunchBriefInput, fresh = false) => {
+  const run = useCallback(async (input: LaunchBriefInput | QueryRequest, fresh = false) => {
     abort.current?.abort();
     const controller = new AbortController();
     abort.current = controller;
@@ -109,7 +110,7 @@ export function useCrashTest() {
       const res = await fetch("/api/crashtest", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ brief, fresh }),
+        body: JSON.stringify("query" in input ? { query: input, fresh } : { brief: input, fresh }),
         signal: controller.signal,
       });
       if (!res.ok || !res.body) {

@@ -9,6 +9,7 @@ import {
   type ComponentAssessment,
   type Component,
   type CulturalPlan,
+  type PlanEvaluation,
   type RunState,
 } from "@/lib/crashtest/types";
 import { ScoreBar, StatusBadge } from "./status";
@@ -120,7 +121,14 @@ function PlanCompare({ state }: { state: RunState }) {
                 component={c}
                 assessment={last?.components.find((x) => x.slot === c.slot)}
               />
-              {!changed && <p className="mt-1 text-xs text-muted">{keptNote(last?.components.find((x) => x.slot === c.slot))}</p>}
+              {changed ? (
+                <p className="mt-2 text-xs leading-snug text-ink-2">
+                  <span className="text-accent">Why: </span>
+                  {[...state.changes].reverse().find((x) => x.slot === c.slot && !x.reverted)?.reason ?? "Replaced after testing."}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-muted">{keptNote(last?.components.find((x) => x.slot === c.slot))}</p>
+              )}
             </div>
           </div>
         );
@@ -174,62 +182,80 @@ function ComponentCard({ a, component }: { a: ComponentAssessment; component?: C
   );
 }
 
-export function Results({ state, onRerun }: { state: RunState; onRerun?: () => void }) {
+function ScoreCard({ label, sub, e, accent }: { label: string; sub: string; e?: PlanEvaluation; accent?: boolean }) {
+  return (
+    <div className={`rounded-lg border p-4 ${accent ? "border-accent" : "border-line"} bg-panel`}>
+      <p className={`text-xs uppercase tracking-wide ${accent ? "text-accent" : "text-muted"}`}>{label}</p>
+      <p className="mt-0.5 text-xs text-muted">{sub}</p>
+      <p className="mt-3 font-serif text-3xl">
+        {e?.supported ?? 0}
+        <span className="text-lg text-muted"> of {e?.components.length ?? 0} choices supported</span>
+      </p>
+      <p className="mt-1 text-sm text-ink-2">
+        {e?.contradicted ?? 0} contradicted by the evidence · plan score {pct(e?.totalScore)}
+      </p>
+    </div>
+  );
+}
+
+function Section({ title, children, open }: { title: string; children: React.ReactNode; open?: boolean }) {
+  return (
+    <details className="group rounded-lg border border-line bg-panel" open={open}>
+      <summary className="cursor-pointer list-none px-4 py-3 text-sm text-ink">
+        <span className="mr-2 inline-block text-muted transition-transform group-open:rotate-90">›</span>
+        {title}
+      </summary>
+      <div className="border-t border-line px-4 py-4">{children}</div>
+    </details>
+  );
+}
+
+export function Results({ state }: { state: RunState }) {
   const first = state.evaluations[0];
   const last = state.evaluations.at(-1);
   const name = slug(`${state.brief.brandName ?? "crash-test"}-${state.marketLabel}`);
+  const kept = state.changes.filter((c) => !c.reverted).length;
+  const tried = state.changes.length - kept;
   return (
-    <section aria-label="Results" className="space-y-8">
+    <section aria-label="Results" className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ScoreCard label="LLM alone" sub="The model's own plan, no Qloo data" e={first} />
+        <ScoreCard label="Agent" sub="Every choice tested against Qloo, contradicted ones fixed" e={last} accent />
+      </div>
+
+      {state.verdict && (
+        <div className="rounded-lg border border-line bg-panel p-5">
+          <p className="text-xs uppercase tracking-wide text-muted">Verdict</p>
+          <p className="mt-2 font-serif text-xl leading-snug">{state.verdict}</p>
+          <p className="mt-3 text-xs text-muted">
+            Written by the model from the recorded evidence. Stopped: {state.stopReason ? STOP_LABEL[state.stopReason] : "–"}
+            {state.stopDetail ? ` (${state.stopDetail})` : ""}.
+          </p>
+        </div>
+      )}
+
       <div>
-        <h3 className="font-serif text-2xl">What the LLM alone recommends vs. what the agent recommends</h3>
+        <h2 className="font-serif text-2xl">Choice by choice</h2>
         <p className="mb-3 mt-1 text-sm text-muted">
-          Same brief, same model. The left column is the model&apos;s plan before it saw any Qloo data; the right is the plan after the agent
-          tested every choice and replaced the ones Qloo&apos;s evidence contradicts. Choices with thin evidence are kept and flagged, not
-          swapped for the sake of a score. Both sides are judged by the same Qloo tests.
+          Same brief, same model. Left: what the LLM recommended before seeing any data. Right: what the agent recommends after testing
+          it, and why. Both sides are judged by the same Qloo tests.
         </p>
         <PlanCompare state={state} />
       </div>
-      <div className="rounded-lg border border-line bg-panel p-5">
-        <p className="text-xs uppercase tracking-wide text-muted">Verdict</p>
-        {state.verdict ? (
-          <p className="mt-2 font-serif text-xl leading-snug">{state.verdict}</p>
-        ) : (
-          <p className="mt-2 text-ink-2">No verdict was written for this run.</p>
-        )}
-        <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm">
-          <span>
-            <span className="text-muted">Supported choices </span>
-            {first?.supported ?? 0} of {first?.components.length ?? 0} → <strong>{last?.supported ?? 0} of {last?.components.length ?? 0}</strong>
-          </span>
-          <span>
-            <span className="text-muted">Plan score </span>
-            {pct(first?.totalScore)} → <strong>{pct(last?.totalScore)}</strong>
-          </span>
-          <span>
-            <span className="text-muted">Stopped: </span>
-            {state.stopReason ? STOP_LABEL[state.stopReason] : "–"}
-            {state.stopDetail && <span className="text-muted"> ({state.stopDetail})</span>}
-          </span>
-        </div>
-        <p className="mt-3 text-xs text-muted">
-          The verdict is written by the model from the recorded evidence; scores are this app&apos;s own, built from Qloo results. {DISCLAIMER}
-        </p>
-      </div>
 
+      <p className="text-xs text-muted">{DISCLAIMER}</p>
 
       {last && (
-        <div>
-          <h3 className="mb-3 font-serif text-2xl">Each choice, tested</h3>
+        <Section title="Evidence for each final choice">
           <div className="grid gap-4 lg:grid-cols-2">
             {last.components.map((a) => (
               <ComponentCard key={a.slot} a={a} component={state.plan?.components.find((c) => c.slot === a.slot)} />
             ))}
           </div>
-        </div>
+        </Section>
       )}
 
-      <div>
-        <h3 className="mb-3 font-serif text-2xl">Revision log</h3>
+      <Section title={`Revision log: ${kept} kept, ${tried} tried and not kept`}>
         {state.changes.length === 0 ? (
           <p className="text-sm text-muted">No changes were made.</p>
         ) : (
@@ -237,8 +263,10 @@ export function Results({ state, onRerun }: { state: RunState; onRerun?: () => v
             {state.changes.map((c, i) => (
               <li key={i} className="border-l-2 border-line pl-4">
                 <p className="text-sm">
-                  <span className="text-muted">Round {c.iteration} · {SLOT_LABEL[c.slot]}: </span>
-                  <span className="line-through decoration-1 text-muted">{c.before}</span> → <strong>{c.after}</strong>
+                  <span className="text-muted">
+                    Round {c.iteration} · {SLOT_LABEL[c.slot]}:{" "}
+                  </span>
+                  <span className="text-muted line-through decoration-1">{c.before}</span> → <strong>{c.after}</strong>
                   {c.reverted && <span className="ml-2 text-xs text-weak">tested, not kept</span>}
                 </p>
                 <p className="mt-1 text-sm text-ink-2">{c.reason}</p>
@@ -251,36 +279,34 @@ export function Results({ state, onRerun }: { state: RunState; onRerun?: () => v
             ))}
           </ol>
         )}
-      </div>
+      </Section>
 
       {(state.unresolvedQuestions.length > 0 || state.assumptions.length > 0) && (
-        <div className="grid gap-6 md:grid-cols-2">
-          {state.unresolvedQuestions.length > 0 && (
+        <Section title="Open questions and assumptions">
+          <div className="grid gap-6 md:grid-cols-2">
             <div>
-              <h3 className="mb-2 font-serif text-xl">Still open</h3>
+              <h3 className="mb-2 text-sm text-ink">For a human to check</h3>
               <ul className="list-disc space-y-1 pl-5 text-sm text-ink-2">
                 {state.unresolvedQuestions.map((q, i) => (
                   <li key={i}>{q}</li>
                 ))}
+                {!state.unresolvedQuestions.length && <li className="list-none text-muted">Nothing open.</li>}
               </ul>
             </div>
-          )}
-          {state.assumptions.length > 0 && (
             <div>
-              <h3 className="mb-2 font-serif text-xl">Assumptions</h3>
+              <h3 className="mb-2 text-sm text-ink">Assumed</h3>
               <ul className="list-disc space-y-1 pl-5 text-sm text-ink-2">
                 {state.assumptions.map((q, i) => (
                   <li key={i}>{q}</li>
                 ))}
               </ul>
             </div>
-          )}
-        </div>
+          </div>
+        </Section>
       )}
 
-      <details className="rounded-lg border border-line bg-panel p-4 text-sm">
-        <summary className="cursor-pointer text-ink">How the score is built (rubric {last?.rubricVersion})</summary>
-        <div className="mt-3 space-y-2 text-ink-2">
+      <Section title={`How the score is built (rubric ${last?.rubricVersion ?? ""})`}>
+        <div className="space-y-2 text-sm text-ink-2">
           <p>
             Every choice is tested against Qloo in {state.marketLabel}, for the audience its anchors stand for (
             {state.plan?.anchors.map((a) => a.name).join(", ")}):
@@ -288,29 +314,28 @@ export function Results({ state, onRerun }: { state: RunState; onRerun?: () => v
           <ul className="list-disc space-y-1 pl-5">
             <li>
               <strong>{DIMENSION_LABEL.audience}</strong> ({WEIGHTS.audience * 100}%): its rank among what this audience has affinity for in
-              the city (Qloo Insights with the anchors and the city as signals). Not returned at all means <em>no support found</em>.
+              the city (Qloo Insights with the anchors and the city as signals).
             </li>
             <li>
-              <strong>{DIMENSION_LABEL.local}</strong> ({WEIGHTS.local * 100}%): whether it is from here or distinctive here, versus a name
-              just as big in other world cities or the US (Qloo location-only lists and origin data).
+              <strong>{DIMENSION_LABEL.local}</strong> ({WEIGHTS.local * 100}%): from here or distinctive here, versus a global default
+              that is big elsewhere but absent from the city&apos;s own list.
             </li>
             <li>
               <strong>{DIMENSION_LABEL.coherence}</strong> ({WEIGHTS.coherence * 100}%): its rank when the plan&apos;s other choices are the
-              signal: do the choices support each other?
+              signal.
             </li>
             <li>
-              <strong>{DIMENSION_LABEL.distinct}</strong> ({WEIGHTS.distinct * 100}%): not a repeat of another choice. An app heuristic.
+              <strong>{DIMENSION_LABEL.distinct}</strong> ({WEIGHTS.distinct * 100}%): not a repeat of another choice (app heuristic).
             </li>
           </ul>
           <p>
-            The agent replaces a choice only when the evidence <em>contradicts</em> it: no support for this audience here, a hard
-            constraint broken, a global or foreign import, or a direction this audience here doesn&apos;t lean to. Dimensions without
-            evidence are left out and the weights renormalise; coverage is shown separately. A choice is
-            <em> Supported</em> when its score, audience affinity and local relevance are all at least 60 and every part of it is in the
-            audience&apos;s list. Affinity and ranks are Qloo&apos;s; the combination is this app&apos;s, and it is not a probability.
+            The agent replaces a choice only when the evidence <em>contradicts</em> it: no support here (for a name not from here), a hard
+            constraint broken, a global default, or a direction this audience here doesn&apos;t lean to. With rounds to spare, it tries to
+            upgrade thinly supported choices to a local pick, and keeps the swap only if Qloo rates it Supported. Missing evidence is never
+            scored as zero; affinity and ranks are Qloo&apos;s, the combination is this app&apos;s, and it is not a probability.
           </p>
         </div>
-      </details>
+      </Section>
 
       <div className="flex flex-wrap gap-3">
         <button
@@ -327,11 +352,6 @@ export function Results({ state, onRerun }: { state: RunState; onRerun?: () => v
         >
           Download run (JSON)
         </button>
-        {onRerun && (
-          <button type="button" className="rounded-md border border-line px-4 py-2 text-sm text-muted hover:border-muted" onClick={onRerun}>
-            Run it live again
-          </button>
-        )}
       </div>
     </section>
   );

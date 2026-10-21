@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { cacheKey, type Cache } from "@/lib/cache/cache";
 import { runCrashTest } from "@/lib/crashtest/run";
+import { QueryRequestSchema } from "@/lib/crashtest/query";
 import { LaunchBriefSchema, type RunEvent } from "@/lib/crashtest/types";
 import type { LlmClient } from "@/lib/llm/types";
 import { marketById } from "@/lib/markets";
@@ -13,14 +14,20 @@ export interface Deps {
   llm: LlmClient;
 }
 
-export const CrashTestRequestSchema = z.object({
-  brief: LaunchBriefSchema,
-  /** Ignore a recorded run of the same brief and run live. */
-  fresh: z.boolean().default(false),
-});
+export const CrashTestRequestSchema = z.union([
+  z.object({
+    brief: LaunchBriefSchema,
+    /** Ignore a recorded run of the same brief and run live. */
+    fresh: z.boolean().default(false),
+  }),
+  z.object({
+    query: QueryRequestSchema,
+    fresh: z.boolean().default(false),
+  }),
+]);
 
 /** Bump when the agent, rubric or prompts change in a way that should invalidate recordings. */
-export const RUN_VERSION = "crash:v7";
+export const RUN_VERSION = "crash:v8";
 const RECORDING_TTL = 14 * 24 * 60 * 60;
 
 export function runKey(brief: unknown): string {
@@ -108,9 +115,10 @@ export async function handleCrashTest(
   } catch (err) {
     return errorResponse(err);
   }
-  if (!marketById(body.brief.marketId)) return jsonError(400, "unsupported_city");
+  const input = "brief" in body ? body.brief : body.query;
+  if (!marketById(input.marketId)) return jsonError(400, "unsupported_city");
   const store = cache?.();
-  const key = runKey(body.brief);
+  const key = runKey("query" in input ? { ...input, query: input.query.trim().replace(/\s+/g, " ") } : input);
   if (store && !body.fresh) {
     const recording = await store.get<Recording>(key);
     if (recording) return sseResponse(replay(recording), req.signal);
@@ -124,7 +132,7 @@ export async function handleCrashTest(
     return errorResponse(err);
   }
   const live = eventStream<RunEvent>(
-    (emit) => runCrashTest(resolved, body.brief, { emit, signal: req.signal }),
+    (emit) => runCrashTest(resolved, input, { emit, signal: req.signal }),
     (message) => ({ type: "error", message }),
   );
   return sseResponse(store ? record(live, store, key) : live, req.signal);

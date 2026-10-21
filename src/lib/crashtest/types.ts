@@ -251,6 +251,8 @@ export interface ActionRecord {
 export interface RunState {
   runId: string;
   brief: LaunchBrief;
+  /** The plain-words description the brief was read from, when there was one. */
+  query?: string;
   marketLabel: string;
   initialPlan: CulturalPlan | null;
   plan: CulturalPlan | null;

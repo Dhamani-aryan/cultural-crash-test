@@ -171,6 +171,29 @@ describe("runCrashTest", () => {
     expect(state.unresolvedQuestions.join(" ")).toMatch(/Qloo only knows a different "Big Tex"/);
   });
 
+  it("reads a plain-words description into a brief, then runs on it", async () => {
+    const { client } = worldClient();
+    const { llm } = worldLlm();
+    const state = await runCrashTest({ qloo: client, llm }, {
+      query: "Streetwear pop-up in London for Northcap and Deckhouse fans. We want Big Tex to play. No Mossgrove.",
+      marketId: "london",
+    });
+    expect(state.query).toMatch(/Streetwear pop-up/);
+    expect(state.brief.audienceAnchors).toEqual(["Northcap", "Deckhouse"]);
+    expect(state.brief.constraints[0]).toMatchObject({ excludeNames: ["Mossgrove"] });
+    expect(state.assumptions[0]).toMatch(/Read from your description/);
+    expect(state.initialPlan!.components.find((c) => c.slot === "artist_music")?.origin).toBe("user_provided");
+    expect(state.stopReason).toBeDefined();
+  });
+
+  it("never tests the launching brand as its own collaborator", async () => {
+    const { client } = worldClient();
+    const { llm } = worldLlm({ draft: { brand: "Test Label" } });
+    const state = await runCrashTest({ qloo: client, llm }, LONDON_BRIEF);
+    expect(state.initialPlan!.components.find((c) => c.slot === "brand_collaboration")?.resolution).toBe("not_found");
+    expect(state.assumptions.join(" ")).toMatch(/launching brand itself/);
+  });
+
   it("ignores a model pick that isn't on the screened list", async () => {
     const { client } = worldClient();
     const { llm } = worldLlm({ pick: "made-up-id" });

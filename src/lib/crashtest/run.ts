@@ -6,6 +6,7 @@ import { MATERIAL_DELTA, compareEvaluations, evaluatePlan, type Progress } from 
 import { gatherEvidence, type GatherContext } from "./gather";
 import { BudgetExceeded, budgeted, createLedger } from "./ledger";
 import { buildPlan, draftPlan } from "./plan";
+import { QueryRequestSchema, parseQuery, type QueryRequest } from "./query";
 import { applyRepair, repairDirection, repairEntity, type RepairProposal } from "./repair";
 import { writeVerdict } from "./report";
 import {
@@ -50,27 +51,50 @@ class Cancelled extends Error {}
 
 export async function runCrashTest(
   deps: RunDeps,
-  briefInput: LaunchBriefInput,
+  input: LaunchBriefInput | QueryRequest,
   opts: RunOptions = {},
 ): Promise<RunState> {
   const emit = opts.emit ?? (() => {});
+  const market = marketById(input.marketId);
+  if (!market) throw new Error(`Unsupported city: ${input.marketId}`);
+
+  // A plain-words description is read into a brief first; the run records what it read.
+  let parseCalls = 0;
+  let read: string[] = [];
+  let briefInput: LaunchBriefInput;
+  let query: string | undefined;
+  if ("query" in input) {
+    const req = QueryRequestSchema.parse(input);
+    query = req.query;
+    emit({ type: "stage", stage: "understand", message: "Reading your description into a brief" });
+    const counting: LlmClient = {
+      provider: deps.llm.provider,
+      model: deps.llm.model,
+      generateText: (r) => {
+        parseCalls++;
+        return deps.llm.generateText({ ...r, signal: opts.signal });
+      },
+    };
+    ({ brief: briefInput, read } = await parseQuery(counting, req, market));
+  } else {
+    briefInput = input;
+  }
   const brief = LaunchBriefSchema.parse(briefInput);
-  const market = marketById(brief.marketId);
-  if (!market) throw new Error(`Unsupported city: ${brief.marketId}`);
   const depth = { ...DEPTHS[brief.depth], ...opts.limits };
 
   const state: RunState = {
     runId: opts.runId ?? randomUUID(),
     brief,
+    query,
     marketLabel: market.label,
     initialPlan: null,
     plan: null,
-    assumptions: [],
+    assumptions: [...read],
     currentIteration: 0,
     maxIterations: depth.maxRepairs,
     maxQlooCalls: depth.maxQlooCalls,
     qlooCallsUsed: 0,
-    llmCalls: 0,
+    llmCalls: parseCalls,
     evidenceLedger: [],
     evaluations: [],
     actions: [],

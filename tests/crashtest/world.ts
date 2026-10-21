@@ -146,6 +146,20 @@ export function worldLlm(
           assumptions: ["Assumed a one-weekend event."],
           ...over.draft,
         });
+      if (system.startsWith("Turn a description of a product launch"))
+        return reply({
+          brandName: "Test Label",
+          productCategory: "Streetwear",
+          launchGoal: "Pop-up launch",
+          audienceDescription: "Streetwear fans in London",
+          audienceAnchors: ["Northcap", "Deckhouse"],
+          brandAttributes: ["understated"],
+          budgetBand: "",
+          choices: [{ slot: "artist_music", name: "Big Tex" }],
+          keep: [],
+          exclude: ["Mossgrove"],
+          otherRules: [],
+        });
       if (system.startsWith("Map a creative direction"))
         return reply({ tags: ["Industrial", "Utilitarian"], note: "Close match." });
       if (system.startsWith("You are a cultural strategist who lives in")) return reply({ names: over.propose ?? [] });

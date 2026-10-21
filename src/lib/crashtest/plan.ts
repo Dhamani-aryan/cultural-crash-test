@@ -47,7 +47,7 @@ const draftSchema = z.object({
     .array(z.string())
     .describe("2-4 brands or artists, by exact name, whose fans are the target audience"),
   artist: z.string().describe("music act for the launch, exact name"),
-  brand: z.string().describe("collaboration brand, exact name"),
+  brand: z.string().describe("collaboration brand: another existing brand, never the launching brand itself; exact name"),
   venue: z.string().describe("pop-up venue in the city, exact name as it is known"),
   venueCategory: z.enum(PLACE_CATEGORIES),
   direction: z.string().describe("creative direction in a few words: aesthetic and tone"),
@@ -170,9 +170,14 @@ export async function findPlace(
   return full ?? hit;
 }
 
+/**
+ * The category a named venue is tested in: one of the event-friendly kinds it is filed under in
+ * Qloo, else the kind the plan asked for. Testing BOXPARK Shoreditch among "clothing stores"
+ * because the draft said so hides it; testing it among its own kind doesn't.
+ */
 export function categoryOf(e: QlooEntity, fallback: string): string {
   const cats = e.tags.filter((t) => t.id.startsWith("urn:tag:category:place:")).map((t) => t.id);
-  return cats.find((c) => PLACE_CATEGORIES.some((p) => c === placeTag(p))) ?? cats[0] ?? placeTag(fallback);
+  return cats.find((c) => PLACE_CATEGORIES.some((p) => c === placeTag(p))) ?? placeTag(fallback);
 }
 
 export async function resolveEntityComponent(
@@ -208,8 +213,7 @@ export async function resolveEntityComponent(
     resolution: e ? "resolved" : "not_found",
     entity: e ? toRef(e) : null,
     tags: [],
-    // The kind of venue the plan wants, not whatever Qloo files the named place under first.
-    placeCategory: slot === "event_place" ? placeTag(venueCategory) : null,
+    placeCategory: slot === "event_place" ? (e ? categoryOf(e, venueCategory) : placeTag(venueCategory)) : null,
   };
 }
 
@@ -292,7 +296,10 @@ export async function buildPlan(input: {
     origin: brief.existingChoices.some((c) => c.slot === slot) ? ("user_provided" as const) : input.origin,
     locked: locked(slot),
   });
-  const [artist, brand, venue] = await Promise.all([
+  const ownBrand = brief.brandName ? nameKey(brief.brandName) : null;
+  if (ownBrand && nameKey(draft.brand) === ownBrand)
+    notes.push(`The draft named the launching brand itself as its collaborator; that isn't a choice to test.`);
+  const [artist, brandResolved, venue] = await Promise.all([
     resolveEntityComponent(ctx.client, "artist_music", draft.artist, ctx.market, meta("artist_music"), undefined, draft.countries?.artist),
     resolveEntityComponent(
       ctx.client,
@@ -305,6 +312,10 @@ export async function buildPlan(input: {
     ),
     resolveEntityComponent(ctx.client, "event_place", draft.venue, ctx.market, meta("event_place"), draft.venueCategory),
   ]);
+  const brand: Component =
+    ownBrand && nameKey(draft.brand) === ownBrand
+      ? { ...brandResolved, resolution: "not_found", entity: null, label: draft.brand }
+      : brandResolved;
   const resolved = [artist, brand, venue];
   ctx.ledger.add({
     purpose: "Resolve the plan's choices to Qloo entities",
