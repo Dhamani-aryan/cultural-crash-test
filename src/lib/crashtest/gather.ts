@@ -313,9 +313,20 @@ export async function gatherEvidence(
     ev.duplicateOf = dup ? dup.label : null;
 
     const others = entityIds.filter((id) => id !== e.id);
+    // Qloo leaves signal entities out of its results, so an anchor used as a choice is tested
+    // against the other anchors (leave one out) instead of failing against itself.
+    const isAnchor = anchors.includes(e.id);
+    const audienceSignal = anchors.filter((id) => id !== e.id);
     const [audience, coherence, local] = await Promise.all([
-      anchors.length
-        ? entityHit(ctx, c, anchors, `Does this audience in ${ctx.market.label} have affinity for ${e.name}?`)
+      audienceSignal.length
+        ? entityHit(
+            ctx,
+            c,
+            audienceSignal,
+            isAnchor
+              ? `Does the rest of this audience in ${ctx.market.label} have affinity for ${e.name} (itself an audience anchor)?`
+              : `Does this audience in ${ctx.market.label} have affinity for ${e.name}?`,
+          )
         : null,
       others.length
         ? entityHit(ctx, c, others, `Does ${e.name} fit the rest of the plan in ${ctx.market.label}?`)

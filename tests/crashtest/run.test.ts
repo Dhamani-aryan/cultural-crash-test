@@ -117,6 +117,16 @@ describe("runCrashTest", () => {
     expect(open).toMatch(/"Unknown Collective" was kept but couldn't be tested/);
   });
 
+  it("tests an audience anchor used as a choice against the other anchors, not itself", async () => {
+    const { client, calls } = worldClient();
+    const { llm } = worldLlm({ draft: { brand: "Northcap" } });
+    const state = await runCrashTest({ qloo: client, llm }, LONDON_BRIEF);
+    const scored = calls.filter((c) => c.resultEntities?.includes(W.anchorA.id));
+    expect(scored.length).toBeGreaterThan(0);
+    for (const c of scored) expect(c.signalEntities).not.toContain(W.anchorA.id);
+    expect(state.evaluations[0].components.find((c) => c.slot === "brand_collaboration")?.status).not.toBe("no_support");
+  });
+
   it("ignores a model pick that isn't on the screened list", async () => {
     const { client } = worldClient();
     const { llm } = worldLlm({ pick: "made-up-id" });
