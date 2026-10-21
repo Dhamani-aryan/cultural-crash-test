@@ -124,7 +124,7 @@ export function worldClient(opts: WorldOptions = {}) {
 }
 
 /** A fake model that answers each step of a crash test by recognising its system prompt. */
-export function worldLlm(over: { draft?: Record<string, unknown>; pick?: string } = {}) {
+export function worldLlm(over: { draft?: Record<string, unknown>; pick?: string; reason?: string } = {}) {
   const prompts: string[] = [];
   const llm: LlmClient = {
     provider: "fake",
@@ -146,7 +146,7 @@ export function worldLlm(over: { draft?: Record<string, unknown>; pick?: string 
       if (system.startsWith("Map a creative direction"))
         return reply({ tags: ["Industrial", "Utilitarian"], note: "Close match." });
       if (system.startsWith("You repair one weak choice"))
-        return reply({ id: over.pick ?? W.localRapper.id, reason: "Ranks first for this audience in London and is from here.", expectedEffect: "Audience affinity found." });
+        return reply({ id: over.pick ?? W.localRapper.id, reason: over.reason ?? "Ranks first for this audience in London and is from here.", expectedEffect: "Audience affinity found." });
       if (system.startsWith("Revise a launch's creative direction"))
         return reply({ tags: ["Industrial"], direction: "Industrial", reason: "Top here.", expectedEffect: "Supported." });
       if (system.startsWith("Write a 2-3 sentence")) return reply("Verdict from the recorded facts.");

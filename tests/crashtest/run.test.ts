@@ -77,6 +77,14 @@ describe("runCrashTest", () => {
     expect(state.unresolvedQuestions.join(" ")).toMatch(/Music act/);
   });
 
+  it("lets the model veto every candidate as the wrong role, as an open question", async () => {
+    const { client } = worldClient();
+    const { llm } = worldLlm({ pick: "none", reason: "None of these acts suits a skate launch." });
+    const state = await runCrashTest({ qloo: client, llm }, LONDON_BRIEF);
+    expect(state.changes).toHaveLength(0);
+    expect(state.unresolvedQuestions.join(" ")).toMatch(/none fit the role \(None of these acts suits a skate launch\)/);
+  });
+
   it("ignores a model pick that isn't on the screened list", async () => {
     const { client } = worldClient();
     const { llm } = worldLlm({ pick: "made-up-id" });

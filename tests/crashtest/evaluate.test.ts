@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { compareEvaluations, evaluatePlan, hitScore } from "@/lib/crashtest/evaluate";
 import type { ComponentEvidence, ListHit } from "@/lib/crashtest/gather";
 import { BudgetExceeded, budgeted, itemsFrom, sanitizeInsights } from "@/lib/crashtest/ledger";
+import { roleFits } from "@/lib/crashtest/repair";
 import type { Component, CulturalPlan, PlanEvaluation, Slot } from "@/lib/crashtest/types";
 import { fakeClient } from "../engine/helpers";
 
@@ -207,5 +208,22 @@ describe("ledger", () => {
     const items = itemsFrom({ entities, tags: [], aggregateExplainability: null, durationMs: null } as never, ["e11"]);
     expect(items.map((x) => x.id)).toContain("e11");
     expect(items).toHaveLength(9);
+  });
+});
+
+describe("roleFits", () => {
+  const t = (id: string, type: string) => ({ id, type });
+  const venue = "urn:tag:category:place:event_venue";
+  it("rejects hotels and outlets as launch venues, and venues of another kind", () => {
+    expect(roleFits("event_place", { tags: [t(venue, "urn:tag:category:place"), t("urn:tag:category:place:hotel", "urn:tag:category:place")] }, null, venue)).toBe(false);
+    expect(roleFits("event_place", { tags: [t("urn:tag:category:place:bar", "urn:tag:category:place")] }, null, venue)).toBe(false);
+    expect(roleFits("event_place", { tags: [t(venue, "urn:tag:category:place")] }, null, venue)).toBe(true);
+  });
+  it("keeps a partner brand in the same kind of business", () => {
+    const beer = { tags: [t("urn:tag:genre:brand:beverage:beer", "urn:tag:genre:brand")] };
+    const app = { tags: [t("urn:tag:genre:brand:marketplace", "urn:tag:genre:brand")] };
+    expect(roleFits("brand_collaboration", app, beer, null)).toBe(false);
+    expect(roleFits("brand_collaboration", beer, beer, null)).toBe(true);
+    expect(roleFits("artist_music", app, beer, null)).toBe(true);
   });
 });

@@ -9,7 +9,7 @@ import { CONTROL_LOCATIONS, SOURCE_LOCATIONS, type Domain } from "@/lib/markets"
 import type { QlooEntity } from "@/lib/qloo";
 import { LIST_SIZE, tagList, type GatherContext } from "./gather";
 import { itemsFrom, sanitizeInsights } from "./ledger";
-import { briefText, categoryOf, toRef } from "./plan";
+import { briefText, toRef } from "./plan";
 import {
   SLOT_LABEL,
   SLOT_TYPE,
@@ -101,15 +101,45 @@ export function screenSummary(candidates: Pick<Candidate, "localWhy">[]): string
   return `of the top ${candidates.length} for this audience, ${[...counts].map(([why, n]) => `${n} ${why}`).join(", ")}`;
 }
 
+/** Venues a launch event can't be held in, whatever the audience data says. */
+const UNSUITABLE_VENUE =
+  /:(hotel|motel|hostel|resort|lodging|bed_and_breakfast|apartment|serviced_apartment|outlet|factory_outlet|outlet_store|self_storage|storage|airport|hospital|clinic|car_rental|gas_station|parking)$/;
+
+/**
+ * The same job as the original: a brand from the same kind of business (shared genre tags), a
+ * venue of the kind the plan asked for and able to host an event. Artists need no gate.
+ */
+export function roleFits(
+  slot: Slot,
+  candidate: { tags: { id: string; type: string | null }[] },
+  original: { tags: { id: string; type: string | null }[] } | null,
+  placeCategory: string | null,
+): boolean {
+  if (slot === "event_place") {
+    const cats = candidate.tags.filter((t) => t.id.startsWith("urn:tag:category:place:")).map((t) => t.id);
+    if (cats.some((c) => UNSUITABLE_VENUE.test(c))) return false;
+    return !placeCategory || cats.includes(placeCategory);
+  }
+  if (slot === "brand_collaboration" && original) {
+    const genres = new Set(categoryTags(original as never, "brand"));
+    if (!genres.size) return true;
+    return categoryTags(candidate as never, "brand").some((g) => genres.has(g));
+  }
+  return true;
+}
+
+const tagNames = (e: QlooEntity, prefix: string) =>
+  e.tags.filter((t) => t.id.startsWith(prefix) && t.name).map((t) => t.name!).slice(0, 3);
+
 const pickSchema = z.object({
-  id: z.string().describe("the chosen candidate's id, copied exactly"),
+  id: z.string().describe(`the chosen candidate's id, copied exactly, or "none" when no candidate can do this job`),
   reason: z.string().describe("one or two sentences citing the evidence given"),
   expectedEffect: z
     .string()
     .describe("which test should improve in the re-test (audience affinity, local relevance or fit with the plan), in one line"),
 });
 
-const PICK_SYSTEM = `You repair one weak choice in a launch plan. Choose the candidate that best keeps the brand's intent while fixing the weakness. Use only the evidence given; never claim anything it doesn't show, and never predict sales, engagement or attendance: the expected effect names which test should improve. Answer with the candidate's id exactly as given.`;
+const PICK_SYSTEM = `You repair one weak choice in a launch plan. Choose the candidate that best keeps the brand's intent while fixing the weakness. It must credibly do the same job for this brand: a venue that can host this launch, a partner brand that makes sense for this product, an act that suits the event. If no candidate can, answer "none" and say why; a forced bad fit is worse than an open question. Use only the evidence given; never claim anything it doesn't show, and never predict sales, engagement or attendance: the expected effect names which test should improve. Answer with the candidate's id exactly as given.`;
 
 export async function repairEntity(input: {
   llm: LlmClient;
@@ -166,10 +196,12 @@ export async function repairEntity(input: {
   const [original] = current.entity ? await ctx.client.getEntities([current.entity.id]) : [];
   const category = original ? categoryTags(original, domain) : [];
   const local = await screen(ctx, domain, category, records);
+  const fits = new Map(records.map((e) => [e.id, roleFits(slot, e, original ?? null, current.placeCategory)]));
   const originalRole = original ? roleTags(original) : new Map<string, number>();
 
   const candidates: Candidate[] = records.map((e, i) => {
     const l = local.get(e.id)!;
+    if (!fits.get(e.id)) l.why = place ? "not a venue of the planned kind" : "a different kind of business";
     const role = original ? roleSimilarity(originalRole, roleTags(e)) : { score: 0, shared: [] as string[] };
     const shared = role.shared.map((id) => kindLabel(id) ?? e.tags.find((t) => t.id === id)?.name ?? id);
     return {
@@ -183,11 +215,11 @@ export async function repairEntity(input: {
     };
   });
   const shortlist = candidates
-    .filter((c) => c.local)
+    .filter((c) => c.local && fits.get(c.entity.id))
     .sort((a, b) => b.score - a.score)
     .slice(0, SHORTLIST);
   const screenRecord = ctx.ledger.add({
-    purpose: `Screen candidates for locality in ${ctx.market.label} and for the same role as ${current.label}`,
+    purpose: `Screen candidates for locality in ${ctx.market.label} and for the same job as ${current.label}`,
     queryKind: "locality",
     sanitizedRequest: {
       method: `${ctx.market.label}'s own top list vs 4 other world cities and 4 US cities, plus origin data`,
@@ -197,7 +229,7 @@ export async function repairEntity(input: {
     results: candidates.slice(0, 10).map((c) => ({ id: c.entity.id, name: c.entity.displayName, rank: c.fitRank, popularity: c.entity.popularity ?? undefined })),
     resultCount: candidates.length,
     coverageStatus: shortlist.length ? "usable" : "empty",
-    warnings: shortlist.length ? [] : [`No candidate passed the locality screen: ${screenSummary(candidates)}.`],
+    warnings: shortlist.length ? [] : [`No candidate passed the screen: ${screenSummary(candidates)}.`],
   });
   if (!shortlist.length) return null;
 
@@ -205,6 +237,8 @@ export async function repairEntity(input: {
     (c) =>
       `id ${c.entity.id}: ${c.entity.displayName} — #${c.fitRank} for this audience with the plan in ${ctx.market.label}; ${c.localWhy}` +
       (c.sharedRole.length ? `; same role: ${c.sharedRole.slice(0, 4).join(", ")}` : "") +
+      (place ? `; kind: ${tagNames(c.entity, "urn:tag:category:place:").join(", ")}` : "") +
+      (slot === "brand_collaboration" ? `; business: ${tagNames(c.entity, "urn:tag:genre:brand").join(", ")}` : "") +
       (c.entity.shortDescription ? `; ${c.entity.shortDescription}` : ""),
   );
   const { data } = await generateStructured(input.llm, {
@@ -217,6 +251,19 @@ export async function repairEntity(input: {
     ].join("\n\n"),
     label: `repair:${slot}`,
   });
+  if (/^none$/i.test(data.id.trim())) {
+    ctx.ledger.add({
+      purpose: `The model judged that none of the screened candidates can do the job of the ${SLOT_LABEL[slot].toLowerCase()}`,
+      queryKind: "locality",
+      sanitizedRequest: { candidates: shortlist.map((c) => c.entity.id) },
+      qlooEntityIds: shortlist.map((c) => c.entity.id),
+      results: shortlist.map((c) => ({ id: c.entity.id, name: c.entity.displayName })),
+      resultCount: shortlist.length,
+      coverageStatus: "empty",
+      warnings: [`No candidate passed the screen: the model found none fit the role (${data.reason.replace(/\.$/, "")}).`],
+    });
+    return null;
+  }
   const chosen = shortlist.find((c) => c.entity.id === data.id.trim()) ?? shortlist[0];
   const after: Component = {
     slot,
@@ -226,7 +273,7 @@ export async function repairEntity(input: {
     resolution: "resolved",
     entity: toRef(chosen.entity),
     tags: [],
-    placeCategory: place ? (current.placeCategory ?? categoryOf(chosen.entity, "event_venue")) : null,
+    placeCategory: place ? current.placeCategory : null,
   };
   return {
     slot,

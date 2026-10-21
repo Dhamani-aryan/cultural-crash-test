@@ -143,7 +143,8 @@ export async function resolveEntityComponent(
     resolution: e ? "resolved" : "not_found",
     entity: e ? toRef(e) : null,
     tags: [],
-    placeCategory: slot === "event_place" ? (e ? categoryOf(e, venueCategory) : placeTag(venueCategory)) : null,
+    // The kind of venue the plan wants, not whatever Qloo files the named place under first.
+    placeCategory: slot === "event_place" ? placeTag(venueCategory) : null,
   };
 }
 
