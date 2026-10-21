@@ -146,5 +146,15 @@ export function useCrashTest() {
     setView(initial);
   }, []);
 
-  return { view, run, cancel, reset };
+  /** Show a finished run again (a saved chat), without running anything. */
+  const restore = useCallback((result: RunState | null) => {
+    abort.current?.abort();
+    setView(
+      result
+        ? { ...initial, phase: "done", result, plan: result.plan, initialPlan: result.initialPlan, evidence: result.evidenceLedger }
+        : initial,
+    );
+  }, []);
+
+  return { view, run, cancel, reset, restore };
 }
