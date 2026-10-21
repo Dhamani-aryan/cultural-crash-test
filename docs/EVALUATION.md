@@ -21,12 +21,12 @@ Three measurements, from least to most independent:
 
 | Measure | LLM-only draft | Agent |
 |---|---|---|
-| Supported choices, in-run (9 briefs, 36 choices) | 7 | 29 |
-| Mean plan score, in-run (app-defined, 0–100) | 63 | 82 |
-| **Supported choices, held-out anchors** (8 briefs, 32 choices) | **5** | **16** |
-| Mean plan score, held-out anchors | 60 | 76 |
-| Briefs where held-out support rose / fell | – | 6 / 0 |
-| Draft choices not found in Qloo at all | 5 of 36 | – |
+| Supported choices, in-run (9 briefs, 36 choices) | 9 | 30 |
+| Mean plan score, in-run (app-defined, 0–100) | 59 | 82 |
+| **Supported choices, held-out anchors** (8 briefs, 32 choices) | **5** | **18** |
+| Mean plan score, held-out anchors | 57 | 76 |
+| Briefs where held-out support rose / fell | – | 7 / 0 |
+| Draft choices not found in Qloo at all | 4 of 36 | – |
 
 ### Blind judge
 
@@ -34,28 +34,28 @@ Three measurements, from least to most independent:
 
 | Mean rating (1–5, both orders) | Draft | Agent |
 |---|---|---|
-| localFit | 4.9 | 3.6 |
-| specificity | 4.8 | 4.6 |
-| coherence | 4.9 | 3.4 |
-| constraints | 4.8 | 3.8 |
+| localFit | 4.9 | 3.4 |
+| specificity | 5.0 | 4.6 |
+| coherence | 4.9 | 3.2 |
+| constraints | 4.8 | 3.5 |
 
 ### Held-out briefs only
 
-6 briefs never used for tuning: supported choices with held-out anchors 2 → 10 of 24; judge agent 0 / draft 6 / tie 0.
+6 briefs never used for tuning: supported choices with held-out anchors 4 → 13 of 24; judge agent 0 / draft 6 / tie 0.
 
 ## Per brief
 
 | Brief | City | Split | Changes | In-run supported | Held-out supported | Judge | Stopped |
 |---|---|---|---|---|---|---|---|
-| london-streetwear | London | dev | Vans → PLACES+FACES; Nia Archives → slowthai; Understated industrial utility with DIY skate energy and a community-first tone → Understated industrial utility, oversized cuts, local skate collaborators | 1 → 4 | 1 → 4 | draft | Every adjustable choice is supported |
-| tokyo-sneakers | Tokyo | dev | Asics → Undercover; Understated utility, Tokyo night textures, community skate energy → Playful industrial utility with community skate energy | 1 → 3 | 2 → 2 | draft | Further repairs stopped improving the plan |
-| sao-paulo-skate | São Paulo | dev | ÖUS → Street League Skateboarding; Centro de Esportes Radicais → Pista De Skate Sumaré; Colour-saturated DIY skate graphics with rebellious, community-first energy → Bold-logo skate graphics with rebellious local-scene energy | 0 → 3 | – | draft | Reached the repair-round limit |
-| london-coffee | London | heldout | HAY → Acne Studios; Protein Studios Shoreditch → Quo Vadis; Kelly Lee Owens → Jamie xx | 1 → 4 | 0 → 1 | draft | Every adjustable choice is supported |
-| tokyo-skincare | Tokyo | heldout | Sanrio → Muji; ZeroBase Shibuya → Hilton Tokyo Bay; Wednesday Campanella → 宇多田ヒカル | 1 → 4 | 0 → 3 | draft | Every adjustable choice is supported |
-| sao-paulo-running | São Paulo | heldout | Strava → Ironman Triathlon; High-energy urban performance lab with inclusive run-club warmth → Dynamic, welcoming performance built on technical function | 0 → 2 | 1 → 2 | draft | Reached the repair-round limit |
-| madrid-beer | Madrid | heldout | CARIÑO → Miss Caffeina; Pompeii → Wallapop; Sala El Sol → Fundación Canal | 1 → 3 | 0 → 2 | draft | Reached the repair-round limit |
-| madrid-sustainable | Madrid | heldout | María José Llergo → Carlos Sadness; Ecoalf → Mam Originals | 2 → 4 | 1 → 1 | draft | Every adjustable choice is supported |
-| mumbai-sneakers | Mumbai | heldout | Divine → Raja Kumari; VegNonVeg → Skechers Factory Outlet - Dahisar, Mumbai; Norblack Norwhite → Koovs | 0 → 2 | 0 → 1 | draft | Reached the repair-round limit |
+| london-streetwear | London | dev | Vans → PLACES+FACES; Nia Archives → Skepta; Village Underground → Brixton Jamm | 0 → 3 | 0 → 2 | draft | Reached the repair-round limit |
+| tokyo-sneakers | Tokyo | dev | Diaspora skateboards → Undercover; kzm → Otoboke beaver; Understated industrial utility with Tokyo skate-documentary energy → Classic industrial utility, community-built | 1 → 4 | 1 → 3 | draft | Every adjustable choice is supported |
+| sao-paulo-skate | São Paulo | dev | Mad Rats → Rider; Tasha & Tracie → Charlie Brown JR.; Colour-saturated DIY skate energy; rebellious, raw and community-led → Bold, colorful graphics for a local skate-and-music session | 1 → 2 | – | draft | Reached the repair-round limit |
+| london-coffee | London | heldout | HAY → Acne Studios; Protein Studios Shoreditch → Quo Vadis; Floating Points → Jamie xx | 1 → 4 | 0 → 1 | draft | Every adjustable choice is supported |
+| tokyo-skincare | Tokyo | heldout | Casetify → Muji; Wednesday Campanella → ASIAN KUNG-FU GENERATION | 2 → 4 | 1 → 3 | draft | Every adjustable choice is supported |
+| sao-paulo-running | São Paulo | heldout | Casa das Caldeiras → Bourbon Street Music Club; Technical street-running energy, inclusive spirit, bold motion graphics → Dynamic, sleek, inclusive performance; Emicida → Rael | 1 → 3 | 1 → 3 | draft | Reached the repair-round limit |
+| madrid-beer | Madrid | heldout | Pompeii → Wallapop; Sala El Sol → National Music Auditorium; Ginebras → Miss Caffeina | 1 → 3 | 1 → 3 | draft | Reached the repair-round limit |
+| madrid-sustainable | Madrid | heldout | JUDELINE → Carlos Sadness; Sun-washed Mediterranean minimalism; tactile, transparent and contemporary → Transparent Mediterranean craft with innovative silhouettes | 2 → 4 | 1 → 1 | draft | Every adjustable choice is supported |
+| mumbai-sneakers | Mumbai | heldout | Divine → Badshah; antiSOCIAL Lower Parel → The Habitat; Almost Gods → Koovs | 0 → 3 | 0 → 2 | draft | Reached the repair-round limit |
 
 ## Plans
 
@@ -65,12 +65,12 @@ Audience: 18–30 year-old skate and streetwear fans in East London. Run anchors
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | Nia Archives | slowthai | weak → supported |
+| Music act | Nia Archives | Skepta | weak → no support |
 | Collaboration brand | Vans | PLACES+FACES | no support → supported |
-| Pop-up venue | Village Underground | (same) | supported → supported |
-| Creative direction | Understated industrial utility with DIY skate energy and a community-first tone | Understated industrial utility, oversized cuts, local skate collaborators | weak → supported |
+| Pop-up venue | Village Underground | Brixton Jamm | weak → supported |
+| Creative direction | Industrial utility, DIY skate energy, understated community warmth | (same) | weak → weak |
 
-Judge: _B pairs a highly relevant London act and credible East London venue with a cohesive DIY, community-first skate direction; Vans is less locally distinctive than PLACES+FACES, but the overall launch is better aligned and lower-risk._
+Judge: _Nia Archives and Village Underground give B a stronger East London connection, while Vans clearly serves the skate audience. A has credible London names, but Brixton is outside the target area._
 
 ### tokyo-sneakers (Tokyo)
 
@@ -78,12 +78,12 @@ Audience: Young streetwear and sneaker collectors in Tokyo. Run anchors: Stüssy
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | kzm | (same) | weak → weak |
-| Collaboration brand | Asics | Undercover | weak → supported |
+| Music act | kzm | Otoboke beaver | weak → weak |
+| Collaboration brand | Diaspora skateboards | Undercover | unresolved → supported |
 | Pop-up venue | Ba-Tsu Art Gallery | (same) | supported → supported |
-| Creative direction | Understated utility, Tokyo night textures, community skate energy | Playful industrial utility with community skate energy | supported → weak |
+| Creative direction | Understated industrial utility with Tokyo skate-documentary energy | Classic industrial utility, community-built | weak → supported |
 
-Judge: _Both plans use credible Tokyo references, but B’s ASICS collaboration and night-textured utility direction align more tightly with sneaker collectors and the brand’s understated, community-led positioning._
+Judge: _B’s kZm and Diaspora skateboards pairing is distinctly Tokyo, youth-relevant, and tightly aligned with the utilitarian, community-led skate brief; A is credible but less cohesive and locally focused._
 
 ### sao-paulo-skate (São Paulo)
 
@@ -91,12 +91,12 @@ Audience: Skaters and street-culture fans in São Paulo, 16–28. Run anchors: T
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | Tasha & Tracie | (same) | – |
-| Collaboration brand | ÖUS | Street League Skateboarding | – |
-| Pop-up venue | Centro de Esportes Radicais | Pista De Skate Sumaré | – |
-| Creative direction | Colour-saturated DIY skate graphics with rebellious, community-first energy | Bold-logo skate graphics with rebellious local-scene energy | – |
+| Music act | Tasha & Tracie | Charlie Brown JR. | – |
+| Collaboration brand | Mad Rats | Rider | – |
+| Pop-up venue | CavePool São Paulo Skate | (same) | – |
+| Creative direction | Colour-saturated DIY skate energy; rebellious, raw and community-led | Bold, colorful graphics for a local skate-and-music session | – |
 
-Judge: _B combines São Paulo act Tasha & Tracie with Brazilian skate brand ÖUS and a credible local skate venue, creating a more cohesive, community-led launch than A’s globally oriented Street League collaboration._
+Judge: _B combines a current São Paulo act with a credible Brazilian skate brand and a concrete venue, creating a cohesive, colourful community-led session. A has strong local recognition, but Charlie Brown Jr. is not a viable current live act._
 
 Note: held-out anchors not found: Santa Cruz Skateboards
 
@@ -106,12 +106,12 @@ Audience: Design-minded young professionals who care about craft coffee. Run anc
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | Kelly Lee Owens | Jamie xx | weak → weak |
+| Music act | Floating Points | Jamie xx | weak → weak |
 | Collaboration brand | HAY | Acne Studios | weak → supported |
 | Pop-up venue | Protein Studios Shoreditch | Quo Vadis | weak → weak |
-| Creative direction | Calm, tactile minimalism with warm neutrals, natural materials and precise typography | (same) | weak → weak |
+| Creative direction | Calm modernism, tactile materials and precise editorial restraint | (same) | weak → weak |
 
-Judge: _B feels more naturally embedded in London’s design-and-culture scene, with Kelly Lee Owens and Protein Studios creating a coherent Shoreditch launch context. HAY also aligns closely with the calm, crafted minimalism._
+Judge: _Floating Points and Protein Studios feel especially rooted in London’s design-conscious creative scene, while HAY reinforces the calm, crafted minimalism. A is culturally strong but Jamie xx and Acne Studios feel more like high-profile fashion defaults than a tightly scaled café launch._
 
 ### tokyo-skincare (Tokyo)
 
@@ -119,12 +119,12 @@ Audience: Women in their twenties in Tokyo who follow beauty and pop culture. Ru
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | Wednesday Campanella | 宇多田ヒカル | weak → supported |
-| Collaboration brand | Sanrio | Muji | no support → supported |
-| Pop-up venue | ZeroBase Shibuya | Hilton Tokyo Bay | unresolved → supported |
-| Creative direction | Soft pastel minimalism with playful kawaii accents | (same) | weak → weak |
+| Music act | Wednesday Campanella | ASIAN KUNG-FU GENERATION | weak → supported |
+| Collaboration brand | Casetify | Muji | no support → supported |
+| Pop-up venue | Ba-Tsu Art Gallery | (same) | supported → supported |
+| Creative direction | Soft luminous minimalism with playful kawaii accents | (same) | weak → weak |
 
-Judge: _Plan B tightly matches Tokyo beauty and pop-culture tastes through Wednesday Campanella, Sanrio, and a highly accessible Shibuya pop-up, while Plan A’s Muji pairing and Tokyo Bay hotel venue feel less youthful and culturally aligned._
+Judge: _Wednesday Campanella and Casetify better match Tokyo women in their twenties who follow playful beauty and pop culture, while Plan A’s rock act and restrained Muji collaboration feel less aligned despite the strong venue and direction._
 
 ### sao-paulo-running (São Paulo)
 
@@ -132,12 +132,12 @@ Audience: Urban runners in São Paulo, 22–40. Run anchors: Asics, Lululemon, S
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | Badsista | (same) | weak → weak |
-| Collaboration brand | Strava | Ironman Triathlon | supported → supported |
-| Pop-up venue | ARCA | (same) | weak → weak |
-| Creative direction | High-energy urban performance lab with inclusive run-club warmth | Dynamic, welcoming performance built on technical function | weak → supported |
+| Music act | Emicida | Rael | weak → weak |
+| Collaboration brand | Oakley | (same) | supported → supported |
+| Pop-up venue | Casa das Caldeiras | Bourbon Street Music Club | weak → supported |
+| Creative direction | Technical street-running energy, inclusive spirit, bold motion graphics | Dynamic, sleek, inclusive performance | weak → supported |
 
-Judge: _B better connects São Paulo-local Badsista and ARCA with the audience-relevant Strava ecosystem and an inclusive technical run-club concept. Both plans omit the required ambassador._
+Judge: _Emicida and Casa das Caldeiras feel distinctly rooted in São Paulo, while the technical street-running direction coherently matches the audience and brand. Neither plan clearly identifies a running ambassador, but B offers the stronger launch platform._
 
 ### madrid-beer (Madrid)
 
@@ -145,12 +145,12 @@ Audience: Indie music fans in Madrid, 25–35. Run anchors: Mahou, Vetusta Morla
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | CARIÑO | Miss Caffeina | no support → supported |
+| Music act | Ginebras | Miss Caffeina | weak → supported |
 | Collaboration brand | Pompeii | Wallapop | no support → weak |
-| Pop-up venue | Sala El Sol | Fundación Canal | unresolved → supported |
-| Creative direction | Cálido indie madrileño, cercano y sin pretensiones | (same) | weak → weak |
+| Pop-up venue | Sala El Sol | National Music Auditorium | unresolved → supported |
+| Creative direction | Warm neighborhood energy, analogue gig-poster graphics and an unpretentious Madrid bar atmosphere | (same) | supported → supported |
 
-Judge: _B combines a Madrid indie act, a locally rooted fashion partner and the iconic Sala El Sol into a credible, warm night. A’s Fundación Canal and Wallapop feel less natural for this audience and occasion._
+Judge: _Ginebras, Madrid-based Pompeii and the iconic Sala El Sol form a credible, cohesive local indie launch. Plan A’s formal National Music Auditorium clashes with the warm, unpretentious bar atmosphere._
 
 ### madrid-sustainable (Madrid)
 
@@ -158,12 +158,12 @@ Audience: Environmentally minded fashion buyers in Madrid, 20–35. Run anchors:
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | María José Llergo | Carlos Sadness | no support → weak |
-| Collaboration brand | Ecoalf | Mam Originals | weak → weak |
+| Music act | JUDELINE | Carlos Sadness | weak → weak |
+| Collaboration brand | Camper | (same) | weak → weak |
 | Pop-up venue | Matadero Madrid | (same) | supported → supported |
-| Creative direction | Sun-washed Mediterranean minimalism with an honest, contemporary tone | (same) | weak → weak |
+| Creative direction | Sun-washed Mediterranean minimalism; tactile, transparent and contemporary | Transparent Mediterranean craft with innovative silhouettes | weak → weak |
 
-Judge: _B pairs Madrid-founded Ecoalf with María José Llergo’s modern Spanish identity, directly matching the audience’s sustainability and Rosalía-adjacent interests. A is credible but less sharply aligned._
+Judge: _JUDELINE has stronger relevance for young Madrid audiences and Rosalía fans, while Camper and Matadero are credible, locally resonant choices. Its Mediterranean creative direction also unifies the music, capsule and venue more clearly._
 
 ### mumbai-sneakers (Mumbai)
 
@@ -171,16 +171,16 @@ Audience: Sneaker and hip-hop fans in Mumbai, 18–28. Run anchors: Nike, Bewako
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | Divine | Raja Kumari | no support → weak |
-| Collaboration brand | Norblack Norwhite | Koovs | weak → weak |
-| Pop-up venue | VegNonVeg | Skechers Factory Outlet - Dahisar, Mumbai | unresolved → supported |
-| Creative direction | Bold Mumbai street energy, gritty graphics, vivid color and homegrown hip-hop swagger | (same) | weak → weak |
+| Music act | Divine | Badshah | no support → supported |
+| Collaboration brand | Almost Gods | Koovs | unresolved → weak |
+| Pop-up venue | antiSOCIAL Lower Parel | The Habitat | no support → supported |
+| Creative direction | Bold Mumbai street culture, gritty typography and high-energy hip-hop visuals | (same) | weak → weak |
 
-Judge: _B tightly connects Mumbai hip-hop through DIVINE with homegrown streetwear label NorBlack NorWhite and sneaker-community venue VegNonVeg. A is concrete but Koovs and a Skechers outlet feel generic and less culturally credible._
+Judge: _B is distinctly Mumbai and homegrown, pairing DIVINE and Almost Gods with a credible hip-hop venue. A is concrete but leans on less locally resonant, more generic commercial choices._
 
 ## Cost
 
-Mean 67 s per brief, 312 Qloo calls (counted before the cache), 5.7 model calls. Repair rounds used: 3, 3, 3, 3, 3, 3, 3, 2, 3.
+Mean 57 s per brief, 325 Qloo calls (counted before the cache), 5.8 model calls. Repair rounds used: 3, 3, 3, 3, 2, 3, 3, 2, 3.
 
 ## Limits of this evaluation
 
