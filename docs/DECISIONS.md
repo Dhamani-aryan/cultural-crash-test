@@ -2,6 +2,27 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-21: Run 13 — held-out anchors never double as plan choices
+
+**The fix (eval only, agent unchanged).** Each case now has spare held-out anchors. Any held-out anchor that either plan uses as a choice is swapped for a spare, and the report lists the exclusion. Qloo leaves signal entities out of its results, so otherwise that choice would be tested against itself. The overlap had already appeared twice:
+- Neighborhood in Tokyo, in run 12;
+- Badshah in Mumbai, in earlier runs.
+
+**Results against run 12:**
+
+| Measure | Run 12 | Run 13 |
+|---|---|---|
+| Evidence judge (agent / LLM / tie) | 7 / 1 / 1 | 8 / 0 / 1 |
+| Evidence judge, held-out briefs | 5 / 0 / 1 | 6 / 0 / 0 |
+| Held-out supported (of 36) | 4 → 19 | 4 → 17 |
+| Briefs where held-out support rose / fell | 7 / 0 | 8 / 0 |
+| Blind reference judge | 2 / 4 / 3 | 0 / 8 / 1 |
+
+**Reading it:**
+- **No brief lost on evidence.** In Tokyo, with Neighborhood excluded from the held-out anchors, the agent now wins.
+- **The tie is London streetwear.** The LLM's draft was already strong (Ezra Collective, Fred Perry, Village Underground), so the agent only reworded the creative direction.
+- **Two measures declined:** held-out supported choices (19 → 17) and the no-evidence reference judge. Both are within the run-to-run variance seen so far, because the drafts differ every run.
+
 ## 2026-10-21: Run 12 — unknown brands kept under unverifiable rules (RUN_VERSION crash:v12)
 
 **The change.** A collaboration brand Qloo doesn't know is never upgraded when the brief has a hard rule code can't fully verify:

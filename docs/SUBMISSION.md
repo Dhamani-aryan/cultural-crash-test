@@ -52,8 +52,8 @@ The model never scores, never counts and never decides when to stop.
 ## Evaluation
 
 9 fixed briefs across London, Tokyo, São Paulo, Madrid and Mumbai: 3 used during development, 6 held out. The LLM-only draft and the agent's final plan were compared in two ways:
-- **Held-out anchors:** both plans re-scored with audience brands and artists the agent never saw. Supported choices rose in every run, from **4 → 22** and **7 → 18 of 36** in the last two runs, and never fell in any brief.
-- **Evidence-based judge:** blind to which plan is the agent's, run in both orders, and told to judge from the evidence only. It preferred the agent's plan in **9 of 9 briefs** in both of the last two runs (6 of 6 held-out).
+- **Held-out anchors:** both plans re-scored with audience brands and artists the agent never saw, and never also used as a plan choice. Supported choices: **4 → 17 of 36** in the latest run. Support rose in 8 briefs and fell in none, as in every run so far.
+- **Evidence-based judge:** blind to which plan is the agent's, run in both orders, and told to judge from the evidence only. In the latest run it preferred the agent's plan in **8 of 9 briefs** and called one a tie, with **no losses**. On the 6 briefs never used for tuning it was **6 of 6**.
 
 Full method, every run (including the early ones the agent lost, and why), and the limits are in `docs/EVALUATION.md` and `docs/DECISIONS.md`.
 

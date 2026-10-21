@@ -78,7 +78,8 @@ All runs use the same 9 briefs. Two independent checks:
 | 9 | Namesakes flagged, origin from descriptions, one-box brief, venue category fix | 7 → 18 of 36 (8 up, 0 down) | 9 / 0 / 0 | 1 / 8 / 0 |
 | 10 | gpt-6-luna everywhere; intake; exploration rules; event-format venue gate | 5 → 22 of 36 (9 up, 0 down) | 8 / 1 / 0 (loss: Madrid sustainable) | 0 / 6 / 3 |
 | 11 | Brief-fit gate for unknown originals; 'No …' rules checked on evidence | 4 → 20 of 36 (9 up, 0 down) | 8 / 1 / 0 (Madrid: a judgement call) | 0 / 6 / 3 |
-| 12 | Unknown brands kept under unverifiable hard rules, with a human question | **4 → 19 of 36 (7 up, 0 down)** | **7 / 1 / 1** (Madrid loss → tie; new Tokyo loss, unrelated to the change, see DECISIONS) | 2 / 4 / 3 |
+| 12 | Unknown brands kept under unverifiable hard rules, with a human question | 4 → 19 of 36 (7 up, 0 down) | 7 / 1 / 1 (Madrid loss → tie; Tokyo loss from an anchor overlap) | 2 / 4 / 3 |
+| 13 | Eval: held-out anchors never double as plan choices (spares) | **4 → 17 of 36 (8 up, 0 down)** | **8 / 0 / 1** (held-out briefs 6 / 0 / 0) | 0 / 8 / 1 |
 
 The no-evidence judge is the same model that wrote the LLM plan and sees no data, so it is *choosing*, not judging. It's reported for transparency only.
 
