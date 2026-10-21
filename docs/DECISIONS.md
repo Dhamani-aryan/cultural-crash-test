@@ -2,6 +2,21 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-21: Run 9 — namesakes, origin from descriptions, one-box brief
+
+Fixes since run 8:
+- Wrong namesakes are flagged as ambiguous instead of tested. Qloo's only "Divine" is an American performer, not the Mumbai rapper.
+- Origin is read from company descriptions ("a Japanese entertainment company"). Sanrio had no other origin signal.
+- A user's venue is tested in its own event-friendly category.
+- The draft can't name the launching brand as its own collaborator.
+- Plain-words briefs.
+
+**Run 9 results:**
+- **Held-out supported:** 7 → 18 of 36; 8 briefs up, 0 down.
+- **Evidence judge:** 9 / 0 / 0, and 6 / 0 / 0 on the held-out briefs.
+- **Blind reference judge:** 1 / 8 / 0.
+- **DIVINE is no longer swapped.**
+
 ## 2026-10-21: Runs 7–8 — local-only upgrades and fixed gates
 
 **São Paulo diagnosis.** Upgrades only tried the agent's own suggestions, even though Qloo's audience list had Brazilian acts in it, and creative direction was never upgraded.

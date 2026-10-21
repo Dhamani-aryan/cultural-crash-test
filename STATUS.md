@@ -73,7 +73,8 @@ All runs use the same 9 briefs. Two independent checks:
 | 3 | Agent proposes candidates, tries 3 per round | 6 → 23 of 32 | – | 0 / 9 / 0 |
 | 4 | Replace only what the evidence contradicts | 6 → 10 of 32 | – | 1 / 5 / 3 |
 | 6 | Measurement fixes + evidence judge | 3 → 10 of 36 | 7 / 0 / 2 | 1 / 3 / 5 |
-| 8 | Local-only upgrades, fixed checks | **4 → 22 of 36 (every brief up)** | **9 / 0 / 0** | 0 / 9 / 0 |
+| 8 | Local-only upgrades, fixed checks | 4 → 22 of 36 (every brief up) | 9 / 0 / 0 | 0 / 9 / 0 |
+| 9 | Namesakes flagged, origin from descriptions, one-box brief, venue category fix | **7 → 18 of 36 (8 up, 0 down)** | **9 / 0 / 0** | 1 / 8 / 0 |
 
 The no-evidence judge is the same model that wrote the LLM plan and sees no data, so it is *choosing*, not judging. It's reported for transparency only.
 
