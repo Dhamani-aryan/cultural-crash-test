@@ -28,7 +28,7 @@ const SYSTEM = `You are a senior transcreator adapting American copy for a speci
 
 Decide for each reference:
 - "swap": choose the candidate that does the same job in this sentence for a local reader. Fit the sentence: a food comparison needs something people eat, a "the X of Y" comparison needs something famous enough to be shorthand. Prefer recognisable over obscure.
-- "keep": no candidate carries the meaning AND the original is already well known locally, so it still works as is. A strong local candidate beats keeping a famous American reference: the point is to sound local.
+- "keep": the original still works as is for a local reader. Use it when the original is marked as known in this city or worldwide AND no candidate does the job clearly better (a global icon like a phone brand or a coffee chain that is everywhere often reads more naturally kept). Otherwise a strong local candidate beats keeping an American reference: the point is to sound local.
 - "flag": no candidate carries the meaning; a human should rewrite the line.
 - "try_domain": the meaning would travel better through another kind of culture (e.g. no local sitcom fits, but a local snack brand would). Name the domain. Only use this when the current candidates clearly don't work.
 
@@ -36,7 +36,7 @@ Rules: only choose candidate IDs that are listed for that reference. Never sugge
 
 function describeCandidate(id: string, e: Equivalent): string {
   const bits = [
-    `${id}: ${e.entity.displayName}`,
+    `${id}: ${e.entity.displayName}${e.proposed ? " (your suggestion, confirmed local in Qloo)" : ""}`,
     e.entity.shortDescription ?? e.entity.description?.slice(0, 160),
     e.sharedTags.length ? `shares: ${e.sharedTags.join(", ")}` : "shares no role tags",
     `#${e.localRank} of ${e.poolSize} in this city's list`,
@@ -73,7 +73,16 @@ export function buildDecidePrompt(input: DecideInput): string {
       eq && eq.equivalents.length
         ? eq.equivalents.map((e, i) => "  " + describeCandidate(`${r.ref}.${i + 1}`, e)).join("\n")
         : `  (no candidates: ${eq?.confidence === "off" ? `Qloo's data for ${DOMAIN_LABEL[r.domain!]} in this city is too thin` : "nothing local passed the checks"})`;
-    return `${r.ref} "${r.surface}" — job: ${r.job}\n  original: ${anchor}\n${candidates}`;
+    const known = eq?.anchor.global
+      ? "known worldwide"
+      : eq?.anchor.inCity
+        ? "already in this city's taste list"
+        : "not especially known in this city";
+    const dropped = eq?.rejected.filter((x) => x.proposed).map((x) => x.name) ?? [];
+    const droppedLine = dropped.length
+      ? `\n  (your suggestions that failed Qloo's local checks: ${dropped.join(", ")})`
+      : "";
+    return `${r.ref} "${r.surface}" — job: ${r.job}\n  original: ${anchor} · ${known}\n${candidates}${droppedLine}`;
   });
   return [
     `City: ${input.market.label} (${input.market.language}).`,
@@ -121,6 +130,9 @@ export function applyDecisions(
       domain: eq?.domain ?? r.domain,
       confidence: eq?.confidence ?? null,
       triedDomain: null,
+      dropped: (eq?.rejected ?? [])
+        .filter((x) => x.proposed)
+        .map((x) => ({ name: x.name, reason: x.reason })),
     };
     if (!r.entity) {
       decisions.push({

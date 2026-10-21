@@ -39,6 +39,8 @@ export interface Decision {
   reason: string;
   /** Set when the agent searched another kind of culture for a better fit. */
   triedDomain: Domain | null;
+  /** The agent's own suggestions that Qloo's checks turned down, and why. */
+  dropped: { name: string; reason: string }[];
 }
 
 export interface Replacement {
@@ -64,6 +66,8 @@ export interface BaselineResult {
   swaps: {
     original: string;
     replacement: string;
+    /** What the model said the replacement is. */
+    kind: Domain;
     /**
      * What Qloo says about the model's pick: unknown to Qloo, of foreign origin, in the city's
      * own taste lists (local evidence), or known to Qloo but not distinctive in that city.

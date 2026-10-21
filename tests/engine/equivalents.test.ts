@@ -97,6 +97,31 @@ describe("findEquivalents", () => {
     expect(r.rejected).toContainEqual({ name: "赤西例", reason: "duplicate" });
   });
 
+  it("adds the agent's proposals only when Qloo shows they are local", async () => {
+    const { client } = setup();
+    const known = entity("local-fit", { name: "Bocadillo Rápido", tags: [DINING, HEALTHY, OFFICE] });
+    const unknown = entity("nowhere", { name: "Imagined Café", tags: [DINING] });
+    const r = await findEquivalents(client, {
+      anchor,
+      domain: "brand",
+      market: madrid,
+      proposals: [known, unknown],
+    });
+    expect(r.equivalents[0]).toMatchObject({ proposed: true });
+    expect(r.equivalents[0].entity.id).toBe("local-fit");
+    expect(r.rejected).toContainEqual({
+      name: "Imagined Café",
+      reason: "no_local_evidence",
+      proposed: true,
+    });
+  });
+
+  it("says whether the original is already known in the city", async () => {
+    const { client } = setup({ lists: { Madrid: [anchor] } });
+    const r = await findEquivalents(client, { anchor, domain: "brand", market: madrid });
+    expect(r.anchor).toEqual({ inCity: true, global: false });
+  });
+
   it("returns nothing for a domain the market doesn't cover", async () => {
     const london = marketById("london")!;
     const { client, calls } = fakeClient({ lists: {} });

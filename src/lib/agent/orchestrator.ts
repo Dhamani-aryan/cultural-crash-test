@@ -6,6 +6,7 @@ import type { QlooClient } from "@/lib/qloo";
 import { runBaseline } from "./baseline";
 import { applyDecisions, decide } from "./decide";
 import { MAX_TEXT, extractReferences } from "./extract";
+import { proposeCandidates } from "./propose";
 import { resolveReferences } from "./resolve";
 import { rewriteForMarket } from "./rewrite";
 import type {
@@ -109,6 +110,7 @@ export async function runTranscreate(
           confidence: null,
           reason: "This market couldn't be completed; try again.",
           triedDomain: null,
+          dropped: [],
         })),
         replacements: [],
         guardIssues: [],
@@ -141,6 +143,12 @@ async function translateForMarket(
   emit: (e: AgentEvent) => void,
 ): Promise<MarketResult> {
   const otherIds = references.flatMap((r) => (r.entity ? [r.entity.id] : []));
+  // The agent's own suggestions widen the search; the engine still decides what is local.
+  const proposals = await proposeCandidates(deps.llm, deps.qloo, {
+    text,
+    market,
+    references,
+  }).catch(() => new Map<string, never[]>());
   const equivalents = new Map<string, EquivalentsResult>();
   await mapLimit(references, 2, async (r) => {
     if (!r.entity || !r.domain) return;
@@ -152,6 +160,7 @@ async function translateForMarket(
         market,
         take: CANDIDATES,
         exclude: otherIds,
+        proposals: proposals.get(r.ref),
       }),
     );
   });
@@ -185,6 +194,7 @@ async function translateForMarket(
           market,
           take: CANDIDATES,
           exclude: otherIds,
+          proposals: proposals.get(ref),
         }),
       );
     });

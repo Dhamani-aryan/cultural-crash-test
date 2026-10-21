@@ -9,6 +9,15 @@ import { highlight } from "./highlight";
 
 const ACTION_LABEL = { swap: "Swapped", keep: "Kept", flag: "Needs a human" } as const;
 
+const DROP_REASON: Record<string, string> = {
+  no_local_evidence: "not in the city's Qloo taste list",
+  global: "known everywhere, not local",
+  familiar_in_source: "just as familiar in the US",
+  foreign_origin: "from another country",
+  foreign_release: "a foreign release",
+  duplicate: "a duplicate",
+};
+
 function Evidence({ e, market }: { e: Equivalent; market: Market }) {
   const where =
     e.alsoIn.length === 0
@@ -28,6 +37,7 @@ function Evidence({ e, market }: { e: Equivalent; market: Market }) {
       <div className="min-w-0 text-sm leading-snug">
         <p className="text-ink-2">{e.entity.shortDescription ?? e.entity.description}</p>
         <ul className="mt-1 space-y-0.5 text-xs text-muted">
+          {e.proposed && <li>Suggested by the agent, then confirmed local by Qloo</li>}
           {e.sharedTags.length > 0 && <li>Same role: {e.sharedTags.slice(0, 4).join(" · ")}</li>}
           <li>
             #{e.localRank} of {e.poolSize} in {market.label}&apos;s Qloo taste list · {where}
@@ -107,6 +117,12 @@ function DecisionRow({
                 .slice(0, 4)
                 .map((a) => a.entity.displayName)
                 .join(" · ")}
+            </div>
+          )}
+          {decision.dropped.length > 0 && (
+            <div className="mt-2 text-xs text-muted">
+              Agent suggestions Qloo turned down:{" "}
+              {decision.dropped.map((d) => `${d.name} (${DROP_REASON[d.reason] ?? d.reason})`).join(" · ")}
             </div>
           )}
         </div>

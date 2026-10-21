@@ -1,11 +1,7 @@
 import { z } from "zod";
-import { cityList } from "@/lib/engine/equivalents";
-import { isForeignOrigin } from "@/lib/engine/origin";
-import { categoryTags } from "@/lib/engine/role";
-import { nameKey } from "@/lib/engine/stats";
 import { generateStructured } from "@/lib/llm/structured";
 import type { LlmClient } from "@/lib/llm/types";
-import { domainOf } from "./resolve";
+import { checkPick, findByName } from "./check";
 import { DOMAINS, type Market } from "@/lib/markets";
 import type { QlooClient } from "@/lib/qloo";
 import type { BaselineResult } from "./types";
@@ -58,34 +54,16 @@ export async function runBaseline(
         r.swaps.slice(0, 10).map(async (s) => {
           // Search by the stated kind first, so "Pão de Açúcar" the supermarket isn't mistaken
           // for Sugarloaf Mountain.
-          const typed = await client.searchEntities({
-            query: s.replacement,
-            types: [`urn:entity:${s.kind}`],
-            take: 3,
-          });
-          const hits = typed.length
-            ? typed
-            : await client.searchEntities({ query: s.replacement, take: 3 });
-          const hit = hits.find((h) =>
-            [h.name, h.displayName, ...h.akas].some((n) => nameKey(n) === nameKey(s.replacement)),
-          );
-          const swap = { original: s.original, replacement: s.replacement };
-          if (!hit) return { ...swap, check: "not_in_qloo" as const };
-          const [full] = await client.getEntities([hit.id]);
-          const e = full ?? hit;
-          if (isForeignOrigin(e, market.country)) return { ...swap, check: "foreign" as const };
-          // Local evidence: the pick appears in the city's own Qloo taste list for its kind
-          // (and category, the same list the engine searches), so the two are judged alike.
-          const domain = domainOf(e.type);
-          const list = domain
-            ? await cityList(client, domain, market.qlooLocation, categoryTags(e, domain))
-            : [];
-          return {
-            ...swap,
-            check: list.some((x) => x.id === e.id)
-              ? ("local_evidence" as const)
-              : ("no_local_evidence" as const),
-          };
+          const pick = await findByName(client, s.replacement, s.kind);
+          const c = await checkPick(client, { pick, anchor: null, market });
+          const check = !c.found
+            ? ("not_in_qloo" as const)
+            : c.foreign
+              ? ("foreign" as const)
+              : c.localEvidence
+                ? ("local_evidence" as const)
+                : ("no_local_evidence" as const);
+          return { original: s.original, replacement: s.replacement, kind: s.kind, check };
         }),
       );
       return { marketId: r.marketId, text: r.text, swaps };

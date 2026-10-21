@@ -45,6 +45,7 @@ const equivalent = (id: string, name: string) => ({
   localRank: 1,
   poolSize: 100,
   alsoIn: [],
+  proposed: false,
 });
 
 const ref = (over: Partial<ResolvedReference> = {}): ResolvedReference => ({
@@ -66,6 +67,7 @@ const eqResult = (options: ReturnType<typeof equivalent>[]): EquivalentsResult =
   confidence: "strong",
   equivalents: options,
   rejected: [],
+  anchor: { inCity: false, global: false },
   poolSize: 100,
   qlooCalls: 1,
 });
@@ -264,6 +266,7 @@ describe("runTranscreate", () => {
         s.includes("You rewrite American copy")
           ? { text: "Cheaper than Parque Local.", replacements: [] }
           : null,
+      (s) => (s.includes("lives in the city") ? { proposals: [] } : null),
     );
     const events: AgentEvent[] = [];
     const result = await runTranscreate(
@@ -278,7 +281,7 @@ describe("runTranscreate", () => {
     expect(events.map((e) => e.type)).toEqual(
       expect.arrayContaining(["references", "decision", "market", "done"]),
     );
-    expect(result.stats.llmCalls).toBe(4);
+    expect(result.stats.llmCalls).toBe(5);
   });
 
   it("rejects empty text and unknown markets", async () => {

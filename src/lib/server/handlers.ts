@@ -21,7 +21,7 @@ export const TranscreateRequestSchema = z.object({
 });
 
 /** Bump when the engine or prompts change in a way that should invalidate recordings. */
-export const RUN_VERSION = "run:v1";
+export const RUN_VERSION = "run:v2";
 const RECORDING_TTL = 7 * 24 * 60 * 60;
 
 export function runKey(text: string, marketIds: string[]): string {

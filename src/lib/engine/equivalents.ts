@@ -8,14 +8,15 @@ import {
 } from "@/lib/markets";
 import { AGE_BUCKETS, type Demographics, type QlooClient, type QlooEntity } from "@/lib/qloo";
 import { isForeignOrigin } from "./origin";
-import { categoryTags, roleSimilarity, roleTags } from "./role";
+import { categoryTags, kindLabel, roleSimilarity, roleTags } from "./role";
 import { chunk, clamp01, cosine, mapLimit, nameKey } from "./stats";
 
 /**
  * The equivalence engine: given a reference (the anchor) and a target market, find the local
  * entities that do the same job for a similar audience there. Deterministic: the same Qloo
- * answers always give the same ranking. The LLM never proposes equivalents; it only chooses
- * among these.
+ * answers always give the same ranking. The agent may also propose names it knows; each must
+ * be found in Qloo and pass the same gates (including being in the city's own list for its
+ * kind), so the model widens the search but never decides what counts as local.
  *
  *   pool      top results for a location-only signal in the target city (+ broad category
  *             for brands and places)
@@ -42,8 +43,6 @@ export const GLOBAL_PRESENCE = 2;
  * Shakira, Coldplay). Above this, an entity is known everywhere, so it isn't a local swap.
  */
 export const SUPERSTAR_POPULARITY = 0.998;
-/** How many top-scored candidates get the full-record origin check. */
-export const FINALISTS = 12;
 /** Two entities with identical audience skews and this much role overlap are the same one. */
 export const SAME_ENTITY_ROLE = 0.5;
 
@@ -65,10 +64,17 @@ export interface Equivalent {
   poolSize: number;
   /** Control cities whose top lists also contain it. */
   alsoIn: string[];
+  /** The agent suggested it; Qloo confirmed it is local. */
+  proposed: boolean;
 }
 
 export type RejectReason =
-  "global" | "familiar_in_source" | "foreign_origin" | "foreign_release" | "duplicate";
+  | "global"
+  | "familiar_in_source"
+  | "foreign_origin"
+  | "foreign_release"
+  | "duplicate"
+  | "no_local_evidence";
 
 export interface EquivalentsResult {
   anchorId: string;
@@ -76,7 +82,9 @@ export interface EquivalentsResult {
   domain: Domain;
   confidence: Confidence;
   equivalents: Equivalent[];
-  rejected: { name: string; reason: RejectReason }[];
+  rejected: { name: string; reason: RejectReason; proposed?: boolean }[];
+  /** Whether the original itself is already in the city's list, or known everywhere. */
+  anchor: { inCity: boolean; global: boolean };
   poolSize: number;
   qlooCalls: number;
 }
@@ -89,6 +97,8 @@ export interface FindInput {
   take?: number;
   /** Extra entity IDs to keep out (e.g. other references already used in the text). */
   exclude?: string[];
+  /** Entities the agent suggested (full records). */
+  proposals?: QlooEntity[];
 }
 
 const demoVector = (d: Demographics | undefined) =>
@@ -121,6 +131,15 @@ export async function cityList(
   return pages.flatMap((p) => p.entities);
 }
 
+interface PoolItem {
+  entity: QlooEntity;
+  rank: number;
+  listSize: number;
+  alsoIn: string[];
+  inSource: boolean;
+  proposed: boolean;
+}
+
 export async function findEquivalents(
   client: QlooClient,
   input: FindInput,
@@ -135,20 +154,50 @@ export async function findEquivalents(
     confidence: grade,
     equivalents: [],
     rejected: [],
+    anchor: { inCity: false, global: false },
     poolSize: 0,
     qlooCalls: 0,
   };
   if (grade === "off") return result;
 
-  // 1. Target pool and control lists (one request set per city; identical across anchors).
-  const category = categoryTags(anchor, domain);
+  // 1. City lists per category: the target pool, the control cities (global check) and the
+  //    US cities (familiarity check). One set per category, shared across anchors.
   const controls = CONTROL_LOCATIONS.filter((c) => c !== market.qlooLocation).slice(
     0,
     CONTROL_COUNT,
   );
   const cities = [market.qlooLocation, ...controls, ...SOURCE_LOCATIONS];
-  const lists = await mapLimit(cities, 3, (city) => cityList(client, domain, city, category));
-  result.qlooCalls += cities.length * POOL_PAGES;
+  const keyOf = (e: QlooEntity) => (domain === "place" ? chainKey(e.name) : e.id);
+  const listSets = new Map<string, Promise<QlooEntity[][]>>();
+  const listsFor = (category: string[]) => {
+    const k = category.join(",");
+    if (!listSets.has(k)) {
+      result.qlooCalls += cities.length * POOL_PAGES;
+      listSets.set(
+        k,
+        mapLimit(cities, 3, (city) => cityList(client, domain, city, category)),
+      );
+    }
+    return listSets.get(k)!;
+  };
+  const presence = async (entity: QlooEntity, category: string[]) => {
+    const lists = await listsFor(category);
+    const key = keyOf(entity);
+    const same = (e: QlooEntity) => e.id === entity.id || keyOf(e) === key;
+    return {
+      rank: lists[0].findIndex(same) + 1,
+      listSize: lists[0].length,
+      alsoIn: controls.filter((_, i) => lists[1 + i].some(same)),
+      inSource: lists.slice(1 + controls.length).some((l) => l.some(same)),
+    };
+  };
+  // Places are physically local, so a worldwide-famous landmark (Hyde Park) is exactly the
+  // equivalent we want; the superstar gate applies to media, people and brands only.
+  const superstar = (e: QlooEntity) =>
+    domain !== "place" && (e.popularity ?? 0) >= SUPERSTAR_POPULARITY;
+
+  const category = categoryTags(anchor, domain);
+  const lists = await listsFor(category);
   let targetList = lists[0];
   if (domain === "place") {
     // Places are pinned to the city by the location filter, so co-affinity with the anchor is
@@ -165,11 +214,41 @@ export async function findEquivalents(
     const have = new Set(targetList.map((e) => e.id));
     targetList = [...targetList, ...liked.entities.filter((e) => !have.has(e.id))];
   }
-  const keyOf = (e: QlooEntity) => (domain === "place" ? chainKey(e.name) : e.id);
-  const controlSets = lists.slice(1, 1 + controls.length).map((list) => new Set(list.map(keyOf)));
-  const sourceSet = new Set(lists.slice(1 + controls.length).flatMap((list) => list.map(keyOf)));
+  const anchorAt = await presence(anchor, category);
+  result.anchor = {
+    inCity: anchorAt.rank > 0,
+    global: anchorAt.alsoIn.length >= GLOBAL_PRESENCE || superstar(anchor),
+  };
+  const controlSets = lists.slice(1, 1 + controls.length).map((l) => new Set(l.map(keyOf)));
+  const sourceSet = new Set(lists.slice(1 + controls.length).flatMap((l) => l.map(keyOf)));
 
-  // 2. Clean the pool: drop the anchor, repeats and the same entity under another name.
+  // 2. The agent's proposals. Each must be in the city's own list for its kind: the model
+  //    knowing a name isn't evidence that people there care about it.
+  const proposedIds = new Set((input.proposals ?? []).map((p) => p.id));
+  const extra: PoolItem[] = [];
+  for (const p of input.proposals ?? []) {
+    if (p.type !== `urn:entity:${domain}` || p.id === anchor.id) continue;
+    if (targetList.some((e) => e.id === p.id)) continue;
+    const at = await presence(p, categoryTags(p, domain));
+    if (!at.rank) {
+      result.rejected.push({ name: p.displayName, reason: "no_local_evidence", proposed: true });
+      continue;
+    }
+    extra.push({ entity: p, ...at, proposed: true });
+  }
+
+  // 3. Clean the pool: drop the anchor, repeats and the same entity under another name.
+  const candidates: PoolItem[] = [
+    ...targetList.map((entity, i) => ({
+      entity,
+      rank: i + 1,
+      listSize: targetList.length,
+      alsoIn: controls.filter((_, c) => controlSets[c].has(keyOf(entity))),
+      inSource: sourceSet.has(keyOf(entity)),
+      proposed: proposedIds.has(entity.id),
+    })),
+    ...extra,
+  ];
   const excluded = new Set([anchor.id, ...(input.exclude ?? [])]);
   const seenIds = new Set<string>();
   const seenNames = new Set([
@@ -177,22 +256,47 @@ export async function findEquivalents(
     nameKey(anchor.name),
     ...anchor.akas.map(nameKey),
   ]);
-  const pool: { entity: QlooEntity; rank: number }[] = [];
-  targetList.forEach((entity, i) => {
-    if (excluded.has(entity.id) || seenIds.has(entity.id)) return;
+  const pool: PoolItem[] = [];
+  for (const item of candidates) {
+    const { entity } = item;
+    if (excluded.has(entity.id) || seenIds.has(entity.id)) continue;
     seenIds.add(entity.id);
     const keys = [entity.displayName, entity.name, ...entity.akas].map(nameKey).filter(Boolean);
     if (keys.some((k) => seenNames.has(k))) {
       result.rejected.push({ name: entity.displayName, reason: "duplicate" });
-      return;
+      continue;
     }
     keys.forEach((k) => seenNames.add(k));
-    pool.push({ entity, rank: i + 1 });
-  });
+    pool.push(item);
+  }
   result.poolSize = targetList.length;
   if (pool.length === 0) return result;
 
-  // 3. Audience skews (anchor first). Identical skews also reveal one person under two names.
+  // 4. Full records. Insights results omit Wikipedia categories and key markets, which carry
+  //    both the origin (Pizza Hut is American) and what kind of thing it is (a doughnut shop).
+  //    Proposals already are full records.
+  const partial = pool.filter((p) => !extra.includes(p));
+  for (const batch of chunk(partial, 50)) {
+    result.qlooCalls++;
+    const full = new Map(
+      (await client.getEntities(batch.map((p) => p.entity.id))).map((e) => [e.id, e]),
+    );
+    for (const item of batch) {
+      const record = full.get(item.entity.id);
+      if (!record) continue;
+      item.entity = {
+        ...item.entity,
+        tags: record.tags.length ? record.tags : item.entity.tags,
+        description: record.description ?? item.entity.description,
+        shortDescription: record.shortDescription ?? item.entity.shortDescription,
+        releaseCountries: record.releaseCountries.length
+          ? record.releaseCountries
+          : item.entity.releaseCountries,
+      };
+    }
+  }
+
+  // 5. Audience skews (anchor first). Identical skews also reveal one person under two names.
   const demos = new Map<string, Demographics>();
   for (const batch of chunk([anchor.id, ...pool.map((p) => p.entity.id)], 50)) {
     result.qlooCalls++;
@@ -202,16 +306,20 @@ export async function findEquivalents(
   const seenDemos = new Map<string, Map<string, number>>();
   const kept: { key: string; role: Map<string, number> }[] = [];
 
-  // 4. Gates and score parts.
+  // 6. Gates and score parts.
   const anchorRole = roleTags(anchor);
   const tagName = new Map<string, string>();
   for (const t of [...anchor.tags, ...pool.flatMap((p) => p.entity.tags)]) {
     if (t.name) tagName.set(t.id, t.name);
   }
   const scored: Equivalent[] = [];
-  for (const { entity, rank } of pool) {
+  for (const { entity, rank, listSize, alsoIn, inSource, proposed } of pool) {
     const reject = (reason: RejectReason) =>
-      result.rejected.push({ name: entity.displayName, reason });
+      result.rejected.push({
+        name: entity.displayName,
+        reason,
+        ...(proposed ? { proposed } : {}),
+      });
     const demo = demoVector(demos.get(entity.id));
     const entityRole = roleTags(entity);
     // Same audience skew to the last decimal *and* largely the same tags: one entity listed
@@ -238,15 +346,11 @@ export async function findEquivalents(
     }
     kept.push({ key, role: entityRole });
 
-    const alsoIn = controls.filter((_, i) => controlSets[i].has(keyOf(entity)));
-    // Places are physically local, so a worldwide-famous landmark (Hyde Park) is exactly the
-    // equivalent we want; the superstar gate applies to media, people and brands only.
-    const superstar = domain !== "place" && (entity.popularity ?? 0) >= SUPERSTAR_POPULARITY;
-    if (alsoIn.length >= GLOBAL_PRESENCE || superstar) {
+    if (alsoIn.length >= GLOBAL_PRESENCE || superstar(entity)) {
       reject("global");
       continue;
     }
-    if (sourceSet.has(keyOf(entity))) {
+    if (inSource) {
       reject("familiar_in_source");
       continue;
     }
@@ -268,7 +372,7 @@ export async function findEquivalents(
       ...new Set(
         role.shared
           .sort((a, b) => (anchorRole.get(b) ?? 0) - (anchorRole.get(a) ?? 0))
-          .map((id) => tagName.get(id) ?? id),
+          .map((id) => kindLabel(id) ?? tagName.get(id) ?? id),
       ),
     ];
     scored.push({
@@ -282,12 +386,13 @@ export async function findEquivalents(
         fame:
           domain === "place"
             ? (entity.popularity ?? 0)
-            : 1 - (rank - 1) / Math.max(1, targetList.length - 1),
+            : 1 - (rank - 1) / Math.max(1, listSize - 1),
       },
       sharedTags: sharedNames.slice(0, 6),
       localRank: rank,
-      poolSize: targetList.length,
+      poolSize: listSize,
       alsoIn,
+      proposed,
     });
   }
 
@@ -309,31 +414,9 @@ export async function findEquivalents(
       WEIGHTS.fame * s.parts.fame;
   }
   scored.sort((a, b) => b.score - a.score || a.localRank - b.localRank);
-
-  // 5. Origin re-check on the finalists. Insights results omit Wikipedia categories, so mass
-  //    chains (Pizza Hut, Olive Garden) only reveal their origin in the full record.
-  const finalists = scored.slice(0, FINALISTS);
-  if (finalists.length) {
-    result.qlooCalls++;
-    const full = new Map(
-      (await client.getEntities(finalists.map((s) => s.entity.id))).map((e) => [e.id, e]),
-    );
-    for (const s of finalists) {
-      const record = full.get(s.entity.id);
-      if (record && isForeignOrigin(record, market.country)) {
-        result.rejected.push({ name: s.entity.displayName, reason: "foreign_origin" });
-        continue;
-      }
-      if (record) {
-        s.entity = {
-          ...s.entity,
-          description: record.description ?? s.entity.description,
-          shortDescription: record.shortDescription ?? s.entity.shortDescription,
-        };
-      }
-      result.equivalents.push(s);
-      if (result.equivalents.length === take) break;
-    }
-  }
+  // The agent always sees its own suggestions that passed every gate, even below the cut:
+  // role tags separate chains only weakly, and the agent judges fit in the sentence.
+  const top = scored.slice(0, take);
+  result.equivalents = [...top, ...scored.slice(take).filter((s) => s.proposed)];
   return result;
 }

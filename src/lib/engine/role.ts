@@ -1,4 +1,5 @@
 import type { QlooEntity } from "@/lib/qloo";
+import { COUNTRY_TERMS } from "./origin";
 
 /**
  * Role similarity: how alike two entities are in the *job* they do, measured by the Qloo tags
@@ -28,14 +29,79 @@ export function tagWeight(type: string | null): number {
   return 0;
 }
 
-/** The weighted role tags of an entity: tag ID → weight. */
+/**
+ * Wikipedia categories name what a thing *is* ("Doughnut shops", "Fast-food chains of the
+ * United Kingdom", "2000s American workplace comedy television series"). With the country,
+ * decade and place stripped they become country-neutral kinds that a US original and a local
+ * equivalent can share: Dunkin' and Greggs are both "doughnut shops" and "fast-food chains".
+ * Facts about the company (founding year, stock listing, head office) are dropped.
+ */
+const KIND_SKIP =
+  /establish|disestablish|births|deaths|error|articles|wikidata|stub|listed on|nasdaq|stock exchange|merger|acquisition|based in|headquartered|people from|alumni|subsidiar|owned|ftse|s&p/;
+const KIND_GENERIC = new Set([
+  "",
+  "companies",
+  "brands",
+  "restaurants",
+  "retail companies",
+  "food and drink companies",
+  "multinational companies",
+  "multinational food companies",
+  "culture",
+  "television series",
+  "films",
+  "musicians",
+  "people",
+  "organizations",
+  "privately held companies",
+]);
+const NATIONALITY = new RegExp(
+  `(^|[^\\p{L}])(${Object.values(COUNTRY_TERMS)
+    .flat()
+    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|")})(?=[^\\p{L}]|$)`,
+  "giu",
+);
+
+export function kindOf(category: string): string | null {
+  const s = category.toLowerCase();
+  if (KIND_SKIP.test(s)) return null;
+  const kind = s
+    .replace(/(?<!\bset)\s+(of|in|from)\s+.*$/u, "")
+    .replace(/\b\d{2,4}s?\b/g, " ")
+    .replace(NATIONALITY, "$1 ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return KIND_GENERIC.has(kind) ? null : kind;
+}
+
+export const KIND_PREFIX = "kind:";
+const KIND_WEIGHT = 3;
+
+/** The weighted role tags of an entity: tag ID → weight. Kinds use a `kind:` prefix. */
 export function roleTags(entity: Pick<QlooEntity, "tags">): Map<string, number> {
   const out = new Map<string, number>();
   for (const t of entity.tags) {
-    const w = tagWeight(t.type);
+    if (t.type?.includes("wikipedia_category") && t.name) {
+      const kind = kindOf(t.name);
+      if (kind) out.set(KIND_PREFIX + kind, KIND_WEIGHT);
+      continue;
+    }
+    // Most chains have an ordering app, so "Mobile App" says little about what a brand is.
+    const w = isAppGenre(t) ? 0.5 : tagWeight(t.type);
     if (w > 0) out.set(t.id, Math.max(out.get(t.id) ?? 0, w));
   }
   return out;
+}
+
+const isAppGenre = (t: { name: string | null; type: string | null }) =>
+  t.type === "urn:tag:genre:brand" && /apps?/i.test(t.name ?? "");
+
+/** A role tag ID as a readable name ("kind:doughnut shops" → "Doughnut shops"). */
+export function kindLabel(id: string): string | null {
+  if (!id.startsWith(KIND_PREFIX)) return null;
+  const k = id.slice(KIND_PREFIX.length);
+  return k.charAt(0).toUpperCase() + k.slice(1);
 }
 
 /** Weighted Jaccard over role tags (0–1), plus the shared tag IDs for the evidence card. */
@@ -65,7 +131,11 @@ export function roleSimilarity(
  */
 export function categoryTags(entity: Pick<QlooEntity, "tags">, domain: string): string[] {
   if (domain === "brand") {
-    return entity.tags.filter((t) => t.type === "urn:tag:genre:brand").map((t) => t.id);
+    // A coffee chain with an app is a coffee chain: app genres widen the pool to delivery and
+    // ride-hailing apps, so they count only for brands that are nothing but apps.
+    const genres = entity.tags.filter((t) => t.type === "urn:tag:genre:brand");
+    const core = genres.filter((t) => !isAppGenre(t));
+    return (core.length ? core : genres).map((t) => t.id);
   }
   if (domain === "place") {
     return entity.tags

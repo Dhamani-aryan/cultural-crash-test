@@ -3,7 +3,7 @@ import { nameKey } from "@/lib/engine/stats";
 import { generateStructured } from "@/lib/llm/structured";
 import type { LlmClient } from "@/lib/llm/types";
 import type { Market } from "@/lib/markets";
-import { nameForms } from "./names";
+import { nameForms, shortName } from "./names";
 import type { Decision, Replacement, ResolvedReference } from "./types";
 
 const schema = z.object({
@@ -20,7 +20,7 @@ function instruction(r: ResolvedReference, d: Decision): string {
   if (d.action === "swap" && d.choice) {
     const e = d.choice.entity;
     const what = e.shortDescription ?? e.description?.slice(0, 160) ?? "";
-    return `${r.ref} "${r.surface}" → use "${e.displayName}"${what ? ` (${what})` : ""}. Job to preserve: ${r.job}.`;
+    return `${r.ref} "${r.surface}" → use "${shortName(e.displayName)}"${what ? ` (${what})` : ""}. Job to preserve: ${r.job}.`;
   }
   if (d.action === "keep") return `${r.ref} "${r.surface}" → keep as is.`;
   return `${r.ref} "${r.surface}" → flagged; keep the original wording.`;
@@ -122,7 +122,7 @@ export async function rewriteForMarket(
       let text = input.text;
       const replacements: Replacement[] = [];
       for (const r of changes) {
-        const name = byRef.get(r.ref)!.choice!.entity.displayName;
+        const name = shortName(byRef.get(r.ref)!.choice!.entity.displayName);
         text = text.replace(r.surface, name);
         replacements.push({ ref: r.ref, original: r.surface, replacement: name });
       }
