@@ -22,9 +22,9 @@ Three measurements, from least to most independent:
 
 | Measure | LLM-only draft | Agent |
 |---|---|---|
-| Supported choices, in-run (9 briefs, 36 choices) | 5 | 30 |
-| Mean plan score, in-run (app-defined, 0–100) | 59 | 82 |
-| **Supported choices, held-out anchors** (9 briefs, 36 choices) | **5** | **22** |
+| Supported choices, in-run (9 briefs, 36 choices) | 7 | 28 |
+| Mean plan score, in-run (app-defined, 0–100) | 64 | 83 |
+| **Supported choices, held-out anchors** (9 briefs, 36 choices) | **4** | **20** |
 | Mean plan score, held-out anchors | 59 | 76 |
 | Briefs where held-out support rose / fell | – | 9 / 0 |
 | Draft choices not found in Qloo at all | 8 of 36 | – |
@@ -35,9 +35,9 @@ Three measurements, from least to most independent:
 
 | Mean rating (1–5, both orders) | Draft | Agent |
 |---|---|---|
-| audienceFit | 2.3 | 3.8 |
-| localFit | 2.6 | 3.6 |
-| coherence | 2.2 | 3.5 |
+| audienceFit | 2.0 | 3.6 |
+| localFit | 2.4 | 3.4 |
+| coherence | 2.2 | 3.7 |
 | briefFit | 3.0 | 3.4 |
 
 ### Blind preference judge (reference, no evidence)
@@ -46,28 +46,28 @@ Three measurements, from least to most independent:
 
 | Mean rating (1–5, both orders) | Draft | Agent |
 |---|---|---|
-| localFit | 4.7 | 3.6 |
-| specificity | 4.6 | 4.3 |
-| coherence | 4.7 | 3.8 |
-| constraints | 4.8 | 4.2 |
+| localFit | 4.7 | 3.9 |
+| specificity | 4.4 | 4.2 |
+| coherence | 4.6 | 3.8 |
+| constraints | 4.7 | 3.9 |
 
 ### Held-out briefs only
 
-6 briefs never used for tuning: supported choices with held-out anchors 2 → 13 of 24; evidence judge agent 5 / draft 1 / tie 0; blind judge agent 0 / draft 5 / tie 1.
+6 briefs never used for tuning: supported choices with held-out anchors 1 → 12 of 24; evidence judge agent 5 / draft 1 / tie 0; blind judge agent 0 / draft 5 / tie 1.
 
 ## Per brief
 
 | Brief | City | Split | Changes | In-run supported | Held-out supported | Evidence judge | Blind judge | Stopped |
 |---|---|---|---|---|---|---|---|---|
-| london-streetwear | London | dev | Dr. Martens → Fred Perry; Nia Archives → Skepta; Utilitarian skate style, understated visuals, community-first energy → Utilitarian skate style, monochrome visuals, authentic community energy | 1 → 4 | 1 → 4 | agent | draft | No adjustable choice is contradicted by the evidence |
-| tokyo-sneakers | Tokyo | dev | Beams Japan → PARADISE TOKYO / WACKO MARIA; Utilitarian skatewear, understated Tokyo street style, community-led → Industrial utilitarian skatewear with oversized silhouettes; Suchmos → Harunemuri; Beams → Neighborhood | 0 → 4 | 1 → 2 | agent | tie | No adjustable choice is contradicted by the evidence |
-| sao-paulo-skate | São Paulo | dev | Galeria Olido → Cabaret da Cecília; Colourful DIY skate zine; rebellious, community-first energy → Bold-logo, colourful DIY skate-zine with rebellious, community-led energy | 0 → 2 | 1 → 3 | agent | tie | No adjustable choice is contradicted by the evidence |
-| london-coffee | London | heldout | Coal Drops Yard → Alfies Antique Market; Calm, crafted minimalism with warm tones and intimate live music → Understated elegance, minimal design, and a neutral palette; Jordan Rakei → James Blake; HAY → Herschel Supply Co | 0 → 4 | 0 → 4 | agent | draft | No adjustable choice is contradicted by the evidence |
-| tokyo-skincare | Tokyo | heldout | Beams Japan → Honey Mi Honey; Beams → Niko And... | 2 → 4 | 1 → 2 | agent | tie | No adjustable choice is contradicted by the evidence |
-| sao-paulo-running | São Paulo | heldout | Energetic, inclusive performance; São Paulo street-run grit → Dynamic, technical performance with sleek functional design; Parque Ibirapuera → Casarìa SP | 0 → 2 | 0 → 2 | agent | draft | No adjustable choice is contradicted by the evidence |
-| madrid-beer | Madrid | heldout | Sala El Sol → Wurlitzer Ballroom; Hinds → Miss Caffeina | 1 → 3 | 0 → 2 | agent | draft | No adjustable choice is contradicted by the evidence |
-| madrid-sustainable | Madrid | heldout | Thinking MU → Arizona Vintage; Mediterranean minimalism, honest materials, modern warmth → Modern aesthetics, handcrafted sustainability; JUDELINE → Juanito Makandé | 1 → 4 | 1 → 2 | draft | draft | No adjustable choice is contradicted by the evidence |
-| mumbai-sneakers | Mumbai | heldout | Puma → Skult; Bold Mumbai streetwear; gritty, high-energy hip-hop → Bold, vibrant homegrown street craft; antiSOCIAL, Mumbai → The Habitat | 0 → 3 | 0 → 1 | agent | draft | No adjustable choice is contradicted by the evidence |
+| london-streetwear | London | dev | Vans → Fred Perry; Utilitarian skate graphics, understated tones, community-first energy → Utilitarian, understated industrial graphics with authentic community-first energy | 2 → 4 | 2 → 4 | agent | draft | No adjustable choice is contradicted by the evidence |
+| tokyo-sneakers | Tokyo | dev | TRUNK(HOTEL) CAT STREET → Red Shoes; Asics → Neighborhood; Understated utility meets Tokyo skate culture; raw textures, clean lines, community energy → Utilitarian Tokyo skate culture with deconstructed details and oversized silhouettes | 0 → 3 | 1 → 2 | agent | tie | No adjustable choice is contradicted by the evidence |
+| sao-paulo-skate | São Paulo | dev | Converse → Chilli Beans; Centro de Esportes Radicais → Pista De Skate Sumaré; Colour-saturated DIY skate graphics; rebellious, communal energy → Colorful skate graphics; rebellious, authentic energy | 0 → 2 | 0 → 2 | agent | tie | No adjustable choice is contradicted by the evidence |
+| london-coffee | London | heldout | Warm minimalism, tactile materials, and soulful listening → Quiet elegance, neutral tones, and clean lines; HAY → Allsaints; Cleo Sol → Kindness; Spiritland → Rough Trade East | 0 → 4 | 0 → 3 | agent | draft | No adjustable choice is contradicted by the evidence |
+| tokyo-skincare | Tokyo | heldout | Laforet Harajuku → WITH HARAJUKU HALL | 2 → 3 | 0 → 1 | agent | tie | No adjustable choice is contradicted by the evidence |
+| sao-paulo-running | São Paulo | heldout | High-energy, inclusive technical running culture with bold São Paulo street style → Dynamic, sleek, functional technical running | 0 → 1 | 0 → 1 | agent | draft | No adjustable choice is contradicted by the evidence |
+| madrid-beer | Madrid | heldout | Vans → Hawkers; Warm, unpolished Madrid indie-night energy → Comfortable, local Madrid music culture; Sala El Sol → Wurlitzer Ballroom; Carolina Durante → Miss Caffeina | 0 → 4 | 0 → 4 | agent | draft | No adjustable choice is contradicted by the evidence |
+| madrid-sustainable | Madrid | heldout | Thinking MU → Arizona Vintage | 3 → 4 | 1 → 2 | draft | draft | No adjustable choice is contradicted by the evidence |
+| mumbai-sneakers | Mumbai | heldout | Bold Mumbai streetwear; gritty hip-hop energy with homegrown pride → Bold homegrown kicks in vibrant colors, intricate embroidery, and rich textures; Sneaker Pimps Mumbai → The Habitat; Bhaane → Koovs | 0 → 3 | 0 → 1 | agent | draft | No adjustable choice is contradicted by the evidence |
 
 ## Plans
 
@@ -77,14 +77,14 @@ Audience: 18–30 year-old skate and streetwear fans in East London. Run anchors
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | Nia Archives | Skepta | weak → supported |
-| Collaboration brand | Dr. Martens | Fred Perry | weak → supported |
+| Music act | Little Simz | (same) | supported → supported |
+| Collaboration brand | Vans | Fred Perry | no support → supported |
 | Pop-up venue | Village Underground | (same) | supported → supported |
-| Creative direction | Utilitarian skate style, understated visuals, community-first energy | Utilitarian skate style, monochrome visuals, authentic community energy | weak → supported |
+| Creative direction | Utilitarian skate graphics, understated tones, community-first energy | Utilitarian, understated industrial graphics with authentic community-first energy | weak → supported |
 
-Evidence judge: _A has strong audience rankings for Skepta, Village Underground, and all three creative tags, plus strong plan coherence; its choices are London-linked, though the venue and aesthetics are not especially distinctive locally. B’s act and collaboration brand are unverified for this audience and show weak plan coherence, while its creative direction includes a tag not characteristic of London; Qloo’s descriptions support the act, brand, and venue roles in both plans._
+Evidence judge: _A has audience affinity evidence for all four choices, including its collaboration brand and creative direction; B’s Vans has no returned affinity, and its Community direction is not characteristic of this audience in London. Both plans have a London-origin act and a London venue, but neither venue is distinctive locally; A’s choices also show stronger coherence evidence, including the venue’s link to Little Simz._
 
-Blind judge: _Both plans use a recognisable East London venue and fit the skate/streetwear brief, but Nia Archives and Dr. Martens make B feel more aligned with the audience and understated, community-led direction. Skepta and Fred Perry are credible London choices, though A’s high-profile framing feels less community-first._
+Blind judge: _Both plans use London-relevant Little Simz and Village Underground, but Vans is a more natural skate-culture fit than Fred Perry for this audience and brief. B’s skate-led creative direction also reinforces that choice and the brand’s understated, community-led attributes._
 
 ### tokyo-sneakers (Tokyo)
 
@@ -92,14 +92,14 @@ Audience: Young streetwear and sneaker collectors in Tokyo. Run anchors: Stüssy
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | Suchmos | Harunemuri | weak → weak |
-| Collaboration brand | Beams | Neighborhood | supported → weak |
-| Pop-up venue | Beams Japan | PARADISE TOKYO / WACKO MARIA | no support → supported |
-| Creative direction | Utilitarian skatewear, understated Tokyo street style, community-led | Industrial utilitarian skatewear with oversized silhouettes | weak → supported |
+| Music act | Awich | (same) | weak → weak |
+| Collaboration brand | Asics | Neighborhood | weak → weak |
+| Pop-up venue | TRUNK(HOTEL) CAT STREET | Red Shoes | unresolved → supported |
+| Creative direction | Understated utility meets Tokyo skate culture; raw textures, clean lines, community energy | Utilitarian Tokyo skate culture with deconstructed details and oversized silhouettes | supported → supported |
 
-Evidence judge: _A’s venue has strong audience and plan affinity (#5 and #3), with Neighborhood as its strongest link; B’s venue has no reported affinity, so it earns no venue-fit credit. Both plans include Tokyo-country choices and audience-aligned utilitarian direction, while B’s Beams scores strongly but its creative direction includes a community tag not characteristic in Tokyo._
+Evidence judge: _A has stronger demonstrated audience and plan coherence: its venue ranks #9 for both, while B’s venue is unverified, and A’s creative tags rank highly for the audience. Both acts and collaboration brands are outside the audience’s top 50; A’s Neighborhood is described as Japanese streetwear, while B’s Asics is described as a global sports-footwear brand, and neither venue has evidence of distinctiveness to Tokyo._
 
-Blind judge: _A pairs Tokyo-native Harunemuri and Neighborhood with a concrete streetwear venue and a coherent industrial direction that suits the brand. B is also locally recognizable, but Beams collaboration and venue feel less distinct for a skate-and-sneaker collector launch._
+Blind judge: _Both use a locally relevant act and a clear Tokyo streetwear direction that fits the brief. Neighborhood and Red Shoes give A a stronger subcultural feel, while Asics and TRUNK(HOTEL) CAT STREET make B concrete and its creative direction closely matches the brand; neither plan clearly wins overall._
 
 ### sao-paulo-skate (São Paulo)
 
@@ -107,14 +107,14 @@ Audience: Skaters and street-culture fans in São Paulo, 16–28. Run anchors: T
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | Black Alien | (same) | supported → supported |
-| Collaboration brand | Piet | (same) | unresolved → unresolved |
-| Pop-up venue | Galeria Olido | Cabaret da Cecília | unresolved → supported |
-| Creative direction | Colourful DIY skate zine; rebellious, community-first energy | Bold-logo, colourful DIY skate-zine with rebellious, community-led energy | weak → supported |
+| Music act | Terno Rei | (same) | weak → weak |
+| Collaboration brand | Converse | Chilli Beans | no support → weak |
+| Pop-up venue | Centro de Esportes Radicais | Pista De Skate Sumaré | unresolved → supported |
+| Creative direction | Colour-saturated DIY skate graphics; rebellious, communal energy | Colorful skate graphics; rebellious, authentic energy | weak → supported |
 
-Evidence judge: _Both plans have the same audience-supported, locally rooted act, and Piet is unverified in both; A additionally has an audience-ranked venue, while B's venue is unverified. A’s creative direction includes audience-ranked bold logos, whereas B’s community element is not characteristic in the evidence; neither plan has strong evidence that its choices cohere as a whole._
+Evidence judge: _Both plans use a locally originated act that is outside the audience’s top 50, but A adds a locally distinctive skate venue with audience and plan affinity, plus a locally originated brand linked to the act. A’s rebellious direction is supported in São Paulo; B has no Qloo affinity for Converse, its venue is unverified, and two creative-direction tags lack local support._
 
-Blind judge: _Both plans pair São Paulo-relevant choices—Black Alien and Piet—with a colourful, rebellious DIY skate-zine direction that fits the brief. The venues are specific, but the plans give no event details that clearly establish which is the better skate-session setting._
+Blind judge: _Both pair São Paulo act Terno Rei with a skate venue and colourful, rebellious direction that fits the brief. Chilli Beans and Sumaré in A, and Converse and Centro de Esportes Radicais in B, are concrete choices, with neither plan clearly stronger on the page._
 
 ### london-coffee (London)
 
@@ -122,14 +122,14 @@ Audience: Design-minded young professionals who care about craft coffee. Run anc
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | Jordan Rakei | James Blake | weak → supported |
-| Collaboration brand | HAY | Herschel Supply Co | weak → supported |
-| Pop-up venue | Coal Drops Yard | Alfies Antique Market | no support → supported |
-| Creative direction | Calm, crafted minimalism with warm tones and intimate live music | Understated elegance, minimal design, and a neutral palette | weak → supported |
+| Music act | Cleo Sol | Kindness | weak → weak |
+| Collaboration brand | HAY | Allsaints | weak → supported |
+| Pop-up venue | Spiritland | Rough Trade East | weak → supported |
+| Creative direction | Warm minimalism, tactile materials, and soulful listening | Quiet elegance, neutral tones, and clean lines | weak → supported |
 
-Evidence judge: _A has stronger audience evidence: James Blake and Alfies rank highly, and the creative direction has audience-affinity signals; B’s act, brand, and creative tags are mostly outside the audience’s top 50 or unverified. A’s venue and James Blake also show plan coherence, while B’s venue is locally distinctive but has no affinity evidence; both venue descriptions are insufficient to verify event-hosting suitability._
+Evidence judge: _A has stronger audience and plan-coherence evidence: its venue ranks #12 for the audience, its collaboration brand #36, and its act and venue link to the plan; B’s choices are outside the audience or plan top 50. A also has two choices with London-country origins, while neither plan’s venue is distinctive locally; both plans’ descriptions are compatible with a launch-week café event and the brief’s craft/minimal direction._
 
-Blind judge: _B’s HAY, Coal Drops Yard and Jordan Rakei form a recognisably London, design-led launch, and its warm, intimate direction fits the café’s calm craft. A is concrete and broadly on-brief, but Herschel feels less aligned with the audience and Alfies less connected to the launch’s minimal design cues._
+Blind judge: _B pairs London-relevant music and design references with Spiritland’s listening-led setting, all reinforcing a crafted, calm café launch. A is concrete, but AllSaints and Rough Trade East feel less aligned with the audience and quiet minimalism._
 
 ### tokyo-skincare (Tokyo)
 
@@ -138,13 +138,13 @@ Audience: Women in their twenties in Tokyo who follow beauty and pop culture. Ru
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
 | Music act | Wednesday Campanella | (same) | weak → weak |
-| Collaboration brand | Beams | Niko And... | supported → supported |
-| Pop-up venue | Beams Japan | Honey Mi Honey | no support → supported |
-| Creative direction | Gentle, playful Tokyo pop with clean pastel visuals | (same) | weak → weak |
+| Collaboration brand | Sanrio | (same) | no support → no support |
+| Pop-up venue | Laforet Harajuku | WITH HARAJUKU HALL | no support → supported |
+| Creative direction | Clean, playful Tokyo pop with gentle pastel visuals | (same) | weak → weak |
 
-Evidence judge: _Both plans have a well-ranked collaboration brand, an act outside the audience’s top 50, and the same creative direction; A’s venue ranks #4 for the audience and is locally distinctive, while B’s venue affinity is unreturned and it is not distinctive. Qloo’s descriptions identify both collaboration brands as Japanese brands, but do not establish either as a skincare partner; the venue and act descriptions do not verify event-hosting or audience fit._
+Evidence judge: _Both plans share the same evidence for the act, collaboration brand, and creative direction; Sanrio has no returned audience affinity, and the act is outside the audience’s top 50. A has stronger venue evidence: WITH HARAJUKU HALL ranks #22 for the audience and #2 for plan coherence, while Laforet Harajuku has no returned affinity for either; neither venue is identified as distinctive to Tokyo._
 
-Blind judge: _Both plans use a recognisable Tokyo pop act and a coherent local retail direction. A edges ahead because Honey Mi Honey and Niko And… feel more specifically aligned with playful, feminine beauty culture for women in their twenties than Beams’ broader lifestyle positioning._
+Blind judge: _Both plans make the same locally relevant, coherent choices; the venues are both specific Harajuku options suited to a playful beauty launch. The brief offers no basis to prefer one venue over the other._
 
 ### sao-paulo-running (São Paulo)
 
@@ -153,13 +153,13 @@ Audience: Urban runners in São Paulo, 22–40. Run anchors: Asics, Lululemon, S
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
 | Music act | LiNikEr | (same) | weak → weak |
-| Collaboration brand | Track&field | (same) | weak → weak |
-| Pop-up venue | Parque Ibirapuera | Casarìa SP | unresolved → supported |
-| Creative direction | Energetic, inclusive performance; São Paulo street-run grit | Dynamic, technical performance with sleek functional design | weak → supported |
+| Collaboration brand | Oakberry | (same) | unresolved → unresolved |
+| Pop-up venue | Mercado de Pinheiros | (same) | unresolved → unresolved |
+| Creative direction | High-energy, inclusive technical running culture with bold São Paulo street style | Dynamic, sleek, functional technical running | weak → supported |
 
-Evidence judge: _Both plans have the same unranked act and collaboration brand, and neither description establishes that they can serve as an ambassador or credible product partner; A’s venue is ranked #12 for the audience and described as distinctive, while B’s venue is unverified. A’s creative tags rank well for the audience and are locally distinctive, whereas B’s audience tags are mostly unranked and its Urban tag is not locally distinctive; neither plan provides evidence that its venue can host the event._
+Evidence judge: _Both plans share an act that is outside the audience’s top 50, and the collaboration and venue are unverified. A’s creative direction ranks highly with this São Paulo audience and is distinctive there, while B’s creative tags are not characteristic locally; both directions broadly suit technical running, and neither plan has evidence establishing event-host or collaboration role fit._
 
-Blind judge: _Both plans use locally relevant names, but Parque Ibirapuera is a natural, recognisable setting for a São Paulo run-club launch, and B’s inclusive street-run direction fits the brief especially well. Casarìa SP feels less connected to running, while A’s sleek functional direction is less clearly energetic and inclusive._
+Blind judge: _Both plans make locally grounded choices with Liniker, Oakberry, and Mercado de Pinheiros, but B’s São Paulo street-style direction better fits the audience and inclusive, energetic attributes. Neither names an ambassador, leaving a key launch goal underspecified._
 
 ### madrid-beer (Madrid)
 
@@ -167,14 +167,14 @@ Audience: Indie music fans in Madrid, 25–35. Run anchors: Mahou, Vetusta Morla
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | Hinds | Miss Caffeina | weak → supported |
-| Collaboration brand | La Virgen | (same) | unresolved → unresolved |
+| Music act | Carolina Durante | Miss Caffeina | weak → supported |
+| Collaboration brand | Vans | Hawkers | no support → supported |
 | Pop-up venue | Sala El Sol | Wurlitzer Ballroom | unresolved → supported |
-| Creative direction | Warm, local indie energy; unpolished and welcoming | (same) | weak → weak |
+| Creative direction | Warm, unpolished Madrid indie-night energy | Comfortable, local Madrid music culture | weak → supported |
 
-Evidence judge: _A has strong audience evidence for Miss Caffeina (#3, with a strong Love of Lesbian link) and measured coherence with Wurlitzer Ballroom; B’s Hinds is outside the audience’s top 50, and its other choices are unverified. Both plans share creative tags with mixed local signals, while Qloo’s descriptions support both acts as indie bands and cannot verify either partnership or venue role._
+Evidence judge: _A has strong audience affinity for Miss Caffeina and its creative direction, with the act also linking to Wurlitzer; its venue is in Madrid, though not distinctive, and Hawkers has no demonstrated plan coherence. B has weaker audience and coherence evidence, while its venue is unverified; its act is described as an indie band, but Vans has no audience evidence and is identified as a global default._
 
-Blind judge: _Both plans pair Madrid-relevant acts and La Virgen with a clear, fitting local venue and direction. Hinds and Sala El Sol make B especially resonant for Madrid indie fans._
+Blind judge: _Carolina Durante and Sala El Sol make a concrete, recognisably Madrid indie-night pairing that fits the audience and the warm, unpretentious brief. Miss Caffeina and Wurlitzer also fit, but Hawkers feels less naturally connected to Barrio Brew’s local music positioning than Vans does to B’s scene-led direction._
 
 ### madrid-sustainable (Madrid)
 
@@ -182,14 +182,14 @@ Audience: Environmentally minded fashion buyers in Madrid, 20–35. Run anchors:
 
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
-| Music act | JUDELINE | Juanito Makandé | weak → weak |
+| Music act | Guitarricadelafuente | (same) | weak → weak |
 | Collaboration brand | Thinking MU | Arizona Vintage | unresolved → supported |
-| Pop-up venue | La Casa Encendida | (same) | supported → supported |
-| Creative direction | Mediterranean minimalism, honest materials, modern warmth | Modern aesthetics, handcrafted sustainability | weak → weak |
+| Pop-up venue | Matadero Madrid | (same) | supported → supported |
+| Creative direction | Modern Mediterranean minimalism; honest, warm, and sustainable | (same) | weak → weak |
 
-Evidence judge: _A has stronger audience and local evidence: Arizona Vintage and the venue rank well, and the act and collaborator are placed in Madrid’s country; however, Qloo describes Arizona Vintage as offering mainstream brands and does not establish it as a sustainable collaborator, so the no-fast-fashion constraint is unverified. B’s Thinking MU is also unverified, and its act and creative direction have weak evidence, but the evidence does not establish a constraint violation, giving B a slight brief-fit edge._
+Evidence judge: _Both plans share the same audience evidence for the act, venue, and creative direction; A’s collaboration brand has audience affinity, but Qloo describes it as selling mainstream brands including fast-fashion labels, conflicting with the hard constraint. B’s collaborator is unverified, so earns no fit credit, but is not evidence of a constraint violation; its venue and creative direction show slightly stronger coherence than A’s._
 
-Blind judge: _B pairs Madrid-relevant JUDELINE and sustainable Barcelona label Thinking MU with a fitting local venue and a clear Mediterranean direction. A has a concrete venue and act, but Arizona Vintage is an unclear fit for the no-fast-fashion constraint and the concept feels less cohesive._
+Blind judge: _The act, venue, and direction feel well matched to Madrid and the audience in both plans. Thinking MU is a credible sustainable-fashion collaborator, while Arizona Vintage is less clearly aligned with Marea’s sustainability focus and the no-fast-fashion constraint._
 
 ### mumbai-sneakers (Mumbai)
 
@@ -198,17 +198,17 @@ Audience: Sneaker and hip-hop fans in Mumbai, 18–28. Run anchors: Nike, Bewako
 | Choice | Draft | Agent | Held-out status (draft → agent) |
 |---|---|---|---|
 | Music act | DIVINE | (same) | unresolved → unresolved |
-| Collaboration brand | Puma | Skult | no support → weak |
-| Pop-up venue | antiSOCIAL, Mumbai | The Habitat | unresolved → supported |
-| Creative direction | Bold Mumbai streetwear; gritty, high-energy hip-hop | Bold, vibrant homegrown street craft | weak → weak |
+| Collaboration brand | Bhaane | Koovs | weak → weak |
+| Pop-up venue | Sneaker Pimps Mumbai | The Habitat | unresolved → supported |
+| Creative direction | Bold Mumbai streetwear; gritty hip-hop energy with homegrown pride | Bold homegrown kicks in vibrant colors, intricate embroidery, and rich textures | weak → weak |
 
-Evidence judge: _A has stronger measured Mumbai audience and plan coherence evidence: The Habitat ranks #2 for the audience and #1 with Skult, while two creative tags rank locally (#12 and #34). B’s Puma has no returned audience affinity and is described as a global default, and its creative tags show limited local support; DIVINE is unverified in both plans, and antiSOCIAL is unverified, not evidence against B._
+Evidence judge: _A has a venue ranked #7 for the audience and strong coherence evidence (#1 for the rest of the plan); its creative direction also includes audience-ranked tones. B’s venue and act are unverified, its brand is outside the audience’s top 50, and two creative tags are not characteristic locally. Both brands are described as fashion brands, and neither plan’s evidence verifies the act._
 
-Blind judge: _Both use the locally resonant DIVINE and fit the bold, homegrown brief, but B’s Mumbai antiSOCIAL event and gritty hip-hop direction form a clearer, more usable launch package. Puma is a global rather than homegrown collaborator, though it aligns with the audience’s sneaker interests._
+Blind judge: _Both use DIVINE, a strong Mumbai fit, but B pairs local streetwear label Bhaane and sneaker-focused Sneaker Pimps Mumbai with a coherent homegrown hip-hop direction. A is concrete and colorful, though Koovs and its broader craft-led direction feel less aligned with the brief’s streetwear launch._
 
 ## Cost
 
-Mean 64 s per brief, 412 Qloo calls (counted before the cache), 8.8 model calls. Repair rounds used: 3, 4, 4, 4, 2, 4, 3, 3, 3.
+Mean 56 s per brief, 412 Qloo calls (counted before the cache), 8.4 model calls. Repair rounds used: 2, 4, 5, 4, 1, 4, 4, 1, 3.
 
 ## Limits of this evaluation
 

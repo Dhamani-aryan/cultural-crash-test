@@ -2,6 +2,21 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-21: Run 11 — brief-fit gate for unknown originals
+
+**The change.** An unknown original brand is now upgraded only to a candidate whose Qloo description or tags match the brief's product or attribute terms. "No …" rules are checked against every candidate's Qloo evidence.
+
+**Run 11 results:**
+- **Held-out supported:** 4 → 20 of 36, up in all 9 briefs.
+- **Evidence judge:** 8 / 1 / 0; on held-out briefs only, 5 / 1 / 0.
+- **Blind reference judge:** 0 / 6 / 3.
+
+**Madrid sustainable is still the one loss, and the gate didn't change it.**
+- Qloo tags Arizona Vintage *Sustainable*, *Sustainability* and *Circular Economy*, so it fits the brief on evidence.
+- The judge reads its description ("popular brands like Levi's… Adidas, Nike") as fast fashion and calls the swap a breach of "No fast-fashion collaborators".
+- This is a judgement call about vintage resale of mainstream brands, not a measurement bug.
+- **Option, not adopted yet:** never upgrade an unknown brand when the brief has a free-text rule code can't fully verify.
+
 ## 2026-10-21: Run 10 (gpt-6-luna): intake, exploration rules, venue gate; the London demo choice
 
 This is the first full eval with `gpt-6-luna` everywhere, including the judges. It runs after the event-format venue gate and the exploration rules were added.
