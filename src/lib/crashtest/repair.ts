@@ -157,6 +157,71 @@ export function roleFits(
   return true;
 }
 
+// ---------- brief fit on evidence ----------
+
+/** Words too generic to show a brand fits a brief ("fashion", "brand"). */
+const GENERIC = new Set(
+  "brand brands fashion clothing apparel label labels store stores shop goods product products wear streetwear casual lifestyle company the and for with from that this other".split(" "),
+);
+const stem = (w: string) => w.replace(/(ability|ibility|able|ible|ity|ness|ing|ed|es|s)$/, "").slice(0, 7);
+function terms(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .split(/[^\p{L}]+/u)
+      .filter((w) => w.length >= 3 && !GENERIC.has(w))
+      .map(stem),
+  );
+}
+
+/** What Qloo says a candidate is: its description and its descriptive tags, not trade data. */
+function evidenceText(e: Pick<QlooEntity, "shortDescription" | "description" | "tags">): string {
+  const tags = e.tags
+    .filter((t) => !/wikipedia_category|key_market|product_category|category:place/.test(t.type ?? t.id))
+    .map((t) => t.name ?? "");
+  return [e.shortDescription ?? "", e.description ?? "", ...tags].join(" ");
+}
+
+/** Phrases a hard text rule rules out: "No fast-fashion collaborators" → "fast fashion". */
+export function ruledOut(brief: Pick<LaunchBrief, "constraints">): string[] {
+  return brief.constraints
+    .filter((c) => c.kind === "hard" && !c.lockSlot)
+    .flatMap((c) => {
+      const m = c.description.match(/\b(?:no|not|never|avoid|without)\s+(?:any\s+|a\s+)?(.+)$/i);
+      if (!m) return [];
+      const phrase = m[1]
+        .toLowerCase()
+        .replace(/[-_]/g, " ")
+        .replace(/\b(collaborators?|collaborations?|brands?|partners?|partnerships?|venues?|acts?|artists?|choices?)\b/g, "")
+        .replace(/[^\p{L}\s]/gu, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      return phrase.length >= 3 ? [phrase] : [];
+    });
+}
+
+/**
+ * Does a candidate fit the brief on Qloo's own evidence? A candidate matching a ruled-out
+ * phrase never fits. When the original choice is unknown to Qloo there is nothing to compare
+ * the role with, so a collaboration brand must also show, in its Qloo description or tags, at
+ * least one of the brief's product or attribute terms. Otherwise the unknown choice is kept.
+ */
+export function fitsBrief(
+  e: Pick<QlooEntity, "shortDescription" | "description" | "tags">,
+  brief: Pick<LaunchBrief, "constraints" | "productCategory" | "brandAttributes">,
+  opts: { requireAttributes: boolean },
+): { ok: boolean; why?: string } {
+  const text = evidenceText(e).toLowerCase().replace(/[-_]/g, " ");
+  const banned = ruledOut(brief).find((p) => text.includes(p));
+  if (banned) return { ok: false, why: `matches "${banned}", which the brief rules out` };
+  if (!opts.requireAttributes) return { ok: true };
+  const want = terms([brief.productCategory, ...brief.brandAttributes].join(" "));
+  const have = terms(text);
+  return [...want].some((t) => have.has(t))
+    ? { ok: true }
+    : { ok: false, why: "Qloo's evidence doesn't show it fits the brief's attributes" };
+}
+
 const tagNames = (e: QlooEntity, prefix: string) =>
   e.tags.filter((t) => t.id.startsWith(prefix) && t.name).map((t) => t.name!).slice(0, 3);
 
@@ -357,9 +422,14 @@ export async function repairEntity(input: {
     // An upgrade replaces a choice nothing contradicts, so it must be a local pick: from the
     // city's own country (venues: in it), whoever suggested it.
     const upgradeOk = !input.upgrade || isLocalOrigin(e, domain, ctx.market);
-    const fits = roleOk && upgradeOk;
+    // With no resolved original to compare against, a partner brand must fit the brief on evidence.
+    const briefFit = fitsBrief(e, brief, {
+      requireAttributes: slot === "brand_collaboration" && current.resolution !== "resolved",
+    });
+    const fits = roleOk && upgradeOk && briefFit.ok;
     if (!roleOk) l.why = place ? "not a venue of the planned kind" : "a different kind of business";
     else if (!upgradeOk) l.why = "not from here (an upgrade must be a local pick)";
+    else if (!briefFit.ok) l.why = briefFit.why!;
     const role = original ? roleSimilarity(originalRole, roleTags(e)) : { score: 0, shared: [] as string[] };
     const shared = role.shared.map((id) => kindLabel(id) ?? e.tags.find((t) => t.id === id)?.name ?? id);
     const fit = Math.max(0, 1 - (rank - 1) / LIST_SIZE);

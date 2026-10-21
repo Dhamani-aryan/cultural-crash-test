@@ -23,7 +23,7 @@ export const W = {
   canalEcho: entity("uk2", { name: "Canal Echo", type: T.artist, shortDescription: "English DJ and producer." }),
   otherUs: entity("us2", { name: "Coast Kid", type: T.artist, shortDescription: "American singer." }),
   localBrand: entity("b1", { name: "Mossgrove", type: T.brand, shortDescription: "Streetwear label" }),
-  altBrand: entity("b2", { name: "Fieldnote", type: T.brand, shortDescription: "Workwear label" }),
+  altBrand: entity("b2", { name: "Fieldnote", type: T.brand, shortDescription: "Fieldnote is a British workwear label." }),
   venue: entity("p1", {
     name: "Yard Market",
     type: T.place,
