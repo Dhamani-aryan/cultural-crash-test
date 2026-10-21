@@ -11,9 +11,26 @@ export function domainOf(type: string | null): Domain | null {
   return type ? (TYPE_TO_DOMAIN[type] ?? null) : null;
 }
 
+const tokens = (s: string) =>
+  new Set(
+    s
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter((t) => t.length > 1 && t !== "the"),
+  );
+
+/** Share of the query's words that appear in the name (0–1). */
+export function nameOverlap(query: string, name: string): number {
+  const q = tokens(query);
+  if (q.size === 0) return 0;
+  const n = tokens(name);
+  return [...q].filter((t) => n.has(t)).length / q.size;
+}
+
 /**
  * Pick the search result for a reference: an exact name (or aka) match of the guessed kind
- * first, then an exact match of any supported kind, then the top result of the guessed kind.
+ * first, then an exact match of any supported kind, then a close match of the guessed kind.
+ * Never just the top result: "The Office (US)" once resolved to an unrelated show that way.
  */
 export function pickMatch(
   name: string,
@@ -25,12 +42,22 @@ export function pickMatch(
     [r.name, r.displayName, ...r.akas].some((n) => nameKey(n) === key),
   );
   const supported = (r: EntityMatch) => domainOf(r.type) !== null;
+  const close = (r: EntityMatch) =>
+    [r.name, r.displayName].some(
+      (n) => nameOverlap(name, n) >= 0.75 && nameOverlap(n, name) >= 0.5,
+    );
   return (
     exact.find((r) => domainOf(r.type) === kind) ??
     exact.find(supported) ??
-    results.find((r) => domainOf(r.type) === kind) ??
+    results.find((r) => domainOf(r.type) === kind && close(r)) ??
     null
   );
+}
+
+/** Names to try, most specific first: as given, without "(US)"-style notes, as written. */
+export function lookupNames(r: Pick<Reference, "name" | "surface">): string[] {
+  const bare = r.name.replace(/\s*[([].*?[)\]]\s*/g, " ").trim();
+  return [...new Set([r.name, bare, r.surface].filter(Boolean))];
 }
 
 /** Find each reference in Qloo and load its full record (all tags) for the engine. */
@@ -38,22 +65,25 @@ export async function resolveReferences(
   client: QlooClient,
   references: Reference[],
 ): Promise<ResolvedReference[]> {
+  const all = DOMAINS.map((d) => `urn:entity:${d}`);
   const matches = await Promise.all(
     references.map(async (r) => {
-      const types =
-        r.kind === "other" ? DOMAINS.map((d) => `urn:entity:${d}`) : [`urn:entity:${r.kind}`];
-      let results = await client.searchEntities({ query: r.name, types, take: 5 });
-      let match = pickMatch(r.name, r.kind, results);
-      if (!match && r.kind !== "other") {
-        // The extractor's kind may be wrong (a podcast called a show, a café called a brand).
-        results = await client.searchEntities({
-          query: r.name,
-          types: DOMAINS.map((d) => `urn:entity:${d}`),
-          take: 5,
-        });
-        match = pickMatch(r.name, "other", results);
+      // The extractor's kind may be wrong (a podcast called a show, a café called a brand), so
+      // each name is tried with the guessed kind first, then with every supported kind.
+      const attempts: [string, string[]][] = lookupNames(r).flatMap((name) =>
+        r.kind === "other"
+          ? [[name, all] as [string, string[]]]
+          : [
+              [name, [`urn:entity:${r.kind}`]] as [string, string[]],
+              [name, all] as [string, string[]],
+            ],
+      );
+      for (const [query, types] of attempts) {
+        const results = await client.searchEntities({ query, types, take: 5 });
+        const match = pickMatch(query, r.kind, results);
+        if (match) return match;
       }
-      return match;
+      return null;
     }),
   );
   const ids = matches.filter((m): m is EntityMatch => m !== null).map((m) => m.id);

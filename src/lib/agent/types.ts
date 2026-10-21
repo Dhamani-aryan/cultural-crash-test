@@ -64,8 +64,11 @@ export interface BaselineResult {
   swaps: {
     original: string;
     replacement: string;
-    /** What a Qloo lookup says about the model's pick. */
-    check: "not_in_qloo" | "foreign" | "local" | "unknown_origin";
+    /**
+     * What Qloo says about the model's pick: unknown to Qloo, of foreign origin, in the city's
+     * own taste lists (local evidence), or known to Qloo but not distinctive in that city.
+     */
+    check: "not_in_qloo" | "foreign" | "local_evidence" | "no_local_evidence";
   }[];
 }
 

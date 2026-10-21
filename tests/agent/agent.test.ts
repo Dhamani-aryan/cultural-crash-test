@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applyDecisions } from "@/lib/agent/decide";
 import { extractReferences } from "@/lib/agent/extract";
 import { runTranscreate } from "@/lib/agent/orchestrator";
-import { pickMatch } from "@/lib/agent/resolve";
+import { lookupNames, pickMatch } from "@/lib/agent/resolve";
 import { allowedNames, rewriteForMarket, unverifiedNames } from "@/lib/agent/rewrite";
 import type { AgentEvent, ResolvedReference } from "@/lib/agent/types";
 import type { EquivalentsResult } from "@/lib/engine/equivalents";
@@ -101,6 +101,23 @@ describe("pickMatch", () => {
   });
 });
 
+describe("lookupNames", () => {
+  it("tries the plain name before the bracketed one and the written span last", () => {
+    expect(lookupNames({ name: "The Office (U.S. TV series)", surface: "The Office" })).toEqual([
+      "The Office (U.S. TV series)",
+      "The Office",
+    ]);
+  });
+
+  it("never takes an unrelated top result", () => {
+    const unrelated: EntityMatch = {
+      ...entity("m", { name: "Monster", type: "urn:entity:tv_show" }),
+      rank: 1,
+    };
+    expect(pickMatch("The Office", "tv_show", [unrelated])).toBeNull();
+  });
+});
+
 describe("applyDecisions", () => {
   const eqs = new Map([["R1", eqResult([equivalent("a", "Goiko"), equivalent("b", "Telepizza")])]]);
 
@@ -114,6 +131,16 @@ describe("applyDecisions", () => {
     expect(decisions[0].action).toBe("swap");
     expect(decisions[0].choice?.entity.displayName).toBe("Telepizza");
     expect(decisions[0].alternatives.map((a) => a.entity.displayName)).toEqual(["Goiko"]);
+  });
+
+  it("reads loosely formatted IDs", () => {
+    const { decisions } = applyDecisions(
+      [ref()],
+      [{ ref: 'r1 "Chipotle"', action: "swap", candidate: "R1-2", reason: "fits" }],
+      eqs,
+      true,
+    );
+    expect(decisions[0].choice?.entity.displayName).toBe("Telepizza");
   });
 
   it("flags a candidate that wasn't offered, and references the model skipped", () => {
@@ -168,6 +195,13 @@ describe("rewrite guard", () => {
       [],
     );
     expect(unverifiedNames("Cheaper than Goiko or VIPS, ask Maria.", allowed)).toEqual(["VIPS"]);
+  });
+
+  it("treats possessives and hyphenated forms as the same name", () => {
+    const allowed = allowedNames(original, decisions, madrid);
+    expect(
+      unverifiedNames("Cheaper than your Goiko's habit, Chipotle-level value.", allowed),
+    ).toEqual([]);
   });
 
   it("falls back to direct substitution when the model keeps adding names", async () => {

@@ -24,7 +24,7 @@ const SYSTEM = `You are a transcreation specialist. You find the cultural refere
 
 For each reference give:
 - surface: the exact span as written (copy it character for character),
-- name: the canonical name to look the entity up (e.g. surface "your Chipotle habit" → name "Chipotle"),
+- name: the plain canonical name to look the entity up, with no notes in brackets (e.g. surface "your Chipotle habit" → name "Chipotle"; "The Office", not "The Office (U.S. TV series)"),
 - kind: artist (musicians, bands), tv_show, movie, brand (companies, chains, products, stores, publications), place (landmarks, parks, neighbourhoods, venues), or other (people who aren't musicians, sports leagues, events, holidays, anything else),
 - job: in a few words, what the reference does for the reader in this sentence ("shorthand for affordable, cult-loved grocery", "the benchmark for slick premium fitness").
 

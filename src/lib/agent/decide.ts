@@ -28,11 +28,11 @@ const SYSTEM = `You are a senior transcreator adapting American copy for a speci
 
 Decide for each reference:
 - "swap": choose the candidate that does the same job in this sentence for a local reader. Fit the sentence: a food comparison needs something people eat, a "the X of Y" comparison needs something famous enough to be shorthand. Prefer recognisable over obscure.
-- "keep": the original is already well known and means the same thing locally, so changing it would lose more than it gains.
+- "keep": no candidate carries the meaning AND the original is already well known locally, so it still works as is. A strong local candidate beats keeping a famous American reference: the point is to sound local.
 - "flag": no candidate carries the meaning; a human should rewrite the line.
 - "try_domain": the meaning would travel better through another kind of culture (e.g. no local sitcom fits, but a local snack brand would). Name the domain. Only use this when the current candidates clearly don't work.
 
-Rules: only choose candidate IDs that are listed for that reference. Never suggest names that aren't listed. One plain sentence of reasoning each, citing the evidence.`;
+Rules: only choose candidate IDs that are listed for that reference. Never suggest names that aren't listed. Return exactly one decision per reference, using its ID as given (R1, R2…). One plain sentence of reasoning each, in English, citing the evidence.`;
 
 function describeCandidate(id: string, e: Equivalent): string {
   const bits = [
@@ -106,7 +106,10 @@ export function applyDecisions(
   equivalents: Map<string, EquivalentsResult>,
   allowTryDomain: boolean,
 ): { decisions: Decision[]; tryDomain: { ref: string; domain: Domain }[] } {
-  const byRef = new Map(raw.map((d) => [d.ref, d]));
+  // Models sometimes echo IDs loosely ("r1", "R1 \"Chipotle\"", "R1.2" as the ref), so match on
+  // the number. Candidate IDs are read the same way: the number after the reference's.
+  const refNumber = (s: string | undefined) => s?.match(/R?\s*(\d+)/i)?.[1];
+  const byRef = new Map(raw.map((d) => [`R${refNumber(d.ref)}`, d]));
   const decisions: Decision[] = [];
   const tryDomain: { ref: string; domain: Domain }[] = [];
   for (const r of references) {
@@ -154,9 +157,8 @@ export function applyDecisions(
       continue;
     }
     if (d.action === "swap") {
-      const index = d.candidate?.startsWith(`${r.ref}.`)
-        ? Number(d.candidate.slice(r.ref.length + 1)) - 1
-        : -1;
+      const parts = d.candidate?.match(/R?\s*(\d+)\D+(\d+)/i);
+      const index = parts && `R${parts[1]}` === r.ref ? Number(parts[2]) - 1 : -1;
       const choice = options[index];
       if (!choice) {
         decisions.push({

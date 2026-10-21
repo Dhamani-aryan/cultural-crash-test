@@ -51,7 +51,9 @@ export function allowedNames(original: string, decisions: Decision[], market: Ma
 /** Capitalised words that don't start a sentence and aren't in the allowed set. */
 export function unverifiedNames(text: string, allowed: Set<string>): string[] {
   const out = new Set<string>();
-  const re = /(^|[.!?]\s+|["“(]\s*)?(\p{Lu}[\p{L}'’-]*)/gu;
+  // Stop at apostrophes and hyphens: "Nykaa's" and "Glossier-level" are the names Nykaa
+  // and Glossier, not new ones.
+  const re = /(^|[.!?]\s+|["“(]\s*)?(\p{Lu}\p{L}*)/gu;
   for (const m of text.matchAll(re)) {
     if (m[1] !== undefined) continue; // sentence or quote start: capitalised for grammar
     const word = m[2];

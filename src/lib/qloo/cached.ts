@@ -5,19 +5,31 @@ import type { QlooClient } from "./types";
 export const QLOO_CACHE_TTL = 24 * 60 * 60;
 
 /**
- * Wrap a Qloo client so identical requests are served from the server-side cache.
- * Errors are never cached.
+ * Wrap a Qloo client so identical requests are served from the server-side cache. Identical
+ * requests already in flight share one call: parallel references ask for the same control-city
+ * lists at the same moment, before the first answer is cached. Errors are never cached.
  */
 export function withCache(client: QlooClient, cache: Cache, ttl = QLOO_CACHE_TTL): QlooClient {
+  const inFlight = new Map<string, Promise<unknown>>();
   const cached =
     <I, O>(name: string, fn: (input: I) => Promise<O>) =>
     async (input: I): Promise<O> => {
       const key = cacheKey(`qloo:${name}`, input);
-      const hit = await cache.get<O>(key);
-      if (hit) return hit;
-      const result = await fn(input);
-      await cache.set(key, result, ttl);
-      return result;
+      const pending = inFlight.get(key);
+      if (pending) return pending as Promise<O>;
+      const work = (async () => {
+        const hit = await cache.get<O>(key);
+        if (hit) return hit;
+        const result = await fn(input);
+        await cache.set(key, result, ttl);
+        return result;
+      })();
+      inFlight.set(key, work);
+      try {
+        return await work;
+      } finally {
+        inFlight.delete(key);
+      }
     };
   return {
     searchEntities: cached("search", (i) => client.searchEntities(i)),

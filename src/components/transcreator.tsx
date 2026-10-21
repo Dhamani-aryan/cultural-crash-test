@@ -13,9 +13,9 @@ const DOT = { strong: "●●●", usable: "●●○", off: "○○○" } as co
 
 const CHECK_LABEL: Record<BaselineResult["swaps"][number]["check"], string> = {
   not_in_qloo: "not found in Qloo",
-  foreign: "not local (foreign origin)",
-  local: "local",
-  unknown_origin: "in Qloo, origin unknown",
+  foreign: "foreign origin",
+  local_evidence: "in the city's Qloo taste list",
+  no_local_evidence: "in Qloo, but not distinctive in this city",
 };
 
 function CoverageMap() {
@@ -84,9 +84,9 @@ function Baseline({ results, markets }: { results: BaselineResult[]; markets: Ma
                 <li
                   key={i}
                   className={
-                    s.check === "local"
+                    s.check === "local_evidence"
                       ? "text-ok"
-                      : s.check === "unknown_origin"
+                      : s.check === "no_local_evidence"
                         ? "text-muted"
                         : "text-flag"
                   }

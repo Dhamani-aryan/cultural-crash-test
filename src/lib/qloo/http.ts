@@ -9,6 +9,11 @@ export interface HttpOptions {
   timeoutMs?: number;
   /** Retries after the first attempt, only for retryable errors. Default 2. */
   maxRetries?: number;
+  /**
+   * Requests allowed in flight at once across this client. Qloo rate-limits bursts (429), and
+   * one translation fans out to dozens of requests, so they queue here. Default 4.
+   */
+  maxConcurrent?: number;
   fetch?: typeof fetch;
   /** Injected for tests so backoff doesn't actually wait. */
   sleep?: (ms: number) => Promise<void>;
@@ -41,10 +46,28 @@ export function toQueryParams(params: Record<string, QueryValue>): Record<string
 
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-function backoffMs(attempt: number, retryAfter: string | null): number {
+function backoffMs(attempt: number, retryAfter: string | null, rateLimited: boolean): number {
   const seconds = retryAfter ? Number(retryAfter) : NaN;
   if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1000, 10_000);
-  return 500 * 2 ** attempt + Math.floor(Math.random() * 200);
+  // A 429 means the window is full: wait longer than for a flaky connection.
+  const base = rateLimited ? 1500 : 500;
+  return Math.min(base * 2 ** attempt, 12_000) + Math.floor(Math.random() * 400);
+}
+
+/** A counting semaphore: at most `n` holders at a time, the rest wait in order. */
+export function createLimiter(n: number) {
+  let active = 0;
+  const waiting: (() => void)[] = [];
+  return async function run<T>(fn: () => Promise<T>): Promise<T> {
+    if (active >= n) await new Promise<void>((r) => waiting.push(r));
+    active++;
+    try {
+      return await fn();
+    } finally {
+      active--;
+      waiting.shift()?.();
+    }
+  };
 }
 
 export function createHttp(opts: HttpOptions) {
@@ -52,6 +75,7 @@ export function createHttp(opts: HttpOptions) {
   const sleep = opts.sleep ?? defaultSleep;
   const timeoutMs = opts.timeoutMs ?? 8_000;
   const maxRetries = opts.maxRetries ?? 2;
+  const slot = createLimiter(opts.maxConcurrent ?? 4);
 
   async function once(path: string, params: Record<string, string>): Promise<unknown> {
     const url = new URL(path, opts.baseUrl + "/");
@@ -106,11 +130,14 @@ export function createHttp(opts: HttpOptions) {
     const query = toQueryParams(params);
     for (let attempt = 0; ; attempt++) {
       try {
-        return await once(path, query);
+        return await slot(() => once(path, query));
       } catch (err) {
-        if (!(err instanceof QlooError) || !err.retryable || attempt >= maxRetries) throw err;
+        if (!(err instanceof QlooError) || !err.retryable) throw err;
+        // Rate limits get extra patience: they clear within seconds.
+        const limit = err.kind === "rate_limited" ? Math.max(maxRetries, 5) : maxRetries;
+        if (attempt >= limit) throw err;
         const retryAfter = (err as QlooError & { retryAfter?: string | null }).retryAfter ?? null;
-        await sleep(backoffMs(attempt, retryAfter));
+        await sleep(backoffMs(attempt, retryAfter, err.kind === "rate_limited"));
       }
     }
   };
