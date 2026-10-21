@@ -5,8 +5,8 @@
  */
 
 export const LIMITS = {
-  /** Live agent runs (cached replays are free). Each live run makes ~200 Qloo calls. */
-  transcreate: { max: 4, windowSeconds: 600 },
+  /** Live agent runs (cached replays are free). Each live run makes ~300 Qloo calls. */
+  crashtest: { max: 3, windowSeconds: 600 },
 } as const;
 export type Bucket = keyof typeof LIMITS;
 

@@ -6,16 +6,13 @@ const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const fraunces = Fraunces({ variable: "--font-fraunces", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Transcreate",
+  title: "Cultural Crash-Test",
   description:
-    "Translate cultural references, not just words. An agent that uses Qloo's taste graph to find what plays the same role for audiences in another city.",
+    "Find the cultural mismatch before launch. An agent that tests a launch plan's cultural choices against Qloo's taste data, repairs the weakest and re-tests.",
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f7f5f0" },
-    { media: "(prefers-color-scheme: dark)", color: "#131210" },
-  ],
+  themeColor: "#0f0f0e",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

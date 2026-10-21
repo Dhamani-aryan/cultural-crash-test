@@ -97,10 +97,12 @@ async function screen(
 const pickSchema = z.object({
   id: z.string().describe("the chosen candidate's id, copied exactly"),
   reason: z.string().describe("one or two sentences citing the evidence given"),
-  expectedEffect: z.string().describe("what should improve in the re-test, in one line"),
+  expectedEffect: z
+    .string()
+    .describe("which test should improve in the re-test (audience affinity, local relevance or fit with the plan), in one line"),
 });
 
-const PICK_SYSTEM = `You repair one weak choice in a launch plan. Choose the candidate that best keeps the brand's intent while fixing the weakness. Use only the evidence given; never claim anything it doesn't show. Answer with the candidate's id exactly as given.`;
+const PICK_SYSTEM = `You repair one weak choice in a launch plan. Choose the candidate that best keeps the brand's intent while fixing the weakness. Use only the evidence given; never claim anything it doesn't show, and never predict sales, engagement or attendance: the expected effect names which test should improve. Answer with the candidate's id exactly as given.`;
 
 export async function repairEntity(input: {
   llm: LlmClient;
@@ -232,8 +234,8 @@ export async function repairEntity(input: {
 const directionSchema = z.object({
   tags: z.array(z.string()).describe("1-3 words copied exactly from the list"),
   direction: z.string().describe("the revised creative direction in a few words"),
-  reason: z.string(),
-  expectedEffect: z.string(),
+  reason: z.string().describe("one or two sentences citing the ranks given"),
+  expectedEffect: z.string().describe("which test should improve in the re-test, in one line; no predictions of sales or engagement"),
 });
 
 export async function repairDirection(input: {

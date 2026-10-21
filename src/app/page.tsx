@@ -1,5 +1,5 @@
-import { Transcreator } from "@/components/transcreator";
+import { CrashTest } from "@/components/crash-test";
 
 export default function Home() {
-  return <Transcreator />;
+  return <CrashTest />;
 }

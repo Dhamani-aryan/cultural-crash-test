@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { AgentEvent } from "@/lib/agent/types";
 import { createMemoryCache } from "@/lib/cache/cache";
-import { eventStream, handleTranscreate, runKey } from "@/lib/server/handlers";
-import { fakeClient } from "../engine/helpers";
+import type { RunEvent } from "@/lib/crashtest/types";
+import { eventStream, handleCrashTest, runKey } from "@/lib/server/handlers";
+import { LONDON_BRIEF, worldClient, worldLlm } from "../crashtest/world";
 
 const post = (body: unknown) =>
-  new Request("http://test/api/transcreate", { method: "POST", body: JSON.stringify(body) });
+  new Request("http://test/api/crashtest", { method: "POST", body: JSON.stringify(body) });
 
-async function readEvents(res: Response): Promise<AgentEvent[]> {
+async function readEvents(res: Response): Promise<RunEvent[]> {
   const text = await res.text();
   return text
     .split("\n\n")
@@ -18,40 +18,45 @@ async function readEvents(res: Response): Promise<AgentEvent[]> {
 const noDeps = () => {
   throw new Error("deps should not be needed");
 };
+const world = () => ({ qloo: worldClient().client, llm: worldLlm().llm });
 
-describe("handleTranscreate", () => {
-  it("rejects invalid requests", async () => {
-    const res = await handleTranscreate(post({ text: "", marketIds: [] }), noDeps);
-    expect(res.status).toBe(400);
+describe("handleCrashTest", () => {
+  it("rejects invalid briefs and unsupported cities", async () => {
+    expect((await handleCrashTest(post({ brief: { marketId: "london" } }), noDeps)).status).toBe(400);
+    const paris = await handleCrashTest(post({ brief: { ...LONDON_BRIEF, marketId: "paris" } }), noDeps);
+    expect(paris.status).toBe(400);
   });
 
-  it("replays a saved run without calling Qloo or the model", async () => {
+  it("streams a live run to its done event, then replays it labelled as recorded", async () => {
     const cache = createMemoryCache(10, new Map());
-    const saved: AgentEvent[] = [{ type: "stage", stage: "extract", message: "x" }];
-    await cache.set(runKey("Hello", ["madrid"]), saved, 60);
-    const res = await handleTranscreate(
-      post({ text: "Hello", marketIds: ["madrid"] }),
-      noDeps,
-      () => cache,
-    );
-    const events = await readEvents(res);
-    expect(events.map((e) => e.type)).toEqual(["stage", "stage"]);
+    const live = await readEvents(await handleCrashTest(post({ brief: LONDON_BRIEF }), world, () => cache));
+    expect(live.at(-1)?.type).toBe("done");
+    expect(live.some((e) => e.type === "evidence")).toBe(true);
+
+    const replayed = await readEvents(await handleCrashTest(post({ brief: LONDON_BRIEF }), noDeps, () => cache));
+    expect(replayed[0]).toMatchObject({ type: "stage", stage: "replay" });
+    expect((replayed[0] as Extract<RunEvent, { type: "stage" }>).message).toMatch(/recorded/);
+    expect(replayed.length).toBe(live.length + 1);
+  });
+
+  it("runs live when asked for a fresh run, even with a recording", async () => {
+    const cache = createMemoryCache(10, new Map());
+    const parsed = (await import("@/lib/crashtest/types")).LaunchBriefSchema.parse(LONDON_BRIEF);
+    await cache.set(runKey(parsed), { recordedAt: "2026-10-01T00:00:00Z", events: [] }, 60);
+    const events = await readEvents(await handleCrashTest(post({ brief: LONDON_BRIEF, fresh: true }), world, () => cache));
+    expect(events[0]).not.toMatchObject({ stage: "replay" });
+    expect(events.at(-1)?.type).toBe("done");
   });
 
   it("refuses a live run when the limiter says so, but never a replay", async () => {
     const refuse = async () => new Response("slow down", { status: 429 });
-    const res = await handleTranscreate(
-      post({ text: "Hi", marketIds: ["madrid"] }),
-      noDeps,
-      () => createMemoryCache(10, new Map()),
-      refuse,
-    );
+    const res = await handleCrashTest(post({ brief: LONDON_BRIEF }), noDeps, () => createMemoryCache(10, new Map()), refuse);
     expect(res.status).toBe(429);
   });
 
-  it("streams an error event when the run fails", async () => {
+  it("reports a model failure as a stopped run, not a crash", async () => {
     const deps = () => ({
-      qloo: fakeClient({ lists: {} }).client,
+      qloo: worldClient().client,
       llm: {
         provider: "fake",
         model: "fake",
@@ -60,23 +65,26 @@ describe("handleTranscreate", () => {
         },
       },
     });
-    const events = await readEvents(
-      await handleTranscreate(post({ text: "Hi", marketIds: ["madrid"] }), deps),
-    );
-    expect(events.at(-1)).toMatchObject({ type: "error", message: "model down" });
+    const events = await readEvents(await handleCrashTest(post({ brief: LONDON_BRIEF }), deps));
+    const done = events.at(-1) as Extract<RunEvent, { type: "done" }>;
+    expect(done.type).toBe("done");
+    expect(done.state.stopReason).toBe("error");
+    expect(done.state.stopDetail).toMatch(/model down/);
   });
 });
 
 describe("eventStream", () => {
   it("yields events in order and ends when the run finishes", async () => {
     const out: string[] = [];
-    for await (const e of eventStream(async (emit) => {
-      emit({ type: "stage", stage: "a", message: "" });
-      await new Promise((r) => setTimeout(r, 5));
-      emit({ type: "stage", stage: "b", message: "" });
-    })) {
-      out.push((e as Extract<AgentEvent, { type: "stage" }>).stage);
-    }
+    const stream = eventStream<RunEvent>(
+      async (emit) => {
+        emit({ type: "stage", stage: "a", message: "" });
+        await new Promise((r) => setTimeout(r, 5));
+        emit({ type: "stage", stage: "b", message: "" });
+      },
+      (message) => ({ type: "error", message }),
+    );
+    for await (const e of stream) out.push((e as Extract<RunEvent, { type: "stage" }>).stage);
     expect(out).toEqual(["a", "b"]);
   });
 });

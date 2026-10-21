@@ -1,107 +1,90 @@
 @import "tailwindcss";
 
 /*
- * Transcreate: an editorial page, not a dashboard. Ink on paper; colour marks data only.
- * Each market has its own colour, used for its column, its swaps and its evidence.
+ * Cultural Crash-Test: a dark, editorial research product. Restrained contrast; colour marks
+ * status only, and every status is also written out in words.
  */
 :root {
-  --paper: #f7f5f0;
-  --paper-2: #efebe3;
-  --card: #fbfaf7;
+  color-scheme: dark;
+  --bg: #0f0f0e;
+  --panel: #171715;
+  --panel-2: #1f1e1b;
+  --ink: #ece8e1;
+  --ink-2: #c4bfb6;
+  --muted: #8d887f;
+  --line: #2c2a26;
+  --accent: #d9b25f;
+  --supported: #7cc49a;
+  --weak: #e2b45a;
+  --nosupport: #ec8a6c;
+  --unresolved: #a3a09a;
+  --conflict: #e2759a;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f4ef;
+  --panel: #fbfaf7;
+  --panel-2: #efebe3;
   --ink: #1a1917;
   --ink-2: #3c3a35;
-  --muted: #78746b;
+  --muted: #6f6b62;
   --line: #e0dbd1;
-  --swap-bg: #fff3c4;
-  --flag: #a6411f;
-  --flag-soft: #f8e4dc;
-  --keep: #5b5a55;
-  --ok: #2d7049;
-  --tokyo: #c0392b;
-  --london: #2458a0;
-  --mumbai: #c26a00;
-  --sao-paulo: #23825a;
-  --madrid: #8a3fa0;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --paper: #131210;
-    --paper-2: #1d1b19;
-    --card: #191816;
-    --ink: #efebe4;
-    --ink-2: #cfc9bf;
-    --muted: #9a958b;
-    --line: #34312c;
-    --swap-bg: #4a3f12;
-    --flag: #f08b6a;
-    --flag-soft: #3a211a;
-    --keep: #b5b0a6;
-    --ok: #6fc394;
-    --tokyo: #f07466;
-    --london: #7aa7ea;
-    --mumbai: #f2a443;
-    --sao-paulo: #5fcf99;
-    --madrid: #c98ce0;
-  }
-}
-
-:root[data-theme="dark"] {
-  --paper: #131210;
-  --paper-2: #1d1b19;
-  --card: #191816;
-  --ink: #efebe4;
-  --ink-2: #cfc9bf;
-  --muted: #9a958b;
-  --line: #34312c;
-  --swap-bg: #4a3f12;
-  --flag: #f08b6a;
-  --flag-soft: #3a211a;
-  --keep: #b5b0a6;
-  --ok: #6fc394;
-  --tokyo: #f07466;
-  --london: #7aa7ea;
-  --mumbai: #f2a443;
-  --sao-paulo: #5fcf99;
-  --madrid: #c98ce0;
+  --accent: #8a6514;
+  --supported: #2d7049;
+  --weak: #8a5d00;
+  --nosupport: #a6411f;
+  --unresolved: #5b5a55;
+  --conflict: #9c2a55;
 }
 
 @theme inline {
-  --color-paper: var(--paper);
-  --color-paper-2: var(--paper-2);
-  --color-card: var(--card);
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-muted: var(--muted);
   --color-line: var(--line);
-  --color-flag: var(--flag);
-  --color-flag-soft: var(--flag-soft);
-  --color-ok: var(--ok);
+  --color-accent: var(--accent);
+  --color-supported: var(--supported);
+  --color-weak: var(--weak);
+  --color-nosupport: var(--nosupport);
+  --color-unresolved: var(--unresolved);
+  --color-conflict: var(--conflict);
   --font-serif: var(--font-fraunces), Georgia, serif;
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
 }
 
 body {
-  background: var(--paper);
+  background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
 }
 
-mark.swap {
-  background: var(--swap-bg);
-  color: inherit;
-  border-radius: 3px;
-  padding: 0 2px;
-  box-shadow: inset 0 -2px 0 var(--market, var(--ink));
+input,
+textarea,
+select {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  color: var(--ink);
+  width: 100%;
+  font-size: 0.925rem;
 }
-
-mark.ref {
-  background: transparent;
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-color: var(--muted);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+  accent-color: var(--accent);
 }
 
 @keyframes pulse-dot {
@@ -111,4 +94,10 @@ mark.ref {
 }
 .pulse {
   animation: pulse-dot 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
 }
