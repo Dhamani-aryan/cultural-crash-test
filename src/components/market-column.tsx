@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Decision, MarketResult, ResolvedReference } from "@/lib/agent/types";
 import type { Equivalent } from "@/lib/engine/equivalents";
 import { DOMAIN_LABEL, type Market } from "@/lib/markets";
+import { nameForms } from "@/lib/agent/names";
 import { highlight } from "./highlight";
 
 const ACTION_LABEL = { swap: "Swapped", keep: "Kept", flag: "Needs a human" } as const;
@@ -132,8 +133,7 @@ export function MarketColumn({
     .filter((d) => d.action === "swap" && d.choice)
     .map((d) => {
       const e = d.choice!.entity;
-      const needle =
-        [e.displayName, e.name, ...e.akas].find((n) => result?.text.includes(n)) ?? e.displayName;
+      const needle = nameForms(e).find((n) => result?.text.includes(n)) ?? e.displayName;
       return { needle, className: "swap" };
     });
   const swaps = (result?.decisions ?? decisions).filter((d) => d.action === "swap").length;

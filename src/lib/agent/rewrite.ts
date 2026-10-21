@@ -3,6 +3,7 @@ import { nameKey } from "@/lib/engine/stats";
 import { generateStructured } from "@/lib/llm/structured";
 import type { LlmClient } from "@/lib/llm/types";
 import type { Market } from "@/lib/markets";
+import { nameForms } from "./names";
 import type { Decision, Replacement, ResolvedReference } from "./types";
 
 const schema = z.object({
@@ -13,7 +14,7 @@ const schema = z.object({
   note: z.string().max(300).optional(),
 });
 
-const SYSTEM = `You rewrite American copy for a reader in another city, keeping it in English. You change ONLY the cultural references you are told to change, and the few words around each one that need to change so the sentence reads naturally (articles, a possessive, a verb). Keep the tone, rhythm, length and joke structure. Do not add new references, names, places, brands or facts. For flagged references, keep the original wording; a human will handle them.`;
+const SYSTEM = `You rewrite American copy for a reader in another city, keeping it in English. You change ONLY the cultural references you are told to change, and the few words around each one that need to change so the sentence reads naturally: drop or add an article (\"your Good Bowl habit\", not \"your The Good Bowl habit\"), adjust a possessive or a verb. Keep the tone, rhythm, length and joke structure. Do not add new references, names, places, brands or facts. For flagged references, keep the original wording; a human will handle them.`;
 
 function instruction(r: ResolvedReference, d: Decision): string {
   if (d.action === "swap" && d.choice) {
@@ -96,7 +97,7 @@ export async function rewriteForMarket(
     });
     const missing = changes
       .map((r) => byRef.get(r.ref)!.choice!.entity)
-      .filter((e) => ![e.displayName, e.name, ...e.akas].some((n) => data.text.includes(n)))
+      .filter((e) => !nameForms(e).some((n) => data.text.includes(n)))
       .map((e) => e.displayName);
     issues = unverifiedNames(data.text, allowed);
     if (missing.length === 0 && issues.length === 0) {
