@@ -93,6 +93,8 @@ export const IntakeStateSchema = z.object({
   audienceHypotheses: z.array(HypothesisSchema).max(3).default([]),
   chips: z.array(ChipSchema).max(6).default([]),
   clarificationTurns: z.number().int().min(0).max(20).default(0),
+  /** The user asked the assistant to fill in what's left; those gaps become stated assumptions. */
+  delegated: z.boolean().default(false),
   confirmed: z.boolean().default(false),
   readyToRun: z.boolean().default(false),
 });

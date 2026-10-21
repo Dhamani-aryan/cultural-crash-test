@@ -62,6 +62,8 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Base form styles live in the base layer, so component classes (the chat composer) win. */
+@layer base {
 input,
 textarea,
 select {
@@ -85,6 +87,7 @@ input[type="checkbox"],
 input[type="radio"] {
   width: auto;
   accent-color: var(--accent);
+}
 }
 
 @keyframes pulse-dot {

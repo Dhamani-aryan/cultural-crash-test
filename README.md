@@ -20,7 +20,7 @@ conversation ─► confirmed brief ─► draft (model alone) ─► resolve in
                                                                                └─ re-test ◄─ repair the weakest one
 ```
 
-- **Intake** ([`src/lib/intake/`](src/lib/intake/)). You describe the launch in your own words.
+- **Intake** ([`src/lib/intake/`](src/lib/intake/)). A chat, like ChatGPT. You describe the launch in your own words, answer any follow-up questions, or say "figure out the rest" to have the assistant make (and state) the assumptions.
   - The model reads only the facts you state into a "What I understand" brief. Each field is labelled *from you*, *suggested* or *confirmed*, and you can edit it.
   - Code decides what's still missing: product, launch, city, a confirmed audience, and what the brand stands for. It asks at most three questions per turn, in at most four turns.
   - If you don't know the audience, it suggests two or three taste-defined segments, never sensitive traits, and you pick or edit one.

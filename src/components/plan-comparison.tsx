@@ -95,7 +95,7 @@ export function PlanComparisonView({ cmp, ledger }: { cmp: PlanComparison; ledge
                   <span className="font-mono text-muted">{id}</span> <span className="text-ink-2">{r.purpose}</span>
                   <span className="block pl-8 text-[11px] text-muted">
                     {r.resultCount} results{r.results.length ? `: ${r.results.slice(0, 5).map((x) => x.name).join(", ")}` : ""} ·{" "}
-                    <code>{JSON.stringify(r.sanitizedRequest).slice(0, 220)}</code>
+                    <code className="break-all">{JSON.stringify(r.sanitizedRequest).slice(0, 220)}</code>
                   </span>
                 </li>
               );

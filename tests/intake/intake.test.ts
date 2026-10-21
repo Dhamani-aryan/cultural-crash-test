@@ -60,15 +60,17 @@ const fullFacts = {
 const lastAssistant = (s: IntakeState) => [...s.messages].reverse().find((m) => m.role === "assistant")!.text;
 
 describe("intake", () => {
-  it("turns a complete description into a ready brief only after review and confirmation", async () => {
+  it("turns a complete description into a summary, and runs only once the user says go", async () => {
     const { llm } = fakeLlm(fullFacts);
     const r1 = await applyIntake(llm, { action: "message", message: FULL, marketId: "london" });
     expect(r1.state.missingCriticalFields).toEqual([]);
     expect(r1.state.readyToRun).toBe(false);
-    expect(lastAssistant(r1.state)).toMatch(/confirm/i);
+    expect(r1.startRequested).toBe(false);
+    expect(lastAssistant(r1.state)).toMatch(/Here's what I'll test/);
+    expect(r1.state.chips).toEqual([{ label: "Generate recommendations", action: "confirm" }]);
     const r2 = await applyIntake(llm, { action: "confirm", state: r1.state });
-    expect(r2.state.confirmed).toBe(true);
     expect(r2.state.readyToRun).toBe(true);
+    expect(r2.startRequested).toBe(true);
   });
 
   it("asks only for what's genuinely missing", async () => {
@@ -146,15 +148,32 @@ describe("intake", () => {
     expect(s.readyToRun).toBe(false);
   });
 
-  it("won't start before the brief is confirmed, even when asked", async () => {
-    const { llm } = fakeLlm(fullFacts);
+  it("won't start while something is missing, and starts on 'go' after the summary", async () => {
+    const { llm } = fakeLlm({ ...fullFacts, pop: { productCategory: "Sneakers", launchGoal: "pop-up", cityText: "London" } });
+    const early = await applyIntake(llm, { action: "message", message: "A sneaker pop-up", marketId: "london" });
+    const refused = await applyIntake(llm, { action: "message", message: "go", state: early.state });
+    expect(refused.startRequested).toBe(false);
+    expect(lastAssistant(refused.state)).toMatch(/Not yet/);
     const r1 = await applyIntake(llm, { action: "message", message: FULL, marketId: "london" });
-    const r2 = await applyIntake(llm, { action: "message", message: "start the test", state: r1.state });
-    expect(r2.startRequested).toBe(false);
-    expect(lastAssistant(r2.state)).toMatch(/confirmed the brief/);
-    const r3 = await applyIntake(llm, { action: "confirm", state: r2.state });
-    const r4 = await applyIntake(llm, { action: "message", message: "start the test", state: r3.state });
-    expect(r4.startRequested).toBe(true);
+    const r2 = await applyIntake(llm, { action: "message", message: "go", state: r1.state });
+    expect(r2.startRequested).toBe(true);
+    expect(r2.state.readyToRun).toBe(true);
+  });
+
+  it("fills in the rest as stated assumptions when the user hands it over, but still asks for the city", async () => {
+    const { llm } = fakeLlm(
+      { sneaker: { productCategory: "Sneakers" } },
+      [{ label: "Sneaker collectors", description: "People who queue for drops", suggestedAnchors: ["Patta"], assumptions: [] }],
+    );
+    const r1 = await applyIntake(llm, { action: "message", message: "We sell sneakers. That's all I have, figure out the rest." });
+    expect(r1.state.delegated).toBe(true);
+    expect(r1.state.brief.audienceDescription).toMatch(/Sneaker collectors/);
+    expect(r1.state.missingCriticalFields).toEqual(["marketId"]);
+    expect(lastAssistant(r1.state)).toMatch(/Which city/);
+    const pick = r1.state.chips.find((c) => c.label === "London")!;
+    const r2 = await applyIntake(llm, { action: pick.action!, patch: pick.patch as never, state: r1.state });
+    expect(r2.state.missingCriticalFields).toEqual([]);
+    expect(lastAssistant(r2.state)).toMatch(/I assumed: the audience is "Sneaker collectors"/);
   });
 
   it("doesn't trust a client that claims readiness", async () => {

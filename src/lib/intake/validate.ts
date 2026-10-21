@@ -32,8 +32,18 @@ export function cityConflict(brief: IntakeBrief): boolean {
   return fromText !== brief.marketId;
 }
 
-export function missingFields(state: Pick<IntakeState, "brief" | "origins">): CriticalField[] {
+export function missingFields(state: Pick<IntakeState, "brief" | "origins"> & { delegated?: boolean }): CriticalField[] {
   const b = state.brief;
+  // Once the user hands the rest over, only what can't be assumed is required: what they sell
+  // and the city. Everything else the assistant filled in is listed as an assumption.
+  if (state.delegated) {
+    const missing: CriticalField[] = [];
+    if (cityConflict(b)) missing.push("cityConflict");
+    if (b.productCategory.trim().length < 2) missing.push("productCategory");
+    if (!marketById(b.marketId)) missing.push("marketId");
+    if (b.audienceDescription.trim().length < 3) missing.push("audience");
+    return missing;
+  }
   const missing: CriticalField[] = [];
   // The city comes first: the rest of the questions can depend on it.
   if (cityConflict(b)) missing.push("cityConflict");
@@ -134,8 +144,9 @@ export function intakeFromBrief(brief: LaunchBriefInput, text: string, intakeId:
     missingCriticalFields: [],
     assumptions: [],
     audienceHypotheses: [],
-    chips: [{ label: "Confirm brief", action: "confirm" }],
+    chips: [{ label: "Generate recommendations", action: "confirm" }],
     clarificationTurns: 0,
+    delegated: false,
     confirmed: false,
     readyToRun: false,
   });

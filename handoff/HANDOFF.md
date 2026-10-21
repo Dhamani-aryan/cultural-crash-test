@@ -75,8 +75,9 @@ Other parts of the code:
 - **`src/lib/server/handlers.ts`:** `POST /api/crashtest` takes `{brief}` or `{query:{query, marketId, depth}}`. It streams SSE; replays a recorded run (labelled "recorded on <date>") unless `fresh:true`; stores finished live runs; rate-limits live runs to 3 per 10 minutes per IP. **Bump `RUN_VERSION`** (currently `crash:v12`) whenever agent behaviour changes, or old recordings will replay.
 - **UI, `src/components/`:**
   - `crash-test.tsx`: the page.
-  - `intake-chat.tsx`, `brief-review.tsx`, `use-intake.ts`: the conversational intake and the editable brief, with per-choice locks and the exploration switch.
-  - `plan-comparison.tsx`: the **Compare plans** panel.
+  - `chat-app.tsx`: the whole UI, ChatGPT-style. A top bar and a title, one composer. Follow-up questions arrive as chat replies (chips only under the reply that offers them). The summary shows one **Generate recommendations** button, and "go" works too. The run happens inside the thread and ends in two tables (LLM alone, Agent) plus a **Compare** button.
+  - `use-intake.ts`, `use-crash-test.ts`: the hooks. `plan-comparison.tsx`: the Compare panel. `status.tsx`: status badges.
+  - The detailed form and the brief card were removed at the owner's request ("just the chat interface"). Locks, exclusions and exploration now come from the chat text.
   - `brief-form.tsx`: the detailed form, one click away.
   - `results.tsx`: the LLM-alone and agent score cards, the verdict, the choice-by-choice comparison with "Why", then collapsible evidence, revision log, open questions, scoring and exports.
   - `agent-console.tsx`: live stages, "Why this step?", Qloo operations with their sanitised requests.

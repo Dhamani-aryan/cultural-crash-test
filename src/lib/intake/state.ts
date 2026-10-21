@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { SLOT_LABEL } from "@/lib/crashtest/types";
 import type { LlmClient } from "@/lib/llm/types";
 import { marketById, TARGET_MARKETS } from "@/lib/markets";
 import { extractFacts, mergeFacts, suggestAudiences } from "./extract";
@@ -35,7 +34,11 @@ export function newIntake(marketId = ""): IntakeState {
   );
 }
 
-const START = /^\s*(please\s+)?(start|run|go|begin|launch)\b.*\b(test|crash|it|now)?\b/i;
+const START = /^\s*(please\s+)?(start|run|go|begin|launch|generate|yes|yep|ok|okay|sure|do it|let'?s go)\b/i;
+/** "That's all I have, figure out the rest." */
+const DELEGATE =
+  /(figure (it|the rest|out the rest|out)|you (decide|choose|pick|fill)|fill (in )?the rest|that'?s (all|everything)|that is all|good enough|work (it|the rest) out|use your judg|make (it|the rest) up|i don'?t know the rest|whatever you think)/i;
+const EXPLORE = /(explore|suggest|try|find) (better|other|alternative)/i;
 
 function say(state: IntakeState, role: "user" | "assistant", text: string): IntakeState {
   const msg = { id: `${role[0]}${state.messages.length + 1}`, role, text, createdAt: new Date().toISOString() };
@@ -95,16 +98,22 @@ export function questionsFor(state: IntakeState): { lines: string[]; chips: Chip
   return { lines, chips, asks };
 }
 
-function reviewText(state: IntakeState): string {
+/** The brief in a few lines, so the user can check it before the run. */
+export function summaryText(state: IntakeState): string {
   const b = state.brief;
-  const notes: string[] = [];
-  if (!b.audienceAnchors.length)
-    notes.push("Optional: name 2–4 brands or artists your audience loves. If you don't, the agent proposes some and labels them.");
+  const city = marketById(b.marketId)?.label ?? b.marketId;
+  const lines = [
+    `Here's what I'll test:`,
+    `• ${b.brandName ? `${b.brandName}: ` : ""}${b.productCategory}${b.launchGoal ? `, ${b.launchGoal}` : ""}, in ${city}`,
+    `• For: ${b.audienceDescription}${b.audienceAnchors.length ? ` (fans of ${b.audienceAnchors.join(", ")})` : ""}`,
+  ];
+  if (b.brandAttributes.length) lines.push(`• Brand: ${b.brandAttributes.join(", ")}`);
   if (b.choices.length)
-    notes.push(
-      `Your choices: ${b.choices.map((c) => `${SLOT_LABEL[c.slot].toLowerCase()} ${c.name}${c.locked ? " (fixed)" : ""}`).join(", ")}. Mark any that are booked as fixed.`,
-    );
-  return ["I have what I need. Check the brief, edit anything, then confirm it.", ...notes].join(" ");
+    lines.push(`• Your picks: ${b.choices.map((c) => `${c.name}${c.locked ? " (fixed)" : ""}`).join(", ")}`);
+  if (b.exclude.length || b.otherRules.length) lines.push(`• Rules: ${[...b.exclude.map((x) => `no ${x}`), ...b.otherRules].join("; ")}`);
+  if (state.assumptions.length) lines.push(`• I assumed: ${state.assumptions.map((x) => x.replace(/\.$/, "")).join("; ")}.`);
+  lines.push("", "Say go (or press Generate recommendations), or tell me what to change.");
+  return lines.join("\n");
 }
 
 /** Decide the assistant's next message from the (refreshed) state. Pure apart from the text. */
@@ -114,8 +123,8 @@ export function respond(state: IntakeState, opts: { websiteJustGiven?: boolean }
     ? "I can't open websites here, so I haven't read that one. Paste any About, product or campaign copy that helps. "
     : "";
   if (!s.missingCriticalFields.length) {
-    s = say(s, "assistant", prefix + reviewText(s));
-    return { ...s, chips: [{ label: "Confirm brief", action: "confirm" }] };
+    s = say(s, "assistant", prefix + summaryText(s));
+    return { ...s, chips: [{ label: "Generate recommendations", action: "confirm" }] };
   }
   if (s.clarificationTurns >= MAX_CLARIFICATION_TURNS) {
     s = say(
@@ -126,8 +135,38 @@ export function respond(state: IntakeState, opts: { websiteJustGiven?: boolean }
     return { ...s, chips: [] };
   }
   const q = questionsFor(s);
-  s = say(s, "assistant", prefix + q.lines.join(" "));
+  const handOver = s.delegated ? "" : "\n\nOr say “figure out the rest” and I'll make the assumptions for you.";
+  s = say(s, "assistant", prefix + q.lines.join("\n") + handOver);
   return { ...s, chips: q.chips.slice(0, 6), clarificationTurns: s.clarificationTurns + 1 };
+}
+
+/**
+ * The user handed over what's left. The audience comes from the assistant's first audience
+ * idea, the launch and brand character are left to the draft; every one is recorded as an
+ * assumption the user sees in the summary. What can't be assumed (product, city) is still asked.
+ */
+async function fillTheRest(llm: LlmClient, state: IntakeState): Promise<IntakeState> {
+  const brief = { ...state.brief };
+  const origins = { ...state.origins };
+  const assumptions = [...state.assumptions];
+  if (brief.audienceDescription.trim().length < 3 && brief.productCategory) {
+    const [h] = await suggestAudiences(llm, brief).catch(() => []);
+    if (h) {
+      brief.audienceDescription = `${h.label}: ${h.description}`.slice(0, 400);
+      origins.audienceDescription = "model_suggested";
+      if (!brief.audienceAnchors.length && h.suggestedAnchors.length) {
+        brief.audienceAnchors = h.suggestedAnchors.slice(0, 4);
+        origins.audienceAnchors = "model_suggested";
+      }
+      assumptions.push(`the audience is "${h.label}" (my suggestion).`);
+    }
+  }
+  if (brief.launchGoal.trim().length < 2) {
+    brief.launchGoal = "a launch";
+    assumptions.push("a general launch, with the format left open.");
+  }
+  if (!brief.brandAttributes.length) assumptions.push("the brand's character comes from what you've told me.");
+  return { ...state, brief, origins, assumptions: assumptions.slice(0, 12), delegated: true, confirmed: false };
 }
 
 export async function applyIntake(llm: LlmClient, input: IntakeRequest): Promise<IntakeReply> {
@@ -147,9 +186,9 @@ export async function applyIntake(llm: LlmClient, input: IntakeRequest): Promise
     case "confirm": {
       state = refresh(state);
       if (state.missingCriticalFields.length) return { state: respond(state), startRequested: false };
+      // The summary the user just saw is the review; confirming starts the run.
       state = refresh({ ...state, confirmed: true });
-      state = say(state, "assistant", "Brief confirmed. Start the cultural crash-test when you're ready.");
-      return { state: { ...state, chips: [] }, startRequested: false };
+      return { state: { ...say(state, "assistant", "Generating recommendations…"), chips: [] }, startRequested: true };
     }
 
     case "update_brief": {
@@ -160,7 +199,8 @@ export async function applyIntake(llm: LlmClient, input: IntakeRequest): Promise
       const origins = { ...state.origins };
       for (const k of Object.keys(patch)) origins[k] = "user_confirmed";
       state = { ...state, brief: { ...state.brief, ...patch }, origins, confirmed: false };
-      return { state: { ...refresh(state), chips: refresh(state).missingCriticalFields.length ? questionsFor(refresh(state)).chips : [{ label: "Confirm brief", action: "confirm" }] }, startRequested: false };
+      // A chat answer (a city chip, say) gets a reply like any other turn.
+      return { state: respond(state), startRequested: false };
     }
 
     case "explore_audience": {
@@ -211,18 +251,17 @@ export async function applyIntake(llm: LlmClient, input: IntakeRequest): Promise
       }
       state = say(state, "user", text);
       // "Start the test" runs only when the brief is complete and confirmed.
-      if (START.test(text) && text.length < 60) {
+      // "Go" after the summary confirms and starts; before that, it explains what's missing.
+      const summaryShown = state.chips.some((c) => c.action === "confirm");
+      if (START.test(text) && text.length < 60 && !DELEGATE.test(text)) {
         const r = refresh(state);
-        if (r.readyToRun) {
-          return { state: say(r, "assistant", "Starting the cultural crash-test."), startRequested: true };
+        if (!r.missingCriticalFields.length && summaryShown) {
+          const go = refresh({ ...r, confirmed: true });
+          return { state: { ...say(go, "assistant", "Generating recommendations…"), chips: [] }, startRequested: true };
         }
-        const why = r.missingCriticalFields.length
-          ? `It can't start yet. Still missing: ${r.missingCriticalFields.map((f) => MISSING_LABEL[f].toLowerCase()).join("; ")}.`
-          : "It can't start until you've confirmed the brief.";
-        return {
-          state: { ...say(r, "assistant", why), chips: r.missingCriticalFields.length ? questionsFor(r).chips : [{ label: "Confirm brief", action: "confirm" }] },
-          startRequested: false,
-        };
+        if (!r.missingCriticalFields.length) return { state: respond(r), startRequested: false };
+        const why = `Not yet: I still need ${r.missingCriticalFields.map((f) => MISSING_LABEL[f].toLowerCase()).join("; ")}. Or say "figure out the rest".`;
+        return { state: { ...say(r, "assistant", why), chips: questionsFor(r).chips }, startRequested: false };
       }
       const facts = await extractFacts(llm, state, text);
       const merged = mergeFacts(state.brief, state.origins, facts);
@@ -233,7 +272,9 @@ export async function applyIntake(llm: LlmClient, input: IntakeRequest): Promise
         if (m && (!brief.marketId || m === brief.marketId)) brief.cityText = "";
         if (m && !brief.marketId) brief.marketId = m;
       }
+      if (EXPLORE.test(text)) brief.exploreUserChoices = true;
       state = { ...state, brief, origins: merged.origins, confirmed: merged.changed.length ? false : state.confirmed };
+      if (DELEGATE.test(text)) state = await fillTheRest(llm, state);
       return { state: respond(state, { websiteJustGiven: merged.changed.includes("website") }), startRequested: false };
     }
   }

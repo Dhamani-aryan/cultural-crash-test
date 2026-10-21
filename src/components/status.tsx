@@ -12,7 +12,7 @@ const STATUS_STYLE: Record<ComponentStatus, { color: string; mark: string }> = {
 export function StatusBadge({ status }: { status: ComponentStatus }) {
   const s = STATUS_STYLE[status];
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide" style={{ color: s.color }}>
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-medium uppercase tracking-wide" style={{ color: s.color }}>
       <span aria-hidden>{s.mark}</span>
       {STATUS_LABEL[status]}
     </span>

@@ -1,5 +1,5 @@
-import { CrashTest } from "@/components/crash-test";
+import { ChatApp } from "@/components/chat-app";
 
 export default function Home() {
-  return <CrashTest />;
+  return <ChatApp />;
 }
