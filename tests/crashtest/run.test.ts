@@ -160,6 +160,17 @@ describe("runCrashTest", () => {
     expect(state.plan!.components.find((c) => c.slot === "artist_music")?.label).toBe("Canal Echo");
   });
 
+  it("flags a wrong namesake instead of testing (or replacing) the wrong entity", async () => {
+    const { client } = worldClient();
+    // The model means a British "Big Tex"; Qloo's only one is American.
+    const { llm } = worldLlm({ draft: { countries: { anchors: ["UK", "UK"], artist: "United Kingdom", brand: "United Kingdom" } } });
+    const state = await runCrashTest({ qloo: client, llm }, LONDON_BRIEF);
+    const artist = state.plan!.components.find((c) => c.slot === "artist_music")!;
+    expect(artist).toMatchObject({ label: "Big Tex", resolution: "ambiguous" });
+    expect(state.changes.filter((c) => c.slot === "artist_music")).toHaveLength(0);
+    expect(state.unresolvedQuestions.join(" ")).toMatch(/Qloo only knows a different "Big Tex"/);
+  });
+
   it("ignores a model pick that isn't on the screened list", async () => {
     const { client } = worldClient();
     const { llm } = worldLlm({ pick: "made-up-id" });

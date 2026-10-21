@@ -64,7 +64,7 @@ const TERM_RE = Object.entries(COUNTRY_TERMS).map(
     ] as const,
 );
 
-function countriesIn(text: string): string[] {
+export function countriesIn(text: string): string[] {
   return TERM_RE.filter(([, re]) => re.test(text)).map(([c]) => c);
 }
 
@@ -109,8 +109,23 @@ export function originCountries(
     const d = descriptionOrigin(entity.shortDescription);
     return d ? [d] : [];
   }
+  // A company description that names its nationality ("Sanrio is a Japanese entertainment
+  // company", "a London-based streetwear brand"). Food and dining descriptions are skipped:
+  // "a Japanese restaurant chain" names a cuisine, not an origin.
+  const company = companyOrigin(entity.shortDescription);
+  if (company.length) return company;
   // Last resort for brands: a country in the name itself ("The Bagel Bar Coffee House UAE").
   return countriesIn(entity.name);
+}
+
+const COMPANY =
+  /\b(?:is|was) an? ((?:[\p{L}-]+ ){1,4})(?:company|brand|retailer|label|manufacturer|corporation|conglomerate|firm|group|maker|house)\b/iu;
+const CUISINE = /restaurant|cuisine|food|dining|caf[eé]|bakery|eatery|kitchen/i;
+
+function companyOrigin(text: string | null): string[] {
+  const m = text?.split(/(?<=[.!?])\s/)[0].match(COMPANY);
+  if (!m || CUISINE.test(m[1])) return [];
+  return countriesIn(m[1]);
 }
 
 /** True when the entity's known origins exclude the target country. */

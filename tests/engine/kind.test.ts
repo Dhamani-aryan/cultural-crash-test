@@ -61,3 +61,14 @@ describe("originCountries", () => {
     expect(originCountries(dc)).toEqual([]);
   });
 });
+
+describe("companyOrigin via originCountries", () => {
+  const brand = (shortDescription: string) => ({ name: "X", type: "urn:entity:brand", shortDescription, tags: [] });
+  it("reads a nationality from a company description", () => {
+    expect(originCountries(brand("Sanrio is a Japanese entertainment company known for Hello Kitty."))).toEqual(["JP"]);
+    expect(originCountries(brand("Dxpe Chef is a London-based contemporary streetwear clothing brand."))).toEqual(["GB"]);
+  });
+  it("ignores cuisine descriptions", () => {
+    expect(originCountries(brand("Wagamama is a Japanese restaurant chain."))).toEqual([]);
+  });
+});

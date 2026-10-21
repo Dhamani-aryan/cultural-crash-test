@@ -179,7 +179,7 @@ export function assessComponent(
       dimensions: [],
       finding:
         c.resolution === "ambiguous"
-          ? `"${c.label}" matched several Qloo entities; it can't be tested until it's pinned down.`
+          ? `Qloo's only "${c.label}" is a different one (${c.note ?? "another entity with the same name"}), so it couldn't be tested.`
           : `"${c.label}" isn't in Qloo, so there is no evidence either way.`,
     };
   }

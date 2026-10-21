@@ -161,6 +161,8 @@ export async function runCrashTest(
                 // No support for a name from here is Qloo's blind spot for very popular local
                 // names (Sanrio in Tokyo), not a weak choice: it stays.
                 c.status !== "no_support" &&
+                // A wrong namesake in Qloo says nothing about the real choice.
+                state.plan!.components.find((x) => x.slot === c.slot)?.resolution !== "ambiguous" &&
                 !upgradeTried.has(c.slot) &&
                 !state.plan!.components.find((x) => x.slot === c.slot)?.locked,
             )
@@ -308,7 +310,7 @@ export async function runCrashTest(
     if (!comp || comp.locked || c.contradicted || c.status === "supported") continue;
     state.unresolvedQuestions.push(
       c.status === "unresolved"
-        ? `${SLOT_LABEL[c.slot]} "${c.label}" was kept but couldn't be tested: Qloo doesn't know it. Check it by hand.`
+        ? `${SLOT_LABEL[c.slot]} "${c.label}" was kept but couldn't be tested: ${comp.resolution === "ambiguous" ? `Qloo only knows a different "${c.label}"` : "Qloo doesn't know it"}. Check it by hand.`
         : `${SLOT_LABEL[c.slot]} "${c.label}" was kept: the evidence is thin but doesn't contradict it (${c.finding.replace(/\.$/, "")}).`,
     );
   }

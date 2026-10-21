@@ -86,6 +86,8 @@ export interface Component {
   tags: TagRef[];
   /** For a pop-up venue: the place category it was tested in. */
   placeCategory: string | null;
+  /** Ambiguous only: why Qloo's match is a different entity with the same name. */
+  note?: string;
 }
 
 export interface CulturalPlan {

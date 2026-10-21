@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { domainOf } from "@/lib/agent/resolve";
 import { isLocalOrigin } from "@/lib/engine/equivalents";
+import { countriesIn, originCountries } from "@/lib/engine/origin";
 import { mapLimit, nameKey } from "@/lib/engine/stats";
 import { generateStructured } from "@/lib/llm/structured";
 import type { LlmClient } from "@/lib/llm/types";
@@ -51,10 +52,18 @@ const draftSchema = z.object({
   venueCategory: z.enum(PLACE_CATEGORIES),
   direction: z.string().describe("creative direction in a few words: aesthetic and tone"),
   assumptions: z.array(z.string()).describe("assumptions you made because the brief left something open"),
+  countries: z
+    .object({
+      anchors: z.array(z.string()).describe("country of each audience anchor, in the same order"),
+      artist: z.string(),
+      brand: z.string(),
+    })
+    .optional()
+    .describe("the country each named act or brand is from, as a country name"),
 });
 export type Draft = z.infer<typeof draftSchema>;
 
-const DRAFT_SYSTEM = `You are a brand strategist planning a launch. Draft the cultural choices for the brief: a music act, a collaboration brand, a pop-up venue in the city and a creative direction, plus 2-4 brands or artists whose fans stand for the target audience. Use real, specific names exactly as they are usually written. Keep any choice the brief already makes. Never include a name the brief excludes. List the assumptions you made where the brief is silent. Do not mention data sources.`;
+const DRAFT_SYSTEM = `You are a brand strategist planning a launch. Draft the cultural choices for the brief: a music act, a collaboration brand, a pop-up venue in the city and a creative direction, plus 2-4 brands or artists whose fans stand for the target audience. Use real, specific names exactly as they are usually written. Keep any choice the brief already makes. Never include a name the brief excludes. List the assumptions you made where the brief is silent. For each audience anchor, the act and the brand, give the country it is from, so the right one is looked up. Do not mention data sources.`;
 
 export function briefText(brief: LaunchBrief, market: Market): string {
   const lines = [
@@ -127,6 +136,19 @@ export async function findInMarket(
   )[0];
 }
 
+/**
+ * Whether a resolved entity is a namesake of the one meant: Qloo's only "Divine" is an American
+ * performer, not DIVINE the Mumbai rapper. When the model says where a name is from and Qloo
+ * places the match in another country, the match is the wrong one. Returns why, or null.
+ */
+export function namesake(e: QlooEntity, expectedCountry: string | undefined): string | null {
+  const expected = expectedCountry ? countriesIn(expectedCountry)[0] : undefined;
+  if (!expected) return null;
+  const origins = originCountries(e);
+  if (!origins.length || origins.includes(expected)) return null;
+  return e.shortDescription ?? `Qloo's ${e.displayName} is from ${origins.join(", ")}`;
+}
+
 /** A venue by name, in the target city. Chains share names, so the city must match. */
 export async function findPlace(
   client: QlooClient,
@@ -160,11 +182,25 @@ export async function resolveEntityComponent(
   market: Market,
   meta: Pick<Component, "origin" | "locked">,
   venueCategory = "event_venue",
+  expectedCountry?: string,
 ): Promise<Component> {
   const e =
     slot === "event_place"
       ? await findPlace(client, name, market)
       : await findInMarket(client, name, [slot === "artist_music" ? "artist" : "brand"], market);
+  const other = e ? namesake(e, expectedCountry) : null;
+  if (e && other) {
+    return {
+      slot,
+      label: name,
+      ...meta,
+      resolution: "ambiguous",
+      entity: null,
+      tags: [],
+      placeCategory: null,
+      note: other,
+    };
+  }
   return {
     slot,
     label: e?.displayName ?? name,
@@ -229,8 +265,14 @@ export async function buildPlan(input: {
   const { llm, ctx, brief, draft } = input;
   const notes: string[] = [];
   const anchorHits = await mapLimit(draft.anchors, 2, async (name) => {
+    const i = draft.anchors.indexOf(name);
     const e = await findInMarket(ctx.client, name, ["brand", "artist"], ctx.market);
     if (!e) notes.push(`Audience anchor "${name}" isn't in Qloo and was left out.`);
+    const other = e ? namesake(e, draft.countries?.anchors[i]) : null;
+    if (other) {
+      notes.push(`Audience anchor "${name}" was left out: Qloo only has a different one (${other}).`);
+      return null;
+    }
     return e;
   });
   const anchors = anchorHits.filter((e): e is QlooEntity => e !== null).map(toRef);
@@ -251,8 +293,16 @@ export async function buildPlan(input: {
     locked: locked(slot),
   });
   const [artist, brand, venue] = await Promise.all([
-    resolveEntityComponent(ctx.client, "artist_music", draft.artist, ctx.market, meta("artist_music")),
-    resolveEntityComponent(ctx.client, "brand_collaboration", draft.brand, ctx.market, meta("brand_collaboration")),
+    resolveEntityComponent(ctx.client, "artist_music", draft.artist, ctx.market, meta("artist_music"), undefined, draft.countries?.artist),
+    resolveEntityComponent(
+      ctx.client,
+      "brand_collaboration",
+      draft.brand,
+      ctx.market,
+      meta("brand_collaboration"),
+      undefined,
+      draft.countries?.brand,
+    ),
     resolveEntityComponent(ctx.client, "event_place", draft.venue, ctx.market, meta("event_place"), draft.venueCategory),
   ]);
   const resolved = [artist, brand, venue];
