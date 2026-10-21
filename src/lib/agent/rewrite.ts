@@ -105,7 +105,9 @@ export async function rewriteForMarket(
         text: data.text,
         replacements: data.replacements,
         guardIssues: [],
-        note: data.note ?? null,
+        // The model's own note tends to restate internal IDs ("R1 was flagged"); the decision
+        // list already says this in plain words, so only system notes reach the reader.
+        note: null,
       };
     }
     prompt =

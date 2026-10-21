@@ -2,6 +2,35 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-21: First live runs of the full agent (`scripts/run-demo.ts`)
+
+All three demo texts run end to end: about 50 s, ~230 Qloo calls and 8–11 model calls each. Fixed along the way:
+
+- **Qloo 429s.** One translation fans out to dozens of requests. The client now keeps 4 in flight, backs off longer on 429, and shares identical in-flight requests.
+- **Wrong entity.** The extractor wrote "The Office (U.S. TV series)", which resolved to another show via the top-result fallback. Resolution now tries the plain name and the written span, and only accepts close matches; otherwise the reference is flagged.
+- **One model timeout sank the whole run.** A market now retries once, then returns the original text with its references flagged.
+- **Guard false positives** ("We're", "Nykaa's", "Glossier-level") forced the clunky fallback. The guard now splits on apostrophes and hyphens.
+- **Prompt fixes:** reasons in English; prefer a strong local candidate over keeping a famous American reference; natural articles around swapped names.
+- **Fairer model-only check:** a model-only swap counts as local only if it's in the city's own Qloo list for its kind and category, looked up by its stated kind.
+
+Results now (selected):
+- **Ad script:**
+  - Madrid: *Paquita Salas*, Mercadona, Puerta del Sol.
+  - London: *People Just Do Nothing*, Marks & Spencer, Brixton Market.
+  - São Paulo: *Monica and Friends*, Pão de Açúcar; Times Square kept.
+- **Product page:**
+  - Tokyo: Shiba Park, Gen Hoshino, Seijo Ishii.
+  - São Paulo: Ibirapuera, Gloria Groove, Pão de Açúcar.
+  - Madrid: Aitana, Lidl.
+- **Pitch:**
+  - Glossier → Nykaa (Mumbai) and Ettusais (Tokyo).
+  - Chipotle → Café Coffee Day / Matsuya / Tortilla.
+
+**Known limits:**
+- **Peloton has no local equivalent.** Qloo files it under fashion/athletic and has no fitness-brand tag, so it's kept or flagged. The model-only version suggests Cult.fit and Fiit, which is better here; the comparison view shows that honestly.
+- **Madrid's El Retiro is missed.** It exists in Qloo (popularity 0.999) but no location query surfaces it, so Central Park → Madrid gives the Temple of Debod.
+- **London's model-only picks are strong too** (Fiit, Beauty Pie, Pret, all in London's list). Qloo's advantage is clearest in Tokyo, Mumbai and São Paulo.
+
 ## 2026-10-21: Places rank by fame, with in-city co-affinity
 
 Sweep: Central Park, Times Square, Whole Foods, SNL, Home Alone, Beyoncé × 5 markets.
