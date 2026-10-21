@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { cacheKey, type Cache } from "@/lib/cache/cache";
 import { runCrashTest } from "@/lib/crashtest/run";
-import { QueryRequestSchema } from "@/lib/crashtest/query";
-import { LaunchBriefSchema, type RunEvent } from "@/lib/crashtest/types";
+import { applyIntake } from "@/lib/intake/state";
+import { IntakeRequestSchema, IntakeStateSchema } from "@/lib/intake/types";
+import { MISSING_LABEL, refresh, toLaunchBrief } from "@/lib/intake/validate";
+import { LaunchBriefSchema, type LaunchBriefInput, type RunEvent } from "@/lib/crashtest/types";
 import type { LlmClient } from "@/lib/llm/types";
 import { marketById } from "@/lib/markets";
 import type { QlooClient } from "@/lib/qloo";
@@ -21,7 +23,9 @@ export const CrashTestRequestSchema = z.union([
     fresh: z.boolean().default(false),
   }),
   z.object({
-    query: QueryRequestSchema,
+    /** A confirmed intake. Re-validated here: the client's readyToRun is never trusted. */
+    intake: IntakeStateSchema,
+    depth: z.enum(["quick", "thorough"]).default("thorough"),
     fresh: z.boolean().default(false),
   }),
 ]);
@@ -115,10 +119,25 @@ export async function handleCrashTest(
   } catch (err) {
     return errorResponse(err);
   }
-  const input = "brief" in body ? body.brief : body.query;
+  let input: LaunchBriefInput;
+  if ("brief" in body) {
+    input = body.brief;
+  } else {
+    const intake = refresh(body.intake);
+    if (!intake.readyToRun) {
+      return jsonError(
+        400,
+        "brief_not_confirmed",
+        intake.missingCriticalFields.length
+          ? intake.missingCriticalFields.map((f) => `Missing: ${MISSING_LABEL[f]}`)
+          : ["Confirm the brief before starting."],
+      );
+    }
+    input = LaunchBriefSchema.parse(toLaunchBrief(intake, body.depth));
+  }
   if (!marketById(input.marketId)) return jsonError(400, "unsupported_city");
   const store = cache?.();
-  const key = runKey("query" in input ? { ...input, query: input.query.trim().replace(/\s+/g, " ") } : input);
+  const key = runKey(input);
   if (store && !body.fresh) {
     const recording = await store.get<Recording>(key);
     if (recording) return sseResponse(replay(recording), req.signal);
@@ -136,4 +155,28 @@ export async function handleCrashTest(
     (message) => ({ type: "error", message }),
   );
   return sseResponse(store ? record(live, store, key) : live, req.signal);
+}
+
+/**
+ * One intake turn. Never calls Qloo: only the model reads the message (or suggests audiences).
+ * The state comes back from the client every turn and is re-validated before use.
+ */
+export async function handleIntake(
+  req: Request,
+  llm: () => LlmClient,
+  beforeTurn?: () => Promise<Response | null>,
+): Promise<Response> {
+  let body: z.infer<typeof IntakeRequestSchema>;
+  try {
+    body = IntakeRequestSchema.parse(await req.json());
+  } catch (err) {
+    return errorResponse(err);
+  }
+  const refused = await beforeTurn?.();
+  if (refused) return refused;
+  try {
+    return Response.json(await applyIntake(llm(), body));
+  } catch (err) {
+    return errorResponse(err);
+  }
 }

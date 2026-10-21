@@ -55,6 +55,14 @@ export const LaunchBriefSchema = z.object({
     .default([]),
   constraints: z.array(ConstraintSchema).max(8).default([]),
   depth: z.enum(["quick", "thorough"]).default("quick"),
+  /**
+   * May the agent try better-supported alternatives to the user's own (unlocked) choices when
+   * they are merely thin? Off by default: then a user's choice changes only when the evidence
+   * contradicts it. A per-choice lock always wins.
+   */
+  exploreUserChoices: z.boolean().default(false),
+  /** Optional website, kept as metadata only: it is never fetched. */
+  website: z.string().trim().max(200).optional(),
 });
 export type LaunchBrief = z.infer<typeof LaunchBriefSchema>;
 export type LaunchBriefInput = z.input<typeof LaunchBriefSchema>;

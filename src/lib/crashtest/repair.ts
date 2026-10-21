@@ -9,7 +9,7 @@ import { CONTROL_LOCATIONS, SOURCE_LOCATIONS, type Domain } from "@/lib/markets"
 import type { QlooEntity } from "@/lib/qloo";
 import { LIST_SIZE, tagList, type GatherContext } from "./gather";
 import { itemsFrom, sanitizeInsights } from "./ledger";
-import { briefText, findInMarket, findPlace, toRef } from "./plan";
+import { PLACE_CATEGORIES, briefText, findInMarket, findPlace, toRef } from "./plan";
 import {
   SLOT_LABEL,
   SLOT_TYPE,
@@ -111,15 +111,42 @@ const UNSUITABLE_VENUE =
  * The same job as the original: a brand from the same kind of business (shared genre tags), a
  * venue of the kind the plan asked for and able to host an event. Artists need no gate.
  */
+/** Kinds of place that can host a launch event: a pop-up, a drop, a gig, a session. */
+const EVENT_FORMATS = new Set(
+  [
+    ...PLACE_CATEGORIES,
+    "exhibition_center",
+    "museum",
+    "performing_arts_theater",
+    "community_center",
+    "shopping_mall",
+    "department_store",
+    "boutique",
+  ].map((c) => `urn:tag:category:place:${c}`),
+);
+/** Food and drink venues suit only a food or drink launch. */
+const FOOD_VENUES = ["cafe", "coffee_shop", "restaurant", "bakery", "brewery", "brewpub", "beer_garden", "pub"].map(
+  (c) => `urn:tag:category:place:${c}`,
+);
+const FOOD_AND_DRINK = /coffee|caf[eé]|tea|food|drink|beer|brew|wine|spirit|bakery|restaurant|snack|chocolate|juice/i;
+
+export function isFoodAndDrink(productCategory: string): boolean {
+  return FOOD_AND_DRINK.test(productCategory);
+}
+
 export function roleFits(
   slot: Slot,
   candidate: { tags: { id: string; type: string | null }[] },
   original: { tags: { id: string; type: string | null }[] } | null,
   placeCategory: string | null,
+  opts: { foodAndDrink?: boolean } = {},
 ): boolean {
   if (slot === "event_place") {
     if (candidate.tags.some((t) => UNSUITABLE_VENUE.test(t.id))) return false;
     const cats = candidate.tags.filter((t) => t.id.startsWith("urn:tag:category:place:")).map((t) => t.id);
+    // Event-format gate: the venue must be filed as a kind of place that can host the launch.
+    const canHost = cats.some((c) => EVENT_FORMATS.has(c) || (opts.foodAndDrink && FOOD_VENUES.includes(c)));
+    if (!canHost) return false;
     return !placeCategory || cats.includes(placeCategory);
   }
   if (slot === "brand_collaboration" && original) {
@@ -324,7 +351,9 @@ export async function repairEntity(input: {
   const candidates: (Candidate & { proposed: boolean })[] = records.map(({ e, rank, proposed }) => {
     const l = { ...local.get(e.id)! };
     // The agent's venue suggestions may be of another kind than the draft's; only unsuitable venues are out.
-    const roleOk = roleFits(slot, e, original ?? null, proposed ? null : current.placeCategory);
+    const roleOk = roleFits(slot, e, original ?? null, proposed ? null : current.placeCategory, {
+      foodAndDrink: isFoodAndDrink(brief.productCategory),
+    });
     // An upgrade replaces a choice nothing contradicts, so it must be a local pick: from the
     // city's own country (venues: in it), whoever suggested it.
     const upgradeOk = !input.upgrade || isLocalOrigin(e, domain, ctx.market);

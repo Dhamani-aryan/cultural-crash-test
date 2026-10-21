@@ -188,7 +188,9 @@ export async function runCrashTest(
                 // A wrong namesake in Qloo says nothing about the real choice.
                 state.plan!.components.find((x) => x.slot === c.slot)?.resolution !== "ambiguous" &&
                 !upgradeTried.has(c.slot) &&
-                !state.plan!.components.find((x) => x.slot === c.slot)?.locked,
+                !state.plan!.components.find((x) => x.slot === c.slot)?.locked &&
+                // The user's own choices are explored only when they switched exploration on.
+                (brief.exploreUserChoices || state.plan!.components.find((x) => x.slot === c.slot)?.origin !== "user_provided"),
             )
             .sort((a, b) => (a.total ?? 0) - (b.total ?? 0))
         : [];
@@ -286,7 +288,11 @@ export async function runCrashTest(
         };
         tried.push(change);
         // An upgrade must land on Supported; a sideways move between thin choices isn't one.
-        const counts = progress.better && (!upgrade || now.status === "supported");
+        // An upgrade must land on Supported. Replacing the user's own choice also needs a
+        // material improvement to the deterministic evaluation, not just a nudge.
+        const userChoice = before.components.find((x) => x.slot === target)?.origin === "user_provided";
+        const counts =
+          progress.better && (!upgrade || (now.status === "supported" && (!userChoice || progress.material)));
         if (counts && (!best || compareEvaluations(best.next, next, target).better))
           best = { proposal, next, progress, change };
         if (progress.better && now.status === "supported") break;

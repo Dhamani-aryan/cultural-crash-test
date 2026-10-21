@@ -1,0 +1,98 @@
+import type { Constraint, LaunchBriefInput } from "@/lib/crashtest/types";
+import { SLOT_LABEL } from "@/lib/crashtest/types";
+import { marketById, TARGET_MARKETS } from "@/lib/markets";
+import { nameKey } from "@/lib/engine/stats";
+import type { CriticalField, IntakeBrief, IntakeState } from "./types";
+
+/**
+ * Deterministic completeness. The model never decides whether a brief is complete or whether a
+ * run may start; these functions do, on the client for display and on the server for real.
+ */
+
+/** The supported market a city name in the text refers to, if any. */
+export function marketFromText(cityText: string): string | null {
+  const k = nameKey(cityText);
+  if (!k) return null;
+  const m = TARGET_MARKETS.find(
+    (x) => nameKey(x.label) === k || nameKey(x.qlooLocation) === k || k.includes(nameKey(x.label)),
+  );
+  return m?.id ?? null;
+}
+
+/** Audience counts only once the user wrote it, or picked or confirmed a suggestion. */
+export function audienceConfirmed(state: Pick<IntakeState, "brief" | "origins">): boolean {
+  return state.brief.audienceDescription.trim().length >= 3 && state.origins.audienceDescription !== "model_suggested";
+}
+
+export function cityConflict(brief: IntakeBrief): boolean {
+  if (!brief.cityText || !brief.marketId) return false;
+  const fromText = marketFromText(brief.cityText);
+  // A city the text names that isn't the selected one, or isn't supported at all, needs the
+  // user to settle it before research.
+  return fromText !== brief.marketId;
+}
+
+export function missingFields(state: Pick<IntakeState, "brief" | "origins">): CriticalField[] {
+  const b = state.brief;
+  const missing: CriticalField[] = [];
+  if (b.productCategory.trim().length < 2) missing.push("productCategory");
+  if (b.launchGoal.trim().length < 2) missing.push("launchGoal");
+  if (!marketById(b.marketId)) missing.push("marketId");
+  if (!audienceConfirmed(state)) missing.push("audience");
+  if (!b.brandAttributes.length) missing.push("brandContext");
+  if (cityConflict(b)) missing.push("cityConflict");
+  return missing;
+}
+
+export const MISSING_LABEL: Record<CriticalField, string> = {
+  productCategory: "What you sell",
+  launchGoal: "What the launch is",
+  marketId: "Which city",
+  audience: "Who it's for (confirmed by you)",
+  brandContext: "What the brand stands for (an attribute, value or differentiator)",
+  cityConflict: "The city: your text and the selector disagree",
+};
+
+/** Recompute everything derived; never trust a client's flags. */
+export function refresh(state: IntakeState): IntakeState {
+  const missingCriticalFields = missingFields(state);
+  const confirmed = state.confirmed && missingCriticalFields.length === 0;
+  return { ...state, missingCriticalFields, confirmed, readyToRun: confirmed };
+}
+
+/**
+ * The confirmed intake as a crash-test brief. Locks become hard lock constraints, exclusions
+ * become machine-checked exclusions, other rules are carried as text.
+ */
+export function toLaunchBrief(state: IntakeState, depth: "quick" | "thorough" = "thorough"): LaunchBriefInput {
+  const b = state.brief;
+  const constraints: Constraint[] = [];
+  for (const c of b.choices.filter((x) => x.locked))
+    constraints.push({ id: `lock-${c.slot}`, kind: "hard", lockSlot: c.slot, description: `Keep the ${SLOT_LABEL[c.slot].toLowerCase()}: ${c.name}` });
+  if (b.exclude.length)
+    constraints.push({ id: "exclude", kind: "hard", excludeNames: b.exclude, description: `Never use: ${b.exclude.join(", ")}` });
+  b.otherRules.forEach((r, i) => constraints.push({ id: `rule-${i}`, kind: "hard", description: r }));
+  return {
+    brandName: b.brandName || undefined,
+    productCategory: b.productCategory,
+    launchGoal: b.launchGoal,
+    marketId: b.marketId,
+    audienceDescription: b.audienceDescription,
+    audienceAnchors: b.audienceAnchors,
+    brandAttributes: b.brandAttributes,
+    budgetBand: b.budgetBand || undefined,
+    existingChoices: b.choices.map(({ slot, name }) => ({ slot, name })),
+    constraints,
+    depth,
+    exploreUserChoices: b.exploreUserChoices,
+    website: b.website || undefined,
+  };
+}
+
+/** Words that would mean inferring a sensitive trait about people. Suggestions containing them are dropped. */
+const SENSITIVE =
+  /\b(race|racial|ethnic\w*|religio\w*|muslim|christian|jewish|hindu|sikh|buddhist|gay|lesbian|queer|lgbt\w*|trans(gender)?|sexual\w*|disab\w*|illness|health condition|diagnos\w*|pregnan\w*|politic\w*|liberal|conservative|left-wing|right-wing|immigra\w*|caste|income bracket|low-income|poor|wealthy)\b/i;
+
+export function infersSensitiveTrait(text: string): boolean {
+  return SENSITIVE.test(text);
+}

@@ -71,6 +71,8 @@ export function toMarkdown(state: RunState): string {
     "## Outcome",
     "",
     `- **Stopped:** ${state.stopReason ? STOP_LABEL[state.stopReason] : "unknown"}${state.stopDetail ? `: ${state.stopDetail}` : ""}`,
+    `- **Explore alternatives to your own choices:** ${state.brief.exploreUserChoices ? "on" : "off"}`,
+    `- **Fixed (locked) choices:** ${state.brief.constraints.filter((c) => c.lockSlot).map((c) => c.description).join("; ") || "none"}`,
     `- **Supported choices:** ${first?.supported ?? 0} of ${first?.components.length ?? 0} → ${last?.supported ?? 0} of ${last?.components.length ?? 0}`,
     `- **Plan score (app-defined, 0–100, over choices that have a score):** ${pct(first?.totalScore)} → ${pct(last?.totalScore)}`,
     `- **Repair rounds:** ${state.currentIteration} of ${state.maxIterations}; **Qloo calls:** ${state.qlooCallsUsed} of ${state.maxQlooCalls}; **model calls:** ${state.llmCalls}`,

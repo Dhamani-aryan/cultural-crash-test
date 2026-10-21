@@ -235,6 +235,10 @@ describe("roleFits", () => {
     expect(roleFits("event_place", { tags: [t(venue, "urn:tag:category:place"), t("urn:tag:category:place:hotel", "urn:tag:category:place")] }, null, venue)).toBe(false);
     expect(roleFits("event_place", { tags: [t("urn:tag:category:place:bar", "urn:tag:category:place")] }, null, venue)).toBe(false);
     expect(roleFits("event_place", { tags: [t(venue, "urn:tag:category:place")] }, null, venue)).toBe(true);
+    // A restaurant can't host a streetwear pop-up, but can host a coffee launch.
+    const restaurant = { tags: [t("urn:tag:category:place:restaurant", "urn:tag:category:place")] };
+    expect(roleFits("event_place", restaurant, null, null)).toBe(false);
+    expect(roleFits("event_place", restaurant, null, null, { foodAndDrink: true })).toBe(true);
     // Hilton Tokyo Bay: an event venue that is also a resort hotel.
     expect(roleFits("event_place", { tags: [t(venue, "urn:tag:category:place"), t("urn:tag:category:place:resort_hotel", "urn:tag:category:place")] }, null, venue)).toBe(false);
     expect(roleFits("event_place", { tags: [t(venue, "urn:tag:category:place"), t("urn:tag:genre:place:hotel", "urn:tag:genre:place")] }, null, null)).toBe(false);
