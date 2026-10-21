@@ -40,7 +40,9 @@ function Evidence({ e, market }: { e: Equivalent; market: Market }) {
           {e.proposed && <li>Suggested by the agent, then confirmed local by Qloo</li>}
           {e.sharedTags.length > 0 && <li>Same role: {e.sharedTags.slice(0, 4).join(" · ")}</li>}
           <li>
-            #{e.localRank} of {e.poolSize} in {market.label}&apos;s Qloo taste list · {where}
+            {e.localRank > 0
+              ? `#${e.localRank} of ${e.poolSize} in ${market.label}'s Qloo taste list · ${where}`
+              : `Outside ${market.label}'s top list; Qloo places its origin in ${market.label}'s country or shows it leaning local`}
           </li>
           {e.parts.audience !== null && (
             <li>Audience match with the original: {Math.round(e.parts.audience * 100)}%</li>
