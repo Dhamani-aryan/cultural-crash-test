@@ -2,6 +2,28 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-21: Run 12 — unknown brands kept under unverifiable rules (RUN_VERSION crash:v12)
+
+**The change.** A collaboration brand Qloo doesn't know is never upgraded when the brief has a hard rule code can't fully verify:
+- **Can't be verified:** any free text beyond the names an exclusion lists, such as "No fast-fashion collaborators" or "No luxury collaboration".
+- **What happens instead:** the brand stays unresolved, and the run asks a human to confirm it meets the rule.
+- **Still upgradable:** under locks and name-only exclusions.
+
+**Results against run 11:**
+
+| Measure | Run 11 | Run 12 |
+|---|---|---|
+| Held-out supported (of 36) | 4 → 20 | 4 → 19 |
+| Briefs where held-out support rose / fell | 9 / 0 | 7 / 0 |
+| Evidence judge (agent / LLM / tie) | 8 / 1 / 0 | 7 / 1 / 1 |
+| Evidence judge, held-out briefs | 5 / 1 / 0 | 5 / 0 / 1 |
+| Blind reference judge | 0 / 6 / 3 | 2 / 4 / 3 |
+
+**Reading it:**
+- **Madrid improved, from a loss to a tie.** Thinking MU was kept unresolved, and the judge found no evidence that it breaks the rule.
+- **Tokyo sneakers is a new loss, not caused by this change.** That brief has no free-text rule. The agent replaced Beams (rank #1 under the held-out anchors) with Neighborhood, which is itself one of that brief's held-out anchors. That overlap is a measurement quirk worth fixing: held-out anchors should never also be candidates, or the overlap should be excluded from the comparison.
+- **The overall decline is within run-to-run variance.** The drafts differ every run. The rule's only intended effect, Madrid, was positive.
+
 ## 2026-10-21: Run 11 — brief-fit gate for unknown originals
 
 **The change.** An unknown original brand is now upgraded only to a candidate whose Qloo description or tags match the brief's product or attribute terms. "No …" rules are checked against every candidate's Qloo evidence.
