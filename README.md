@@ -57,12 +57,16 @@ The model is used for four things only: the draft, mapping a direction onto Qloo
 
 ## Evaluation
 
-[`docs/EVALUATION.md`](docs/EVALUATION.md) compares the LLM-only draft with the agent's final plan on 9 fixed briefs across 5 cities, in three ways:
-- the in-run rubric;
-- **re-scoring with held-out audience anchors the agent never saw**;
-- a blind two-order judge.
+[`docs/EVALUATION.md`](docs/EVALUATION.md) compares the LLM-only draft with the agent's final plan on 9 fixed briefs across 5 cities. The main measures:
+- **Held-out audience anchors.** Both plans are re-scored with brands and artists the agent never saw.
+- **An evidence-based judge.** It is blind to which plan is the agent's and runs in both orders. It sees the same held-out Qloo evidence for both plans and must judge from it, not from taste.
 
-The sample is small and the report states its limits.
+Latest run:
+- **Evidence judge:** prefers the agent's plan in 7 of 9 briefs, the LLM-only plan in none, with 2 ties.
+- **Supported choices on held-out anchors:** 3 → 10, and no brief got worse.
+- **A no-evidence "taste" judge** is also reported as a reference. It went from preferring the LLM plan 9/9 in early runs to 1 agent / 3 LLM / 5 ties.
+
+The sample is small and the report states its limits, including the earlier runs the agent lost and why.
 
 ## Run locally
 

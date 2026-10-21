@@ -2,6 +2,28 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-21: Run 6 — measurement fixes, upgrade rounds, and an evidence-based judge
+
+**Why the agent was losing.** Re-running three lost briefs and tracing every decision showed that the agent was mostly *mis-measuring* good picks, then replacing them:
+- **Name collisions.** "Divine" resolved to an American entity, not DIVINE the Mumbai rapper. Names now resolve preferring the target market's origin, then popularity (`findInMarket`).
+- **Key markets read as origin.** HAY looked "from US, JP". A foreign choice missing from the city's list is now thin evidence. The contradiction is a *generic global default*: absent here, but big in other world cities or the US.
+- **Popular local names with no affinity.** Qloo returns none for very popular local names under a city signal (Sanrio in Tokyo). For a name from here, that's thin evidence, not a contradiction.
+- **Empty package tag lists** were scored as "outside the top 0". They're now "not measured".
+
+**Better answers, not just fewer mistakes.** Once nothing in the plan is contradicted, spare rounds try to *upgrade* thinly supported choices. Only the agent's own role-sensible suggestions count as candidates, and a swap is kept only if Qloo then rates the new choice Supported.
+
+**The judge now audits evidence.** The primary judge sees the same held-out Qloo evidence for both plans, plus Qloo's description of each choice. It is blind to which plan is the agent's, runs in both orders, and is told to judge from evidence, not taste. The no-evidence judge is kept as a labelled reference, because it is choosing rather than judging.
+
+**Run 6 results:**
+
+| Measure | LLM-only draft | Agent |
+|---|---|---|
+| Supported choices, held-out anchors (36 choices) | 3 | 10 |
+| Briefs where held-out support rose / fell | – | 5 / 0 |
+| Evidence judge preference (agent / draft / tie) | – | 7 / 0 / 2 |
+| Evidence judge, 6 held-out briefs only | – | 5 / 0 / 1 |
+| Blind reference judge, same scale | – | 1 / 3 / 5 (was 0 / 9 / 0 in runs 1–3) |
+
 ## 2026-10-21: Five evaluation rounds — Qloo evidence vs. a blind LLM judge
 
 All five runs used the same 9 briefs. The left number in each Qloo column is the LLM-only draft; the right number is the agent's final plan, both scored the same way.
