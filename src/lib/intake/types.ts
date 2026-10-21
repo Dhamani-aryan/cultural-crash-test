@@ -107,8 +107,11 @@ export const IntakeRequestSchema = z.object({
   /** The city selector's value, sent with every turn. */
   marketId: z.string().max(40).optional(),
   hypothesisId: z.string().max(20).optional(),
-  /** A direct edit from the brief card. */
-  patch: IntakeBriefSchema.partial().optional(),
+  /**
+   * A direct edit from the brief card, kept raw: parsing it here would fill every field it
+   * doesn't name with a default and blank the rest of the brief. It is validated when applied.
+   */
+  patch: z.record(z.string(), z.unknown()).optional(),
 });
 export type IntakeRequest = z.input<typeof IntakeRequestSchema>;
 

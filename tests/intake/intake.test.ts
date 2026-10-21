@@ -183,6 +183,24 @@ describe("intake", () => {
     expect(LaunchBriefSchema.parse(toLaunchBrief(on.state)).exploreUserChoices).toBe(true);
   });
 
+  it("applies a brief edit through the HTTP handler without blanking other fields", async () => {
+    const { handleIntake } = await import("@/lib/server/handlers");
+    const { llm } = fakeLlm(fullFacts);
+    const r = await applyIntake(llm, { action: "message", message: FULL, marketId: "london" });
+    const res = await handleIntake(
+      new Request("http://test/api/intake", {
+        method: "POST",
+        body: JSON.stringify({ action: "update_brief", patch: { budgetBand: "£20k" }, state: r.state }),
+      }),
+      () => llm,
+    );
+    const { state } = await res.json();
+    expect(state.brief.budgetBand).toBe("£20k");
+    expect(state.brief.productCategory).toBe("Sustainable streetwear");
+    expect(state.brief.choices).toHaveLength(1);
+    expect(state.origins.productCategory).toBe("user_supplied");
+  });
+
   it("treats a model-suggested audience as not yet confirmed", () => {
     const s = newIntake("london");
     const withSuggestion = { ...s, brief: { ...s.brief, audienceDescription: "Skaters" }, origins: { audienceDescription: "model_suggested" as const } };

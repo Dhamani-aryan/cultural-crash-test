@@ -35,12 +35,13 @@ export function cityConflict(brief: IntakeBrief): boolean {
 export function missingFields(state: Pick<IntakeState, "brief" | "origins">): CriticalField[] {
   const b = state.brief;
   const missing: CriticalField[] = [];
+  // The city comes first: the rest of the questions can depend on it.
+  if (cityConflict(b)) missing.push("cityConflict");
   if (b.productCategory.trim().length < 2) missing.push("productCategory");
   if (b.launchGoal.trim().length < 2) missing.push("launchGoal");
   if (!marketById(b.marketId)) missing.push("marketId");
   if (!audienceConfirmed(state)) missing.push("audience");
   if (!b.brandAttributes.length) missing.push("brandContext");
-  if (cityConflict(b)) missing.push("cityConflict");
   return missing;
 }
 
