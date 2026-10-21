@@ -24,7 +24,8 @@ More detail: [`README.md`](README.md), [`docs/PLAN.md`](docs/PLAN.md), [`docs/DE
 
 | Requirement | Status | Where |
 |---|---|---|
-| Submit a brief with a target market and constraints | ✅ Plain-words box (parsed into a brief) or a detailed form | `src/components/query-box.tsx`, `brief-form.tsx`, `src/lib/crashtest/query.ts` |
+| Submit a brief with a target market and constraints | ✅ Conversational intake (ask only what's missing, editable brief, confirm before any Qloo call) or the detailed form | `src/lib/intake/`, `src/components/intake-chat.tsx`, `brief-review.tsx`, `brief-form.tsx` |
+| Compare the LLM-only plan with the agent's | ✅ Deterministic comparison: agent / baseline / mixed / insufficient evidence, per choice and overall, evidence-linked | `src/lib/crashtest/compare.ts`, `src/components/plan-comparison.tsx` |
 | Validate the brief; state assumptions when details are missing | ✅ Recorded as assumptions | `run.ts`, `plan.ts` |
 | Real Qloo API for core research | ✅ Search, entities, insights (entities and tags), explainability | `src/lib/qloo/` |
 | Resolve and validate entities before use; handle ambiguity | ✅ Market-aware lookup; wrong namesakes flagged as *ambiguous* | `plan.ts` (`findInMarket`, `namesake`) |

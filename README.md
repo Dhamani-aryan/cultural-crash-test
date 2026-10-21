@@ -15,10 +15,17 @@ Built for the **Qloo Agentic Hackathon 2026**.
 ## How it works
 
 ```
-brief ─► draft (model alone) ─► resolve in Qloo ─► test every choice ─► accepted? ──► report
-                                                        ▲                   │ no
-                                                        └─ re-test ◄─ repair the weakest one
+conversation ─► confirmed brief ─► draft (model alone) ─► resolve in Qloo ─► test every choice ─► accepted? ──► compare + report
+                                                                               ▲                   │ no
+                                                                               └─ re-test ◄─ repair the weakest one
 ```
+
+- **Intake** ([`src/lib/intake/`](src/lib/intake/)). You describe the launch in your own words.
+  - The model reads only the facts you state into a "What I understand" brief. Each field is labelled *from you*, *suggested* or *confirmed*, and you can edit it.
+  - Code decides what's still missing: product, launch, city, a confirmed audience, and what the brand stands for. It asks at most three questions per turn, in at most four turns.
+  - If you don't know the audience, it suggests two or three taste-defined segments, never sensitive traits, and you pick or edit one.
+  - Choices can be marked *Booked/fixed*, and an *Explore better-supported alternatives to my choices* switch is off by default.
+  - Nothing runs until you confirm the brief, and the server re-checks that before any Qloo call.
 
 - **Draft.** The model turns the brief into a first plan from general knowledge. This is also the LLM-only baseline.
 - **Resolve.** Every name is looked up in Qloo. A name Qloo doesn't know is marked *Unresolved*, never tested as if it were real. The creative direction is mapped onto Qloo's own aesthetic and tone tags.
@@ -48,6 +55,9 @@ brief ─► draft (model alone) ─► resolve in Qloo ─► test every choice
   - the Qloo call budget (700 / 1,400), enforced before each call.
 
   The report says which one stopped the run.
+- **Compare plans** ([`compare.ts`](src/lib/crashtest/compare.ts)).
+  - Code decides whether the LLM-only plan or the agent's is better supported, choice by choice and overall. The order is: hard constraints, contradicted choices, supported choices, evidence coverage, then the score.
+  - The outcome can be the agent, the baseline, mixed, or not enough evidence, and every reason links to its evidence records. No model picks the winner.
 - **Report.**
   - The draft and the final plan side by side, with per-choice evidence cards citing ledger IDs, a revision log (why, expected, observed), assumptions and open questions.
   - Markdown and JSON export.

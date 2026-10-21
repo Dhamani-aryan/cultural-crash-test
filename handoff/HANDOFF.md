@@ -53,7 +53,8 @@ All of it lives in `src/lib/crashtest/`. There are no frameworks: it's a plain T
 | File | What it does |
 |---|---|
 | `types.ts` | All domain types and Zod schemas: `LaunchBrief`, `Component` (one per slot), `CulturalPlan`, `EvidenceRecord`, `PlanEvaluation`, `PlanChange`, `RunState`, `RunEvent`, stop reasons, the rubric weights `RUBRIC_VERSION = "crash-v1"`, and the depth limits (quick: 3 rounds / 700 Qloo calls; thorough: 6 / 1,400). |
-| `query.ts` | Turns a plain-words description into a `LaunchBrief` (LLM, structured output, "use only what the text says"). |
+| `query.ts` | One-shot plain words → `LaunchBrief`. Kept for the CLI; the web app uses the intake instead. |
+| `compare.ts` | `comparePlans(state)`: a deterministic LLM-only vs agent comparison (agent / baseline / mixed / insufficient_evidence / same), per slot and overall. Order: hard constraints, contradicted, supported, coverage, score. Every evidence ID is checked against the ledger. |
 | `plan.ts` | **The draft** (LLM: anchors, the 4 choices, a country for each name, assumptions). **Resolution:** `findInMarket` prefers the target market's entity for a name; `namesake()` flags a match from the wrong country as `ambiguous` (DIVINE vs the American "Divine"); `findPlace` works per city. Venue category is `categoryOf`. Creative direction is mapped onto Qloo aesthetic and tone tags (`directionVocabulary`, `mapDirection`). |
 | `gather.ts` | **Evidence.** Per choice: audience affinity (Insights with anchors + city, explainability, `filter.results.entities` when the choice isn't in the top 50), locality (`checkPick` from `src/lib/agent/check.ts`), coherence (Insights with the other choices as signal), and duplicates. Creative direction uses tag insights (`filter.type=urn:tag`, `filter.tag.types=aesthetic_property, emotional_tone`) for the city vs New York. An anchor used as a choice is tested against the *other* anchors (leave-one-out). Every query is written to the ledger. |
 | `evaluate.ts` | **Deterministic scoring** (crash-v1): audience 35%, local 30%, coherence 25%, distinctness 10% (labelled a heuristic). Missing evidence is never 0: weights renormalise and coverage is reported separately. Statuses: *supported / weak / no_support / unresolved / constraint_conflict*. **`contradicted`** (what gets repaired) = constraint conflict; or no support for a name *not* from here; or a global default (absent from the city's list but big in other cities or the US); or a direction most of whose words this audience doesn't lean to. `compareEvaluations` orders progress by fewer contradicted, then more supported, then the repaired slot's status, then score. |
@@ -74,12 +75,25 @@ Other parts of the code:
 - **`src/lib/server/handlers.ts`:** `POST /api/crashtest` takes `{brief}` or `{query:{query, marketId, depth}}`. It streams SSE; replays a recorded run (labelled "recorded on <date>") unless `fresh:true`; stores finished live runs; rate-limits live runs to 3 per 10 minutes per IP. **Bump `RUN_VERSION`** (currently `crash:v10`) whenever agent behaviour changes, or old recordings will replay.
 - **UI, `src/components/`:**
   - `crash-test.tsx`: the page.
-  - `query-box.tsx`: one description box, city, depth and examples.
+  - `intake-chat.tsx`, `brief-review.tsx`, `use-intake.ts`: the conversational intake and the editable brief, with per-choice locks and the exploration switch.
+  - `plan-comparison.tsx`: the **Compare plans** panel.
   - `brief-form.tsx`: the detailed form, one click away.
   - `results.tsx`: the LLM-alone and agent score cards, the verdict, the choice-by-choice comparison with "Why", then collapsible evidence, revision log, open questions, scoring and exports.
   - `agent-console.tsx`: live stages, "Why this step?", Qloo operations with their sanitised requests.
 
   The theme is dark editorial (`src/app/globals.css`). Statuses always carry words and a shape, never colour alone.
+
+### Intake (`src/lib/intake/`)
+
+- **What it is:** a bounded conversation whose only job is a confirmed brief. State lives in the browser, and the server re-validates it every turn.
+- **The model's role is narrow:** it reads facts from the latest message against a compact state (`extract.ts`) and suggests audiences on request. A sensitive-trait filter in code drops any audience idea defined by race, religion, health and the like.
+- **Code owns the flow** (`state.ts`, `validate.ts`):
+  - what's missing (product, launch, city, a user-confirmed audience, brand context, city text vs selector);
+  - questions: at most 3 per turn, at most 4 asking turns;
+  - confirmation, and when a run may start.
+- **The API:** `/api/intake` makes no Qloo calls. `/api/crashtest` accepts `{intake}` only when `refresh(intake).readyToRun`; a client's own flag is ignored.
+- **Brief rules:** `exploreUserChoices` is off by default, so a user's unlocked choice changes only when it's contradicted. With it on, a choice can be upgraded only to a Supported, material improvement. Locks are absolute.
+- **Examples** load a structured brief directly (`intakeFromBrief`), so their recordings replay exactly.
 
 ## 4. Verified Qloo facts (live, hackathon key)
 
