@@ -29,6 +29,8 @@ export interface Market {
   /** Country names as they appear in Qloo's `release_country`, for the origin check. */
   releaseCountryNames: string[];
   language: string;
+  /** ISO 639-1 codes of the city's languages, to pick the local title of a show or film. */
+  languageCodes: string[];
 }
 
 /** The source side: content written for a US audience. */
@@ -39,6 +41,7 @@ export const SOURCE_MARKET: Market = {
   country: "US",
   releaseCountryNames: ["United States", "United States of America"],
   language: "English",
+    languageCodes: ["en"],
 };
 
 export const TARGET_MARKETS: Market[] = [
@@ -49,6 +52,7 @@ export const TARGET_MARKETS: Market[] = [
     country: "JP",
     releaseCountryNames: ["Japan"],
     language: "Japanese",
+    languageCodes: ["ja"],
   },
   {
     id: "london",
@@ -57,6 +61,7 @@ export const TARGET_MARKETS: Market[] = [
     country: "GB",
     releaseCountryNames: ["United Kingdom"],
     language: "British English",
+    languageCodes: ["en"],
   },
   {
     id: "mumbai",
@@ -65,6 +70,7 @@ export const TARGET_MARKETS: Market[] = [
     country: "IN",
     releaseCountryNames: ["India"],
     language: "Hindi / English",
+    languageCodes: ["hi", "en"],
   },
   {
     id: "sao-paulo",
@@ -73,6 +79,7 @@ export const TARGET_MARKETS: Market[] = [
     country: "BR",
     releaseCountryNames: ["Brazil"],
     language: "Portuguese",
+    languageCodes: ["pt"],
   },
   {
     id: "madrid",
@@ -81,6 +88,7 @@ export const TARGET_MARKETS: Market[] = [
     country: "ES",
     releaseCountryNames: ["Spain"],
     language: "Spanish",
+    languageCodes: ["es"],
   },
 ];
 

@@ -164,7 +164,7 @@ ${pickTable()}
 
 ## 2. Blind judge
 
-A model judge, playing a resident of each city, sees the original and both rewrites as A and B in a per-case random order, scores each and states a preference. **Caveat:** the judge is the same model family as the "model alone" condition, so if anything it is biased towards that side's choices. This is a check on readability and fit, not a substitute for native reviewers.
+A model judge, playing a resident of each city, sees the original and both rewrites as A and B, scores each and states a preference. Every pair is judged **twice with the order swapped**; a preference counts only when both orders agree, otherwise it is a tie, which cancels position bias. **Caveat:** the judge is the same model family as the "model alone" condition, so self-preference bias may remain. This is a check on readability and fit, not a substitute for native reviewers.
 
 ${judgeTable()}
 

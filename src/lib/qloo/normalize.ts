@@ -139,6 +139,7 @@ export function normalizeEntity(raw: unknown): QlooEntity | null {
     name,
     displayName: pickDisplayName(name, akas),
     akas: [...new Set(akas.map((a) => a.value))],
+    akaLanguages: akas.filter((a) => a.languages.length > 0),
     releaseCountries: (Array.isArray(releaseCountry) ? releaseCountry : [releaseCountry])
       .map(str)
       .filter((c): c is string => c !== null),

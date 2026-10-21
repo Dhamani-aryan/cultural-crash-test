@@ -11,9 +11,7 @@
  * Writes eval/out/results.json (git-ignored: contains Qloo-derived results). The committed
  * report, docs/EVALUATION.md, is built from it by eval/report.ts.
  */
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { z } from "zod";
 import { checkPick, findByName, type PickCheck } from "../src/lib/agent/check";
 import { runTranscreate } from "../src/lib/agent/orchestrator";
 import type { ResolvedReference, TranscreateResult } from "../src/lib/agent/types";
@@ -21,12 +19,15 @@ import { createMemoryCache } from "../src/lib/cache/cache";
 import { nameKey } from "../src/lib/engine/stats";
 import { getQlooEnv } from "../src/lib/env";
 import { getLlm } from "../src/lib/llm";
-import { generateStructured } from "../src/lib/llm/structured";
 import type { LlmClient } from "../src/lib/llm/types";
-import { marketById, type Market } from "../src/lib/markets";
+import { marketById } from "../src/lib/markets";
 import { createQlooClient, type QlooClient } from "../src/lib/qloo";
 import { withCache } from "../src/lib/qloo/cached";
+import { nameForms } from "../src/lib/agent/names";
 import { CASES, type EvalCase } from "./cases";
+import { judgePair, type JudgeScores, type Verdict } from "./judge";
+
+export type { JudgeScores };
 
 const OUT = "eval/out";
 const FILE = `${OUT}/results.json`;
@@ -34,14 +35,10 @@ const FILE = `${OUT}/results.json`;
 export interface PickRow {
   original: string;
   pick: string;
+  /** Every name the pick may appear under (local titles, akas). */
+  names: string[];
   domain: string | null;
   check: Omit<PickCheck, "entity"> & { popularity: number | null };
-}
-
-export interface JudgeScores {
-  recognisable: number;
-  fit: number;
-  natural: number;
 }
 
 export interface MarketRow {
@@ -58,12 +55,7 @@ export interface MarketRow {
   };
   baseline: { text: string; swaps: PickRow[] } | null;
   expectations: { name: string; pass: boolean; detail: string }[];
-  judge: {
-    transcreate: JudgeScores;
-    baseline: JudgeScores;
-    preferred: "transcreate" | "baseline" | "tie";
-    reason: string;
-  } | null;
+  judge: Verdict | null;
 }
 
 export interface CaseRow {
@@ -81,6 +73,7 @@ const toRow = (original: string, c: PickCheck): PickRow => {
   return {
     original,
     pick: entity?.displayName ?? "",
+    names: entity ? nameForms(entity) : [],
     domain: entity?.type?.replace("urn:entity:", "") ?? null,
     check: { ...rest, popularity: entity?.popularity ?? null },
   };
@@ -122,7 +115,7 @@ function expectations(c: EvalCase, marketId: string, text: string, row: MarketRo
     });
   }
   // Always: every swapped name actually appears in the output, and no fallback was needed.
-  const missing = row.swaps.filter((s) => !text.includes(s.pick.replace(/^The /, "")));
+  const missing = row.swaps.filter((s) => !s.names.some((n) => text.includes(n)));
   out.push({
     name: "every chosen name is in the text",
     pass: missing.length === 0,
@@ -134,49 +127,6 @@ function expectations(c: EvalCase, marketId: string, text: string, row: MarketRo
     detail: row.fallback ? row.guardIssues.join(", ") : "clean",
   });
   return out;
-}
-
-const judgeSchema = z.object({
-  A: z.object({ recognisable: z.number(), fit: z.number(), natural: z.number() }),
-  B: z.object({ recognisable: z.number(), fit: z.number(), natural: z.number() }),
-  preferred: z.enum(["A", "B", "tie"]),
-  reason: z.string(),
-});
-
-const JUDGE = `You are a lifelong resident of the city named below, and a careful copy editor. You'll see an American original and two adaptations of it for readers in your city, labelled A and B in random order. Rate each from 1 to 5 on:
-- recognisable: would ordinary people in your city know the references it uses?
-- fit: does each new reference do the same job as the original one (same kind of thing, same connotation: cheap, premium, cosy, iconic...)?
-- natural: does it read like copy written for your city?
-Then say which you prefer, or "tie". Judge only what is on the page. Reason in English, in one or two sentences.`;
-
-async function judge(
-  llm: LlmClient,
-  c: EvalCase,
-  market: Market,
-  ours: string,
-  theirs: string,
-): Promise<MarketRow["judge"]> {
-  // Deterministic, per-case order so neither side is always A.
-  const swap = createHash("sha1").update(`${c.id}:${market.id}`).digest()[0] % 2 === 1;
-  const [a, b] = swap ? [theirs, ours] : [ours, theirs];
-  const { data } = await generateStructured(llm, {
-    schema: judgeSchema,
-    system: JUDGE,
-    prompt: `City: ${market.label}\n\nOriginal:\n"""${c.text}"""\n\nA:\n"""${a}"""\n\nB:\n"""${b}"""`,
-    label: "judge",
-  });
-  const clamp = (s: JudgeScores) => ({
-    recognisable: Math.min(5, Math.max(1, s.recognisable)),
-    fit: Math.min(5, Math.max(1, s.fit)),
-    natural: Math.min(5, Math.max(1, s.natural)),
-  });
-  const pref = data.preferred === "tie" ? "tie" : (data.preferred === "A") !== swap ? "transcreate" : "baseline";
-  return {
-    transcreate: clamp(swap ? data.B : data.A),
-    baseline: clamp(swap ? data.A : data.B),
-    preferred: pref,
-    reason: data.reason,
-  };
 }
 
 async function runCase(qloo: QlooClient, llm: LlmClient, c: EvalCase): Promise<CaseRow> {
@@ -194,7 +144,9 @@ async function runCase(qloo: QlooClient, llm: LlmClient, c: EvalCase): Promise<C
         anchor: ref.entity,
         market,
       });
-      swaps.push(toRow(ref.surface, check));
+      // Show the name the city knows (the orchestrator's local name), not Qloo's English one.
+      const row = toRow(ref.surface, check);
+      swaps.push({ ...row, pick: d.choice!.entity.displayName });
     }
     const name = (ref: string) => refs.find((r) => r.ref === ref)?.surface ?? ref;
     const row: MarketRow["transcreate"] = {
@@ -216,14 +168,19 @@ async function runCase(qloo: QlooClient, llm: LlmClient, c: EvalCase): Promise<C
         const pick = await findByName(qloo, s.replacement, s.kind);
         const check = await checkPick(qloo, { pick, anchor: anchor?.entity ?? null, market });
         const r = toRow(s.original, check);
-        bSwaps.push({ ...r, pick: s.replacement, domain: r.domain ?? s.kind });
+        bSwaps.push({
+          ...r,
+          pick: s.replacement,
+          names: [s.replacement, ...r.names],
+          domain: r.domain ?? s.kind,
+        });
       }
       baseline = { text: b.text, swaps: bSwaps };
     }
 
     let verdict: MarketRow["judge"] = null;
     if (baseline && (row.swaps.length || baseline.swaps.length)) {
-      verdict = await judge(llm, c, market, m.text, baseline.text).catch(() => null);
+      verdict = await judgePair(llm, market, c.text, m.text, baseline.text).catch(() => null);
     }
     markets.push({
       marketId: m.marketId,

@@ -17,41 +17,49 @@ Every pick from both sides then goes through **the same Qloo checks** (`src/lib/
 
 | Check (same Qloo test for both) | Transcreate | Model alone |
 |---|---|---|
-| Found in Qloo at all | 50 / 50 (100%) | 68 / 81 (84%) |
-| In the city's own taste list for its kind | 49 / 50 (98%) | 31 / 81 (38%) |
-| Of foreign origin (another country's brand, artist or show) | 0 / 50 (0%) | 1 / 81 (1%) |
-| Also in a US city's list (an American would know it too) | 1 / 50 (2%) | 3 / 81 (4%) |
-| Known everywhere (in 2+ other cities' lists, or a global superstar) | 1 / 50 (2%) | 4 / 81 (5%) |
-| **Passes every locality check** | 48 / 50 (96%) | 28 / 81 (35%) |
-| Mean role overlap with the original (tag Jaccard) | 0.14 | 0.12 |
+| Found in Qloo at all | 70 / 70 (100%) | 64 / 81 (79%) |
+| From the target country (origin, release or location) | 69 / 70 (99%) | 59 / 81 (73%) |
+| In the city's own taste list for its kind | 38 / 70 (54%) | 25 / 81 (31%) |
+| Of foreign origin (another country's brand, artist or show) | 0 / 70 (0%) | 1 / 81 (1%) |
+| Also in a US city's list (an American would know it too) | 3 / 70 (4%) | 3 / 81 (4%) |
+| Known everywhere (in 2+ other cities' lists, or a global superstar) | 5 / 70 (7%) | 4 / 81 (5%) |
+| **Passes every locality check** | 70 / 70 (100%) | 59 / 81 (73%) |
+| Mean role overlap with the original (tag Jaccard) | 0.15 | 0.12 |
 
 ## 2. Blind judge
 
 A model judge, playing a resident of each city, sees the original and both rewrites as A and B in a per-case random order, scores each and states a preference. **Caveat:** the judge is the same model family as the "model alone" condition, so if anything it is biased towards that side's choices. This is a check on readability and fit, not a substitute for native reviewers.
 
-Judged market outputs: 33. Preferred: **Transcreate 7**, model alone 26, tie 0.
+Judged market outputs: 33. Preferred: **Transcreate 7**, model alone 23, tie 3.
 
 | Mean score (1–5) | Transcreate | Model alone |
 |---|---|---|
-| Recognisable to locals | 4.0 | 4.6 |
-| Same job as the original | 3.5 | 4.2 |
-| Reads naturally | 3.4 | 4.4 |
+| Recognisable to locals | 4.3 | 4.8 |
+| Same job as the original | 3.7 | 4.4 |
+| Reads naturally | 3.7 | 4.4 |
 
 | Split | Markets | Transcreate preferred | Model alone preferred | Tie |
 |---|---|---|---|---|
-| Dev (tuned on) | 9 | 1 | 8 | 0 |
-| Held out | 24 | 6 | 18 | 0 |
+| Dev (tuned on) | 9 | 1 | 7 | 1 |
+| Held out | 24 | 6 | 16 | 2 |
 
 ## 3. Behaviour checks
 
 Deterministic expectations: global functional references stay (iPhone, Google Calendar), invented names stay, a text with no references comes back unchanged, no film swaps where Qloo's film data for the city is too thin (London), every chosen name appears in the output, and no rewrite needed the fallback.
 
-**86 / 88** deterministic checks passed.
+**73 / 82** deterministic checks passed.
 
 | Case | Market | Check | Result |
 |---|---|---|---|
+| TV ad script | madrid | every chosen name is in the text | No One Could Live Here |
+| TV ad script | sao-paulo | every chosen name is in the text | Big Family |
 | Newsletter | mumbai | every chosen name is in the text | The Local train |
-| Retail banner | mumbai | keeps Amazon | removed or changed |
+| Newsletter | sao-paulo | every chosen name is in the text | Lojas Americanas |
+| Travel app | tokyo | every chosen name is in the text | CLINTON ST. BAKING COMPANY |
+| Streaming promo | sao-paulo | every chosen name is in the text | Invisible City, Big Family |
+| Fitness class | tokyo | every chosen name is in the text | Tomorrow's Joe |
+| Retail banner | sao-paulo | every chosen name is in the text | Rappi Brasil |
+| Retail banner | london | every chosen name is in the text | B & M |
 
 ## 4. Technical
 
@@ -60,11 +68,11 @@ Deterministic expectations: global functional references stay (iPhone, Google Ca
 | Cases completed | 13 / 13 |
 | Market outputs | 35 |
 | References found in Qloo | 26 / 28 |
-| Decisions: swap / keep / flag | 50 / 20 / 9 |
-| Agent searched another kind of culture | 0 times |
+| Decisions: swap / keep / flag | 70 / 1 / 8 |
+| Agent searched another kind of culture | 1 times |
 | Rewrites that needed the substitution fallback | 0 |
-| Mean time per case (live, 2–3 markets + comparison) | 53 s |
-| Mean Qloo calls per case | 331 |
+| Mean time per case (live, 2–3 markets + comparison) | 57 s |
+| Mean Qloo calls per case | 282 |
 
 ## Per market
 
@@ -73,76 +81,76 @@ Deterministic expectations: global functional references stay (iPhone, Google Ca
 | Case | Market | Transcreate | Model alone | Judge prefers |
 |---|---|---|---|---|
 | Startup pitch (dev) | tokyo | Peloton → Lean Body; Glossier → Ettusais; Chipotle → Matsuya Foods | Peloton → SOELU ✗not in Qloo; Glossier → SHIRO ✗; Chipotle → Sukiya ✗ | baseline |
-| Startup pitch (dev) | mumbai | Peloton → HealthifyMe; Chipotle → Café Coffee Day (kept Glossier) | Peloton → cult.fit ✗; Glossier → Nykaa; Chipotle → Faasos ✗ | baseline |
-| Startup pitch (dev) | london | Peloton → Fiit; Chipotle → Tortilla (kept Glossier) | Peloton → Fiit; Glossier → Beauty Pie; Chipotle → Pret ✗ | transcreate |
-| TV ad script (dev) | madrid | Trader Joe's → Mercadona; Times Square → Puerta del Sol (kept The Office) | The Office → Aquí no hay quien viva ✗; Trader Joe's → Mercadona; Times Square → Puerta del Sol | baseline |
-| TV ad script (dev) | sao-paulo | Trader Joe's → Sadia (kept The Office; flagged Times Square) | The Office → A Grande Família ✗; Trader Joe's → Pão de Açúcar; Times Square → Avenida Paulista ✗not in Qloo | baseline |
-| TV ad script (dev) | london | The Office → People Just Do Nothing; Trader Joe's → Marks & Spencer; Times Square → Brixton Market | The Office → Peep Show ✗; Trader Joe's → Tesco; Times Square → Leicester Square ✗ | baseline |
-| Product page (dev) | tokyo | Central Park → Hibiya Park; Whole Foods → Seijo Ishii (kept Taylor Swift) | Central Park → Yoyogi Park ✗; Taylor Swift → Hikaru Utada ✗not in Qloo; Whole Foods → Seijo Ishii | baseline |
-| Product page (dev) | sao-paulo | Central Park → Ibirapuera Park; Taylor Swift → Gloria Groove; Whole Foods → St Marche | Central Park → Ibirapuera Park; Taylor Swift → Anitta ✗; Whole Foods → Pão de Açúcar | baseline |
-| Product page (dev) | madrid | Central Park → Temple of Debod; Taylor Swift → Aitana; Whole Foods → Lidl | Central Park → El Retiro ✗; Taylor Swift → Rosalía; Whole Foods → Mercadona | baseline |
-| Newsletter | mumbai | Olivia Rodrigo → The Local train; Saturday Night Live → Zee Comedy Show; Target → Shoppers Stop | Olivia Rodrigo → Dhvani Bhanushali ✗; Saturday Night Live → The Kapil Sharma Show ✗; Target → DMart ✗ | baseline |
-| Newsletter | madrid | Olivia Rodrigo → Aitana; Saturday Night Live → Late Motiv de Andreu Buenafuente; Target → Mercadona | Olivia Rodrigo → Aitana; Saturday Night Live → La Resistencia; Target → El Corte Inglés | baseline |
-| Newsletter | sao-paulo | Olivia Rodrigo → DUDA BEAT; Saturday Night Live → LOL: Last One Laughing Brazil; Target → Outlet Premium São Paulo | Olivia Rodrigo → Luísa Sonza ✗; Saturday Night Live → The Noite ✗; Target → Magazine Luiza ✗not in Qloo | baseline |
-| Social post | london | Dunkin' → Pret A Manger ✗ (kept Starbucks) | Dunkin' → Greggs; Starbucks → Costa ✗ | baseline |
-| Social post | tokyo | Dunkin' → Mister Donut (kept Starbucks) | Dunkin' → Doutor ✗; Starbucks → Excelsior Caffé ✗not in Qloo | baseline |
-| Social post | mumbai | Dunkin' → Café Coffee Day (kept Starbucks) | Dunkin' → Café Coffee Day; Starbucks → Barista ✗not in Qloo | transcreate |
-| Travel app | tokyo | Hollywood Walk of Fame → Kaminarimon Gate (kept Shake Shack) | Hollywood Walk of Fame → Shibuya Crossing ✗; Shake Shack → Ichiran ✗ | baseline |
-| Travel app | madrid | Hollywood Walk of Fame → Puerta del Sol; Shake Shack → Goiko | Hollywood Walk of Fame → Gran Vía; Shake Shack → Goiko | baseline |
-| Travel app | london | Hollywood Walk of Fame → London Eye ✗ (kept Shake Shack) | Hollywood Walk of Fame → Leicester Square ✗; Shake Shack → Dishoom ✗ | baseline |
-| Streaming promo | mumbai | Parks and Recreation → TVF Pitchers (kept Stranger Things) | Stranger Things → Ghoul; Parks and Recreation → Panchayat ✗ | baseline |
-| Streaming promo | sao-paulo | Parks and Recreation → Run for Your Lives (kept Stranger Things) | Stranger Things → Invisible City ✗; Parks and Recreation → A Grande Família ✗ | baseline |
-| Streaming promo | madrid | Parks and Recreation → The Countryside (kept Stranger Things) | Stranger Things → El Ministerio del Tiempo; Parks and Recreation → Paquita Salas | baseline |
-| Fitness class | london | Eminem's → Stormzy (flagged Rocky) | Rocky → Chariots of Fire ✗; Eminem → Stormzy | transcreate |
-| Fitness class | tokyo | — (kept Eminem's; flagged Rocky) | Rocky → Hajime no Ippo ✗not in Qloo; Eminem → AK-69 ✗ | baseline |
-| Fitness class | sao-paulo | — (kept Eminem's; flagged Rocky) | Rocky → Mais Forte que o Mundo ✗; Eminem → Emicida | transcreate |
-| Retail banner | mumbai | Costco → Big Bazaar Food; Nordstrom → Shoppers Stop; Amazon Prime → Swiggy | Costco → DMart ✗; Nordstrom → Taj ✗; Amazon Prime → Blinkit ✗ | baseline |
-| Retail banner | sao-paulo | Costco → Outlet Premium São Paulo; Nordstrom → Rede Angeloni (kept Amazon Prime) | Costco → Assaí ✗not in Qloo; Nordstrom → Fasano ✗not in Qloo; Amazon Prime → Mercado Livre ✗ | baseline |
-| Retail banner | london | Nordstrom → Marks & Spencer (kept Amazon Prime; flagged Costco) | Costco → Aldi ✗; Nordstrom → John Lewis ✗; Amazon Prime → Argos ✗ | transcreate |
-| Restaurant menu | tokyo | the High Line → Shibuya Sky (kept Magnolia Bakery, Bon Iver) | Magnolia Bakery → Fairycake Fair ✗not in Qloo; Bon Iver → Ichiko Aoba ✗; High Line → Shibuya Sky | baseline |
-| Restaurant menu | london | Bon Iver → Lianne La Havas; the High Line → The Garden at 120 (kept Magnolia Bakery) | Magnolia Bakery → Hummingbird Bakery ✗not in Qloo; Bon Iver → Ben Howard ✗; High Line → Sky Garden ✗ | baseline |
+| Startup pitch (dev) | mumbai | Peloton → HealthifyMe; Glossier → Nykaa; Chipotle → Café Coffee Day | Peloton → Cult.fit; Glossier → Nykaa; Chipotle → Chaayos | baseline |
+| Startup pitch (dev) | london | Glossier → Oliver Bonas; Chipotle → Pret A Manger (flagged Peloton) | Peloton → Fiit; Glossier → Beauty Pie; Chipotle → Pret | baseline |
+| TV ad script (dev) | madrid | The Office → No One Could Live Here; Trader Joe's → Mercadona; Times Square → Puerta del Sol | The Office → Aquí no hay quien viva; Trader Joe's → Mercadona; Times Square → Puerta del Sol | tie |
+| TV ad script (dev) | sao-paulo | The Office → Big Family; Trader Joe's → Sadia; Times Square → Beco do Batman | The Office → A Grande Família; Trader Joe's → Pão de Açúcar; Times Square → Avenida Paulista ✗not in Qloo | baseline |
+| TV ad script (dev) | london | The Office → Gavin & Stacey; Trader Joe's → Lidl; Times Square → Leicester Square | The Office → Peep Show; Trader Joe's → Tesco; Times Square → Leicester Square | baseline |
+| Product page (dev) | tokyo | Central Park → Hibiya Park; Taylor Swift → yoasobi; Whole Foods → Seijo Ishii | Central Park → Yoyogi Park; Taylor Swift → Hikaru Utada ✗not in Qloo; Whole Foods → Seijo Ishii | baseline |
+| Product page (dev) | sao-paulo | Central Park → Ibirapuera Park; Taylor Swift → Anitta; Whole Foods → St Marche | Central Park → Ibirapuera Park; Taylor Swift → Anitta; Whole Foods → Casa Santa Luzia ✗not in Qloo | transcreate |
+| Product page (dev) | madrid | Central Park → Temple of Debod; Taylor Swift → Aitana (flagged Whole Foods) | Central Park → El Retiro ✗; Taylor Swift → Rosalía; Whole Foods → Sánchez Romero | baseline |
+| Newsletter | mumbai | Olivia Rodrigo → The Local train; Saturday Night Live → Koffee with Karan; Target → Shoppers Stop | Olivia Rodrigo → Dhvani Bhanushali; Saturday Night Live → The Kapil Sharma Show; Target → DMart | baseline |
+| Newsletter | madrid | Olivia Rodrigo → Amaia; Saturday Night Live → La Revuelta; Target → Hipercor | Olivia Rodrigo → Aitana; Saturday Night Live → La Revuelta; Target → El Corte Inglés | transcreate |
+| Newsletter | sao-paulo | Olivia Rodrigo → Manu Gavassi; Saturday Night Live → Altas Horas; Target → Lojas Americanas | Olivia Rodrigo → Luísa Sonza; Saturday Night Live → Altas Horas; Target → Carrefour ✗ | baseline |
+| Social post | london | Dunkin' → Greggs; Starbucks → Costa Coffee | Dunkin' → Greggs; Starbucks → Costa Coffee | tie |
+| Social post | tokyo | Dunkin' → Mister Donut (kept Starbucks) | Dunkin' → Doutor Coffee ✗not in Qloo; Starbucks → Tully's Coffee ✗not in Qloo | baseline |
+| Social post | mumbai | Dunkin' → Nescafé; Starbucks → Café Coffee Day | Dunkin' → Café Coffee Day; Starbucks → Barista ✗not in Qloo | baseline |
+| Travel app | tokyo | Hollywood Walk of Fame → Kaminarimon Gate; Shake Shack → CLINTON ST. BAKING COMPANY | Hollywood Walk of Fame → Shibuya Crossing; Shake Shack → Ichiran ✗ | baseline |
+| Travel app | madrid | Hollywood Walk of Fame → Puerta del Sol; Shake Shack → Goiko | Hollywood Walk of Fame → Plaza Mayor; Shake Shack → La Campana ✗not in Qloo | baseline |
+| Travel app | london | Hollywood Walk of Fame → Leicester Square; Shake Shack → Dishoom | Hollywood Walk of Fame → Leicester Square; Shake Shack → Dishoom | transcreate |
+| Streaming promo | mumbai | Stranger Things → Typewriter; Parks and Recreation → Panchayat | Stranger Things → Aahat; Parks and Recreation → Office Office | transcreate |
+| Streaming promo | sao-paulo | Stranger Things → Invisible City; Parks and Recreation → Big Family | Stranger Things → Cidade Invisível; Parks and Recreation → A Grande Família | tie |
+| Streaming promo | madrid | Stranger Things → Paraíso; Parks and Recreation → Camera café | Stranger Things → El Ministerio del Tiempo; Parks and Recreation → Aquí no hay quien viva | baseline |
+| Fitness class | london | Eminem → Dizzee Rascal (flagged Rocky) | Rocky → Bend It Like Beckham; Eminem → Stormzy | transcreate |
+| Fitness class | tokyo | Rocky → Tomorrow's Joe; Eminem → AK-69 | Rocky → Hajime no Ippo ✗not in Qloo; Eminem → AK-69 | baseline |
+| Fitness class | sao-paulo | Rocky → 10 Segundos para Vencer; Eminem → Karol Conka | Rocky → Mais Forte que o Mundo; Eminem → Emicida | baseline |
+| Retail banner | mumbai | Costco → Brand Factory; Nordstrom → Oberoi Hotels & Resorts; Amazon Prime → Swiggy | Costco → D-Mart ✗not in Qloo; Nordstrom → Taj; Amazon Prime → Blinkit | baseline |
+| Retail banner | sao-paulo | Costco → Assaí Atacadista; Amazon Prime → Rappi Brasil (flagged Nordstrom) | Costco → Atacadão ✗not in Qloo; Nordstrom → Fasano ✗not in Qloo; Amazon Prime → Mercado Livre | baseline |
+| Retail banner | london | Costco → B & M; Nordstrom → John Lewis; Amazon Prime → Argos | Costco → Aldi; Nordstrom → John Lewis; Amazon Prime → Deliveroo | baseline |
+| Restaurant menu | tokyo | Magnolia Bakery → Ginza Cozy Corner; Bon Iver → 青葉市子; the High Line → Shibuya Sky | Magnolia Bakery → HARBS; Bon Iver → Ichiko Aoba; High Line → SHIBUYA SKY | baseline |
+| Restaurant menu | london | Magnolia Bakery → GAIL's Bakery; Bon Iver → Ben Howard; the High Line → Sky Garden | Magnolia Bakery → Hummingbird Bakery ✗not in Qloo; Bon Iver → Ben Howard; High Line → Primrose Hill | baseline |
 | No references | london | — | — | — |
 | No references | madrid | — | — | — |
 | Global brands only | tokyo | — (flagged iPhone, Google Calendar) | iPhone → Xperia ✗not in Qloo; Google Calendar → TimeTree | transcreate |
-| Global brands only | mumbai | — (flagged iPhone, Google Calendar) | iPhone → OnePlus; Google Calendar → Zoho Calendar ✗not in Qloo | transcreate |
+| Global brands only | mumbai | — (flagged iPhone, Google Calendar) | iPhone → Samsung Galaxy ✗not in Qloo; Google Calendar → Zoho Calendar ✗not in Qloo | transcreate |
 | Invented brand | madrid | — | Brindle & Pike → Pan.Delirio | baseline |
-| Invented brand | sao-paulo | — | Brindle & Pike → A Padeira ✗ | baseline |
+| Invented brand | sao-paulo | — | Brindle & Pike → Padoca do Maní ✗not in Qloo | baseline |
 
 ## Judge's reasons
 
-- **Startup pitch, tokyo** (prefers baseline): SOELU, SHIRO, and Sukiya are familiar Tokyo references that closely match the original's sleek fitness, stylish beauty, and habitual fast-casual roles. “Matsuya Foods habit” sounds unnatural, and Ettusais is a weaker branding analogue.
-- **Startup pitch, mumbai** (prefers baseline): B uses widely known Mumbai references and better preserves the original contrasts: cult.fit suggests a polished fitness subscription, Nykaa conveys beauty-led branding, and Faasos matches a recurring fast-food habit.
-- **Startup pitch, london** (prefers transcreate): Tortilla closely matches Chipotle as a casual burrito habit, while Glossier preserves the original premium, design-led branding reference. B feels slightly more London-specific, but Beauty Pie and Pret are less exact functional matches.
-- **TV ad script, madrid** (prefers baseline): “Aquí no hay quien viva” is an iconic, nostalgic Madrid-friendly substitute for a comfort rewatch, while Mercadona and Puerta del Sol are familiar and functionally apt. B is understandable, but retaining “The Office” makes it feel less locally tailored.
-- **TV ad script, sao-paulo** (prefers baseline): A uses familiar São Paulo references that preserve the cosy sitcom-night and busy-landmark contrasts. B’s Sadia pizza is recognisable, but the unchanged US references make it feel much less locally written.
-- **TV ad script, london** (prefers baseline): Peep Show, Tesco and Leicester Square are instantly familiar London references, with Leicester Square closely matching Times Square’s tourist-heavy connotation. B sounds plausible, but M&S is more premium than Trader Joe’s and Brixton Market is less equivalent to Times Square.
-- **Product page, tokyo** (prefers baseline): Yoyogi Park is more strongly associated with casual picnics, and Hikaru Utada is a natural local counterpart to Taylor Swift. Seijo Ishii is recognisable as an upscale grocer, though its tote is less iconic than Whole Foods’.
-- **Product page, sao-paulo** (prefers baseline): Both use familiar São Paulo references, but Anitta is a closer match for Taylor Swift’s mainstream pop-star role. St Marche better matches Whole Foods’ premium positioning, though Pão de Açúcar is more universally recognisable and reads more naturally.
-- **Product page, madrid** (prefers baseline): El Retiro is Madrid’s clearest equivalent to Central Park, and Rosalía better matches Taylor Swift’s star power. Neither supermarket fully captures Whole Foods’ premium image, but Mercadona is a closer fit than discount-focused Lidl.
-- **Newsletter, mumbai** (prefers baseline): Dhvani Bhanushali, The Kapil Sharma Show, and DMart are widely familiar in Mumbai, and DMart closely matches Target’s mass-market role. B’s references are less universally recognisable, while Shoppers Stop feels more premium than Target.
-- **Newsletter, madrid** (prefers baseline): Aitana and La Resistencia are highly recognisable, and their pairing sounds natural for Madrid. El Corte Inglés is more premium than Target, but Mercadona is primarily a supermarket and “Late Motiv de Andreu Buenafuente” feels clunky.
-- **Newsletter, sao-paulo** (prefers baseline): A uses widely familiar references and Magazine Luiza is a reasonable mass-market counterpart to Target, though The Noite is not quite equivalent to SNL. B’s comedy-show and premium-outlet references miss the original’s iconic-party and everyday-shopping connotations.
-- **Social post, london** (prefers baseline): Both versions use familiar London high-street brands, but Greggs better matches Dunkin’s affordable, no-fuss character, while Costa is a natural substitute for Starbucks.
-- **Social post, tokyo** (prefers baseline): Doutor naturally conveys an affordable, unfussy, ubiquitous coffee stop in Tokyo, while Excelsior Caffé is also familiar. Mister Donut is highly recognisable, but it is less strongly associated with everyday coffee and early-opening convenience.
-- **Social post, mumbai** (prefers transcreate): Café Coffee Day and Starbucks are highly recognisable in Mumbai, and their mainstream-versus-premium contrast broadly matches the original. Barista is familiar but less ubiquitous and current, making B’s comparison less effective.
-- **Travel app, tokyo** (prefers baseline): Shibuya Crossing is a strong equivalent to the touristy Hollywood landmark, while Ichiran is a locally familiar reference known for long food queues. A is understandable, but keeping Shake Shack makes it feel less naturally adapted for Tokyo.
-- **Travel app, madrid** (prefers baseline): Both references are widely known in Madrid, but Gran Vía better matches the Walk of Fame’s entertainment-district connotations. “A Goiko line” is understandable but not a particularly natural or iconic Madrid comparison.
-- **Travel app, london** (prefers baseline): Leicester Square and Dishoom are highly recognisable London references, and Dishoom’s famously long queues preserve the original image of popular, sought-after food. A is understandable, but retaining Shake Shack makes it feel less specifically London.
-- **Streaming promo, mumbai** (prefers baseline): Panchayat closely matches the warm, comic public-service feel of Parks and Recreation, while Ghoul supplies the eerie contrast, though it is darker than Stranger Things. The fully Indian pairing feels more naturally tailored to Mumbai readers.
-- **Streaming promo, sao-paulo** (prefers baseline): Invisible City and A Grande Família are widely recognisable Brazilian references that preserve the supernatural-plus-warm-comedy contrast. “Run for Your Lives” is obscure and does not clearly fill the Parks and Recreation role.
-- **Streaming promo, madrid** (prefers baseline): El Ministerio del Tiempo and Paquita Salas are highly recognisable Spanish series and preserve the original mix of supernatural weirdness and warm comedy. “The Countryside” is not a recognisable equivalent to Parks and Recreation and sounds like a mistranslation.
-- **Fitness class, london** (prefers transcreate): Both references are widely recognisable in London, and Stormzy is a natural local substitute for Eminem. B works better because Rocky carries the same intense gym-training connotation, whereas Chariots of Fire suggests more stately endurance running.
-- **Fitness class, tokyo** (prefers baseline): Hajime no Ippo is an iconic Japanese boxing reference, while AK-69 credibly supplies the hard-edged workout-music association. The pairing feels more locally tailored to Tokyo without changing the original’s energetic tone.
-- **Fitness class, sao-paulo** (prefers transcreate): Rocky and Eminem are widely recognisable in São Paulo and strongly evoke intense training. The Brazilian substitutions are relevant, but neither is as iconic or as closely associated with workout culture.
-- **Retail banner, mumbai** (prefers baseline): DMart, Taj, and Blinkit are highly recognisable in Mumbai, and the line reads naturally, though Taj is not the same kind of retailer as Nordstrom. A preserves the department-store comparison better, but “Big Bazaar Food-sized” sounds awkward and dated.
-- **Retail banner, sao-paulo** (prefers baseline): Assaí, Fasano, and Mercado Livre are familiar in São Paulo and clearly convey discount scale, premium service, and fast delivery. B feels less local and less natural, especially because Angeloni has limited relevance in São Paulo and “Outlet Premium São Paulo-scale savings” is awkward.
-- **Retail banner, london** (prefers transcreate): A preserves the original contrasts better: Costco still suggests scale and Amazon Prime is synonymous with fast delivery, though Marks & Spencer is not a perfect Nordstrom equivalent. B is locally familiar, but Aldi lacks the bulk-size association and Argos is a weaker benchmark for delivery speed.
-- **Restaurant menu, tokyo** (prefers baseline): B’s Fairycake Fair and Ichiko Aoba are credible Tokyo-facing equivalents with similarly boutique and mellow associations. A’s unchanged American references make it feel less locally written.
-- **Restaurant menu, london** (prefers baseline): A uses familiar London references throughout, with Hummingbird Bakery and Sky Garden neatly matching the original’s trendy, scenic tone. B’s Garden at 120 fits well, but Magnolia Bakery feels imported and less locally natural.
-- **Global brands only, tokyo** (prefers transcreate): Both versions use familiar products and read naturally in Tokyo, but iPhone and Google Calendar are more universally recognisable and preserve the original references exactly.
-- **Global brands only, mumbai** (prefers transcreate): iPhone and Google Calendar are widely recognised in Mumbai and pair naturally. OnePlus is familiar, but Zoho Calendar is less mainstream and weakens the reference.
-- **Invented brand, madrid** (prefers baseline): Pan.Delirio is a well-known Madrid artisan bakery and feels like a natural local substitution, though “tiny” is not entirely accurate given its multiple locations. Brindle & Pike has no clear local recognition.
-- **Invented brand, sao-paulo** (prefers baseline): A Padeira sounds plausibly local and preserves the image of a small bakery, though it is not a broadly recognisable São Paulo reference. Brindle & Pike feels unfamiliar and distinctly less natural for the city.
+- **Startup pitch, tokyo** (prefers baseline): SOELU closely matches Peloton as a polished fitness subscription, while SHIRO and Sukiya neatly convey stylish branding and an everyday inexpensive food habit. A is less natural because “Matsuya Foods habit” uses the corporate name rather than the familiar “Matsuya.”
+- **Startup pitch, mumbai** (prefers baseline): Cult.fit better matches Peloton’s sleek, premium fitness-subscription connotations, while Chaayos feels like a plausible recurring urban habit in Mumbai. HealthifyMe is recognisable but is more app-like and less aspirational.
+- **Startup pitch, london** (prefers baseline): Beauty Pie and Pret closely preserve the polished beauty-brand and everyday lunch-habit comparisons, while “Pret” sounds naturally London. Fiit is less universally recognisable than Peloton, but it is still a credible local fitness-subscription analogue.
+- **TV ad script, madrid** (prefers tie): The adaptations are identical, and Aquí no hay quien viva, Mercadona, and Puerta del Sol are highly recognisable Madrid references that closely match the original’s nostalgic, everyday, and crowded-city connotations.
+- **TV ad script, sao-paulo** (prefers baseline): Pão de Açúcar closely matches Trader Joe’s as a grocery retailer, while Avenida Paulista better captures Times Square’s iconic big-city crowds. Sadia is a food brand rather than a store, and Beco do Batman is a smaller tourist spot.
+- **TV ad script, london** (prefers baseline): A uses familiar London references and natural British phrasing, with Peep Show providing a fitting nostalgic comedy substitute. B is recognisable, but Lidl feels more overtly budget-oriented and “waiting in line” sounds less natural in London copy.
+- **Product page, tokyo** (prefers baseline): Yoyogi Park is a more natural Tokyo picnic reference, while Seijo Ishii matches Whole Foods’ upscale-grocery connotation. A’s lowercase “yoasobi” looks unpolished, though YOASOBI is a closer contemporary-pop match for Taylor Swift.
+- **Product page, sao-paulo** (prefers transcreate): Both use strong São Paulo references and preserve the upscale-grocery comparison, but St. Marche is more broadly recognisable across the city than Casa Santa Luzia.
+- **Product page, madrid** (prefers baseline): El Retiro, Rosalía, and the upscale Sánchez Romero are all familiar and closely preserve the original references’ roles. B is plausible, but the Temple of Debod is less strongly associated with picnics, and Whole Foods feels unlocalized.
+- **Newsletter, mumbai** (prefers baseline): A best preserves the youthful pop, mainstream entertainment, and affordable big-box-shopping associations, though “a The Kapil Sharma Show” is awkward. B reads more smoothly, but The Local Train and Shoppers Stop shift the tone toward indie music and more premium retail.
+- **Newsletter, madrid** (prefers transcreate): Aitana is a closer mainstream-pop match for Olivia Rodrigo, but Hipercor better captures Target’s practical, mass-market shopping role than the more upscale El Corte Inglés. Amaia and La Revuelta are still highly recognisable and the line sounds natural in Madrid.
+- **Newsletter, sao-paulo** (prefers baseline): Luísa Sonza better matches Olivia Rodrigo’s current pop-star energy, and Carrefour works more naturally than Americanas as a drive-to big-box destination. All references are widely recognisable in São Paulo.
+- **Social post, london** (prefers tie): The adaptations are identical, and both Greggs and Costa Coffee are highly recognisable London references that preserve the original's accessible, no-fuss chain comparison.
+- **Social post, tokyo** (prefers baseline): Doutor is a familiar, inexpensive, no-fuss coffee chain in Tokyo and fits the intended comparison well; Mister Donut is recognisable but is associated more with doughnuts than everyday coffee.
+- **Social post, mumbai** (prefers baseline): Café Coffee Day and Barista are familiar Mumbai café chains, so B preserves the original chain-versus-chain comparison. A’s Nescafé reference and “ready early” wording do not naturally convey an unfussy café that opens early.
+- **Travel app, tokyo** (prefers baseline): Shibuya Crossing and Ichiran are instantly recognisable Tokyo references, and the notorious Ichiran queue preserves the original joke naturally. A is plausible, but CLINTON ST. BAKING is less broadly familiar.
+- **Travel app, madrid** (prefers baseline): Plaza Mayor and La Campana are highly recognisable, and La Campana’s famous, inexpensive takeaway sandwiches make its queue a strong street-food comparison. Goiko is well known, but its sit-down gourmet-burger positioning makes the analogy less apt.
+- **Travel app, london** (prefers transcreate): Leicester Square and Dishoom are familiar London references with suitable touristy and popular-restaurant connotations; “queue” sounds naturally British, while “line” feels American.
+- **Streaming promo, mumbai** (prefers transcreate): Typewriter and Panchayat closely preserve the supernatural-weird and warm-comedic contrast of the originals. Aahat and Office Office are highly familiar, but feel more dated and more horror-driven and cynical.
+- **Streaming promo, sao-paulo** (prefers tie): The adaptations are identical, and both Brazilian series are widely recognisable; Cidade Invisível supplies the supernatural strangeness while A Grande Família brings warm ensemble comedy, though the unchanged English descriptors make the copy slightly less natural for São Paulo.
+- **Streaming promo, madrid** (prefers baseline): El Ministerio del Tiempo and Aquí no hay quien viva are widely recognised and neatly reproduce the original mix of supernatural weirdness and warm ensemble comedy. Paraíso is less familiar, while Camera café is less cosy and character-driven.
+- **Fitness class, london** (prefers transcreate): Both adaptations use references familiar to Londoners, but Rocky remains a much stronger fit for an intense training montage. Dizzee Rascal also preserves the original's energetic rap association while adding a clear London connection.
+- **Fitness class, tokyo** (prefers baseline): Both boxing anime and AK-69 are familiar references in Tokyo, but Hajime no Ippo more directly evokes energetic training sequences, making it the closer match for Rocky.
+- **Fitness class, sao-paulo** (prefers baseline): Emicida is strongly associated with São Paulo and feels like a natural local counterpart to Eminem, while Mais Forte que o Mundo preserves the motivational fight-film framing. A has the closer boxing reference, but Karol Conká feels less specifically local and less suited to the workout-playlist connotation.
+- **Retail banner, mumbai** (prefers baseline): D-Mart, Taj, and Blinkit are instantly recognisable in Mumbai and closely match the original’s value, premium-service, and speed cues. Brand Factory feels less current, while Swiggy is a weaker benchmark for rapid delivery.
+- **Retail banner, sao-paulo** (prefers baseline): A uses widely known São Paulo references and preserves the bargain, premium-service, and speedy-delivery contrasts, though Fasano is hospitality rather than retail. B leaves Nordstrom unexplained and “Assaí Atacadista-sized” sounds less natural.
+- **Retail banner, london** (prefers baseline): Both are highly recognisable, but Aldi conveys broad, familiar savings more naturally, while Deliveroo is a clearer shorthand for very fast delivery than Argos.
+- **Restaurant menu, tokyo** (prefers baseline): Both use familiar Tokyo references, but HARBS better matches Magnolia Bakery’s upscale café appeal, while Ichiko Aoba and SHIBUYA SKY read naturally in English. Ginza Cozy Corner feels more mass-market, and the Japanese-script artist name is awkward within the sentence.
+- **Restaurant menu, london** (prefers baseline): Hummingbird Bakery is a strong London equivalent for cupcake-focused Magnolia, while GAIL's is familiar but not especially associated with cupcakes; both view references work, though Primrose Hill feels more naturally local.
+- **Global brands only, tokyo** (prefers transcreate): Both versions use familiar services in Tokyo, but iPhone and Google Calendar are more universally recognisable and make B read more naturally.
+- **Global brands only, mumbai** (prefers transcreate): iPhone and Google Calendar are widely recognised and commonly used in Mumbai. Samsung Galaxy is familiar, but Zoho Calendar is less mainstream and makes A feel less natural.
+- **Invented brand, madrid** (prefers baseline): Pan.Delirio is a well-known Madrid artisan bakery and naturally replaces the fictional-sounding original while preserving its boutique appeal. Brindle & Pike is unlikely to mean anything to ordinary Madrid readers.
+- **Invented brand, sao-paulo** (prefers baseline): Padoca do Maní is a recognisable São Paulo bakery with the boutique, campaign-friendly feel of the original, though calling it “tiny” is slightly awkward. Brindle & Pike has no evident local resonance and sounds imported.
 
 ## What this does not show
 

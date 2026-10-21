@@ -319,3 +319,19 @@ describe("runTranscreate resilience", () => {
     expect(result.markets[0].text).toBe("Cheaper than Chipotle.");
   });
 });
+
+describe("localName", () => {
+  it("prefers a Latin-script name in the city's language", async () => {
+    const { localName } = await import("@/lib/agent/names");
+    const show = {
+      name: "No One Could Live Here",
+      displayName: "No One Could Live Here",
+      akaLanguages: [
+        { value: "Aquí no hay quien viva", languages: ["es"] },
+        { value: "ここに住めない", languages: ["ja"] },
+      ],
+    };
+    expect(localName(show, marketById("madrid")!)).toBe("Aquí no hay quien viva");
+    expect(localName(show, marketById("tokyo")!)).toBe("No One Could Live Here");
+  });
+});

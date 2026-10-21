@@ -31,6 +31,8 @@ export interface QlooEntity {
   displayName: string;
   /** Alternative names in other languages and scripts. */
   akas: string[];
+  /** The same alternative names with their language codes ("es", "pt_BR"), when Qloo gives them. */
+  akaLanguages?: { value: string; languages: string[] }[];
   /** `properties.release_country` for films and TV shows, e.g. "United Kingdom". */
   releaseCountries: string[];
   /** Primary type URN, e.g. `urn:entity:movie`. */

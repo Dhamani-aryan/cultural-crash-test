@@ -1,4 +1,8 @@
-import { findEquivalents, type EquivalentsResult } from "@/lib/engine/equivalents";
+import {
+  findEquivalents as findRaw,
+  type EquivalentsResult,
+  type FindInput,
+} from "@/lib/engine/equivalents";
 import { mapLimit } from "@/lib/engine/stats";
 import type { LlmClient } from "@/lib/llm/types";
 import { marketById, type Market } from "@/lib/markets";
@@ -6,6 +10,7 @@ import type { QlooClient } from "@/lib/qloo";
 import { runBaseline } from "./baseline";
 import { applyDecisions, decide } from "./decide";
 import { MAX_TEXT, extractReferences } from "./extract";
+import { localName } from "./names";
 import { proposeCandidates } from "./propose";
 import { resolveReferences } from "./resolve";
 import { rewriteForMarket } from "./rewrite";
@@ -18,6 +23,18 @@ import type {
 } from "./types";
 
 export const MAX_MARKETS = 3;
+
+/** Equivalents named as readers in the city know them ("Aquí no hay quien viva"). */
+async function findEquivalents(
+  qloo: QlooClient,
+  input: FindInput,
+): Promise<EquivalentsResult> {
+  const result = await findRaw(qloo, input);
+  for (const e of result.equivalents) {
+    e.entity = { ...e.entity, displayName: localName(e.entity, input.market) };
+  }
+  return result;
+}
 
 /** Retry once after a transient failure (model timeout, dropped stream, Qloo hiccup). */
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
