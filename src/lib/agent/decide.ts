@@ -28,7 +28,7 @@ const SYSTEM = `You are a senior transcreator adapting American copy for a speci
 
 Decide for each reference:
 - "swap": choose the candidate that does the same job in this sentence for a local reader. Fit the sentence: a food comparison needs something people eat, a "the X of Y" comparison needs something famous enough to be shorthand. Prefer recognisable over obscure.
-- "keep": the original still works as is for a local reader. Use it when the original is marked as known in this city or worldwide AND no candidate does the job clearly better (a global icon like a phone brand or a coffee chain that is everywhere often reads more naturally kept). Otherwise a strong local candidate beats keeping an American reference: the point is to sound local.
+- "keep": only when the reference is functional rather than cultural (a device, app or platform the product actually works with, like "works with your iPhone"), or when no candidate does the job and the original is known in this city or worldwide. Being famous everywhere is not a reason to keep: readers notice American references, and the point is to sound local. Never swap a functional reference.
 - "flag": no candidate carries the meaning; a human should rewrite the line.
 - "try_domain": the meaning would travel better through another kind of culture (e.g. no local sitcom fits, but a local snack brand would). Name the domain. Only use this when the current candidates clearly don't work.
 

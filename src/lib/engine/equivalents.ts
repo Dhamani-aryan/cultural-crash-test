@@ -7,7 +7,7 @@ import {
   type Market,
 } from "@/lib/markets";
 import { AGE_BUCKETS, type Demographics, type QlooClient, type QlooEntity } from "@/lib/qloo";
-import { isForeignOrigin } from "./origin";
+import { isForeignOrigin, originCountries } from "./origin";
 import { categoryTags, kindLabel, roleSimilarity, roleTags } from "./role";
 import { chunk, clamp01, cosine, mapLimit, nameKey } from "./stats";
 
@@ -32,7 +32,9 @@ import { chunk, clamp01, cosine, mapLimit, nameKey } from "./stats";
  * in other cities' top lists is the robust test (and those lists are shared, so cacheable).
  */
 
-export const WEIGHTS = { role: 0.45, locality: 0.25, audience: 0.15, fame: 0.15 } as const;
+// Fame weighs as much as it does because the evaluation showed obscure-but-local picks lose to
+// iconic ones: a reference only works if readers recognise it.
+export const WEIGHTS = { role: 0.4, locality: 0.2, audience: 0.1, fame: 0.3 } as const;
 export const POOL_PAGES = 2;
 export const CONTROL_COUNT = 4;
 /** In this many control cities' top lists = known everywhere, not a local equivalent. */
@@ -222,19 +224,33 @@ export async function findEquivalents(
   const controlSets = lists.slice(1, 1 + controls.length).map((l) => new Set(l.map(keyOf)));
   const sourceSet = new Set(lists.slice(1 + controls.length).flatMap((l) => l.map(keyOf)));
 
-  // 2. The agent's proposals. Each must be in the city's own list for its kind: the model
-  //    knowing a name isn't evidence that people there care about it.
+  // 2. The agent's proposals. Knowing a name isn't evidence that people there care about it,
+  //    so each needs one of: it comes from here (origin, release country, or a place in the
+  //    city's country), or Qloo's affinity for it is higher under the city's location signal
+  //    than under New York's.
   const proposedIds = new Set((input.proposals ?? []).map((p) => p.id));
   const extra: PoolItem[] = [];
-  for (const p of input.proposals ?? []) {
-    if (p.type !== `urn:entity:${domain}` || p.id === anchor.id) continue;
-    if (targetList.some((e) => e.id === p.id)) continue;
-    const at = await presence(p, categoryTags(p, domain));
-    if (!at.rank) {
+  const outside = (input.proposals ?? []).filter(
+    (p) =>
+      p.type === `urn:entity:${domain}` &&
+      p.id !== anchor.id &&
+      !targetList.some((e) => e.id === p.id),
+  );
+  const skew = outside.length ? await affinitySkew(client, domain, market, outside) : new Map();
+  result.qlooCalls += outside.length ? 2 : 0;
+  for (const p of outside) {
+    if (!isLocalOrigin(p, domain, market) && !skew.get(p.id)) {
       result.rejected.push({ name: p.displayName, reason: "no_local_evidence", proposed: true });
       continue;
     }
-    extra.push({ entity: p, ...at, proposed: true });
+    extra.push({
+      entity: p,
+      rank: 0,
+      listSize: targetList.length,
+      alsoIn: controls.filter((_, c) => controlSets[c].has(keyOf(p))),
+      inSource: sourceSet.has(keyOf(p)),
+      proposed: true,
+    });
   }
 
   // 3. Clean the pool: drop the anchor, repeats and the same entity under another name.
@@ -346,11 +362,14 @@ export async function findEquivalents(
     }
     kept.push({ key, role: entityRole });
 
-    if (alsoIn.length >= GLOBAL_PRESENCE || superstar(entity)) {
+    // From here beats known elsewhere: Rosalía is the Spanish answer to Taylor Swift even
+    // though the whole world knows her. The global and US checks are for imports.
+    const local = isLocalOrigin(entity, domain, market);
+    if (!local && (alsoIn.length >= GLOBAL_PRESENCE || superstar(entity))) {
       reject("global");
       continue;
     }
-    if (inSource) {
+    if (!local && inSource) {
       reject("familiar_in_source");
       continue;
     }
@@ -382,9 +401,10 @@ export async function findEquivalents(
         role: role.score,
         locality: 1 - alsoIn.length / (controls.length || 1),
         audience: anchorDemo && demo ? clamp01((cosine(anchorDemo, demo) + 1) / 2) : null,
-        // For places, how famous the landmark is matters more than how distinctive it is.
+        // For places, how famous the landmark is matters more than how distinctive it is;
+        // proposals outside the city's list have no rank, so they use popularity too.
         fame:
-          domain === "place"
+          domain === "place" || rank === 0
             ? (entity.popularity ?? 0)
             : 1 - (rank - 1) / Math.max(1, listSize - 1),
       },
@@ -419,4 +439,49 @@ export async function findEquivalents(
   const top = scored.slice(0, take);
   result.equivalents = [...top, ...scored.slice(take).filter((s) => s.proposed)];
   return result;
+}
+
+/**
+ * Known to come from the target market: origin tags or nationality, a TV/film release there,
+ * or a place located in that country.
+ */
+export function isLocalOrigin(entity: QlooEntity, domain: Domain, market: Market): boolean {
+  if (domain === "place") return entity.geocode?.countryCode?.toUpperCase() === market.country;
+  if (
+    (domain === "tv_show" || domain === "movie") &&
+    entity.releaseCountries.some((c) => market.releaseCountryNames.includes(c))
+  ) {
+    return true;
+  }
+  return originCountries(entity).includes(market.country);
+}
+
+/**
+ * Whether each entity leans towards the city: present under the city's location signal with
+ * a higher affinity than under New York's (or absent in New York). Under a location signal
+ * Qloo omits entities that aren't distinctive there, so absence in both means "unknown".
+ */
+async function affinitySkew(
+  client: QlooClient,
+  domain: Domain,
+  market: Market,
+  entities: QlooEntity[],
+): Promise<Map<string, boolean>> {
+  const ids = entities.map((e) => e.id).slice(0, 50);
+  const scores = async (location: string) => {
+    const r = await client.getInsights({
+      filterType: `urn:entity:${domain}`,
+      signalLocationQuery: location,
+      resultEntities: ids,
+      take: ids.length,
+    });
+    return new Map(r.entities.map((e) => [e.id, e.affinity ?? 0]));
+  };
+  const [city, source] = await Promise.all([
+    scores(market.qlooLocation),
+    scores(SOURCE_LOCATIONS[0]),
+  ]);
+  return new Map(
+    ids.map((id) => [id, city.has(id) && (!source.has(id) || city.get(id)! > source.get(id)!)]),
+  );
 }

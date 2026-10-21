@@ -20,7 +20,11 @@ function instruction(r: ResolvedReference, d: Decision): string {
   if (d.action === "swap" && d.choice) {
     const e = d.choice.entity;
     const what = e.shortDescription ?? e.description?.slice(0, 160) ?? "";
-    return `${r.ref} "${r.surface}" → use "${shortName(e.displayName)}"${what ? ` (${what})` : ""}. Job to preserve: ${r.job}.`;
+    // Other names (often the original-language title) let the rewrite use the form people in
+    // the city know; the guard accepts any of them.
+    const other = [e.name, ...e.akas].filter((n) => n !== e.displayName && /\p{Script=Latin}/u.test(n));
+    const aka = other.length ? ` (also known as ${other.slice(0, 3).map((n) => `"${n}"`).join(", ")}; use whichever readers in the city would know)` : "";
+    return `${r.ref} "${r.surface}" → use "${shortName(e.displayName)}"${aka}${what ? `: ${what}` : ""}. Job to preserve: ${r.job}.`;
   }
   if (d.action === "keep") return `${r.ref} "${r.surface}" → keep as is.`;
   return `${r.ref} "${r.surface}" → flagged; keep the original wording.`;

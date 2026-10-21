@@ -4,8 +4,9 @@
  * and never used for tuning ("held out").
  *
  * Expectations are deterministic checks, not answer keys: which names must survive untouched
- * (global icons that need no translation, invented names Qloo can't know) and whether the
- * text should come back unchanged.
+ * (functional references like a phone or an app the product works with, invented names Qloo
+ * can't know) and whether the text should come back unchanged. Whether to keep a global
+ * chain such as Starbucks is a judgement call, so it is left to the judge, not checked.
  */
 export interface EvalCase {
   id: string;
@@ -57,7 +58,6 @@ export const CASES: EvalCase[] = [
     split: "held_out",
     text: "Our cold brew is the Dunkin' of specialty coffee: no fuss, open early, and better than another Starbucks run.",
     markets: ["london", "tokyo", "mumbai"],
-    mustKeep: ["Starbucks"],
   },
   {
     id: "travel",
@@ -87,7 +87,6 @@ export const CASES: EvalCase[] = [
     split: "held_out",
     text: "Costco-sized savings with Nordstrom-level service, delivered faster than Amazon Prime.",
     markets: ["mumbai", "sao-paulo", "london"],
-    mustKeep: ["Amazon"],
   },
   {
     id: "brunch",

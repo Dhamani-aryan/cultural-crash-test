@@ -3,6 +3,7 @@ import {
   GLOBAL_PRESENCE,
   SUPERSTAR_POPULARITY,
   cityList,
+  isLocalOrigin,
 } from "@/lib/engine/equivalents";
 import { isForeignOrigin, originCountries } from "@/lib/engine/origin";
 import { categoryTags, roleSimilarity, roleTags } from "@/lib/engine/role";
@@ -18,13 +19,17 @@ import { domainOf } from "./resolve";
  * - familiar in the source: in a US city's list too, so it isn't a translation;
  * - global: in the lists of two or more other cities, or a worldwide superstar;
  * - foreign: its known origin is another country;
+ * - from here: its origin, release country or location is the target country;
  * - role: how much of the original's role (tags) it shares.
+ * A pick counts as local when it comes from here, or when it is in the city's list and is
+ * neither global nor familiar in the US; either way it must not be of foreign origin.
  */
 export interface PickCheck {
   found: boolean;
   entity: QlooEntity | null;
   origins: string[];
   foreign: boolean;
+  fromHere: boolean;
   localEvidence: boolean;
   familiarInSource: boolean;
   global: boolean;
@@ -64,6 +69,7 @@ export async function checkPick(
       entity: null,
       origins: [],
       foreign: false,
+      fromHere: false,
       localEvidence: false,
       familiarInSource: false,
       global: false,
@@ -74,6 +80,7 @@ export async function checkPick(
   const domain = domainOf(pick.type);
   const origins = originCountries(pick);
   const foreign = isForeignOrigin(pick, market.country);
+  const fromHere = domain ? isLocalOrigin(pick, domain, market) : false;
   let localEvidence = false;
   let familiarInSource = false;
   let global = domain !== "place" && (pick.popularity ?? 0) >= SUPERSTAR_POPULARITY;
@@ -100,10 +107,11 @@ export async function checkPick(
     entity: pick,
     origins,
     foreign,
+    fromHere,
     localEvidence,
     familiarInSource,
     global,
     role,
-    local: !foreign && localEvidence && !familiarInSource && !global,
+    local: !foreign && (fromHere || (localEvidence && !familiarInSource && !global)),
   };
 }

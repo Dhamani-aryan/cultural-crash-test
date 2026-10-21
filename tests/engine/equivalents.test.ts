@@ -116,6 +116,17 @@ describe("findEquivalents", () => {
     });
   });
 
+  it("keeps a local star even when the whole world knows them", async () => {
+    const star = entity("star", {
+      name: "Madrid Megastar",
+      popularity: 0.9995,
+      tags: [DINING, HEALTHY, tag("t:es", "urn:tag:key_market:qloo", "Spain")],
+    });
+    const { client } = setup({ lists: { Madrid: [star], London: [star], Tokyo: [star] } });
+    const r = await findEquivalents(client, { anchor, domain: "brand", market: madrid });
+    expect(r.equivalents.map((e) => e.entity.id)).toContain("star");
+  });
+
   it("says whether the original is already known in the city", async () => {
     const { client } = setup({ lists: { Madrid: [anchor] } });
     const r = await findEquivalents(client, { anchor, domain: "brand", market: madrid });

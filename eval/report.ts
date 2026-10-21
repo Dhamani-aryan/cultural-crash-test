@@ -29,6 +29,7 @@ function pickTable(): string {
     "| Check (same Qloo test for both) | Transcreate | Model alone |",
     "|---|---|---|",
     row("Found in Qloo at all", (r) => r.check.found),
+    row("From the target country (origin, release or location)", (r) => r.check.fromHere),
     row("In the city's own taste list for its kind", (r) => r.check.localEvidence),
     row("Of foreign origin (another country's brand, artist or show)", (r) => r.check.foreign),
     row("Also in a US city's list (an American would know it too)", (r) => r.check.familiarInSource),
