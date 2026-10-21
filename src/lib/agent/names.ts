@@ -4,14 +4,17 @@ import type { QlooEntity } from "@/lib/qloo";
 const LATIN = /^[\p{Script=Latin}\p{N}\p{P}\p{S}\s]+$/u;
 
 /**
- * The name readers in the city know it by. Qloo often lists local shows under an English
+ * The title readers in the city know a show or film by. Qloo often lists local shows under an English
  * translation ("No One Could Live Here"); a Latin-script aka in the city's language
  * ("Aquí no hay quien viva") is what people there actually say.
  */
 export function localName(
-  e: Pick<QlooEntity, "displayName" | "name" | "akaLanguages">,
+  e: Pick<QlooEntity, "displayName" | "name" | "akaLanguages" | "type">,
   market: Pick<Market, "languageCodes">,
 ): string {
+  // Only titles get translated names; a brand's other names are legal entities
+  // ("Greggs plc", "Mercadona SA"), not what people call it.
+  if (e.type !== "urn:entity:tv_show" && e.type !== "urn:entity:movie") return e.displayName;
   const local = (e.akaLanguages ?? []).find(
     (a) =>
       LATIN.test(a.value) &&

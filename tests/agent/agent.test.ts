@@ -326,6 +326,7 @@ describe("localName", () => {
     const show = {
       name: "No One Could Live Here",
       displayName: "No One Could Live Here",
+      type: "urn:entity:tv_show",
       akaLanguages: [
         { value: "Aquí no hay quien viva", languages: ["es"] },
         { value: "ここに住めない", languages: ["ja"] },
@@ -333,5 +334,13 @@ describe("localName", () => {
     };
     expect(localName(show, marketById("madrid")!)).toBe("Aquí no hay quien viva");
     expect(localName(show, marketById("tokyo")!)).toBe("No One Could Live Here");
+    const brand = {
+      ...show,
+      name: "Greggs",
+      displayName: "Greggs",
+      type: "urn:entity:brand",
+      akaLanguages: [{ value: "Greggs plc", languages: ["en"] }],
+    };
+    expect(localName(brand, marketById("london")!)).toBe("Greggs");
   });
 });

@@ -2,6 +2,29 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-21: Engine v2 after the first evaluation (`eval/`, `docs/EVALUATION.md`)
+
+The first full evaluation (13 texts, 35 city outputs, blind judge) showed the model alone beating Transcreate 26 to 7, even though 96% of Transcreate's picks passed Qloo's locality checks against 35% of the model's. The judge's reasons pointed to real faults, not just bias:
+
+1. **Recall.** Qloo's location-only lists rank what is *distinctive* in a city, so the everyday answer is often missing: Greggs for Dunkin' in London, El Retiro in Madrid, Peep Show for The Office.
+   - **Fix:** the agent proposes up to 4 local names per reference (`src/lib/agent/propose.ts`). Each must resolve in Qloo and pass the same gates. Proposals that pass are always shown to the decide step, and rejected ones are listed as evidence ("Agent suggestions Qloo turned down").
+2. **Iconic local picks rejected as "global".** Rosalía and Anitta are known worldwide, but they are *the* local answer.
+   - **Fix:** an entity from the target market skips the global and US-familiarity gates; those gates are for imports. "From here" means origin tags or nationality, a release in that country for TV and film, or, for a place, being in that country.
+   - **Proposals outside the city list** pass on local origin, or when Qloo's affinity for them under the city's location signal beats New York's (Paquita Salas 0.998 vs 0.876, Greggs present in London and absent in NYC). TV shows and places often surface under neither signal, so origin is the main evidence for them.
+3. **Role scores that couldn't tell chains apart.** Every candidate sat around 0.1, and ordering apps (Deliveroo, Swiggy) ranked next to coffee chains because Dunkin' has an app.
+   - **Fix:** Wikipedia categories become country-neutral *kinds* ("Fast-food chains of the United Kingdom" → "fast-food chains", "Doughnut shops"). These are scored on full records for the whole pool (`kindOf` in `src/lib/engine/role.ts`). App genres are left out of brand pools and weigh 0.5 in role.
+4. **Too many keeps.** Stranger Things, Shake Shack and Taylor Swift stayed as they were, and the judge read the copy as less local.
+   - **Fix:** keep only functional references ("works with your iPhone") or when nothing fits.
+5. **Obscure picks.** The fame weight went from 0.15 to 0.30: role 0.40, locality 0.20, audience 0.10, fame 0.30.
+6. **Translated titles.** Qloo lists many local shows under an English translation ("No One Could Live Here"). Shows and films now use a Latin-script aka in the city's language ("Aquí no hay quien viva", "A Grande Família"). Brands keep their display name, because their other names are legal entities ("Greggs plc").
+
+**Measurement fixes:**
+- The judge now rates every pair in both orders and counts only consistent preferences.
+- One shared pick check (`src/lib/agent/check.ts`) judges both sides. It uses the pick's own category lists, so Transcreate doesn't pass by construction.
+- The model-only comparison in the UI uses that same check.
+
+Results per run are in `docs/EVALUATION.md`.
+
 ## 2026-10-21: First live runs of the full agent (`scripts/run-demo.ts`)
 
 All three demo texts run end to end: about 50 s, ~230 Qloo calls and 8–11 model calls each. Fixed along the way:
