@@ -1,13 +1,15 @@
-# Transcreate
+# Cultural Crash-Test
 
-> Translate cultural references, not just words.
+> Find the cultural mismatch before launch. Then fix it.
 
-Normal translation handles the language. Much of what ads, pitches, comedy and game dialogue *mean* lives in cultural references: brands, artists, shows, places. Those break when the content crosses a border. Transcreate finds every reference in a text, works out the job it does for its home audience, and uses [Qloo](https://www.qloo.com/)'s taste graph to find what does the same job for a matching audience in another city. It then rewrites the text, with evidence for every swap.
+A launch plan is full of cultural bets: the music act, the collaboration brand, the pop-up venue, the creative direction. Cultural Crash-Test is an agent that treats each one as a hypothesis and tests it against [Qloo](https://www.qloo.com/)'s taste graph for the audience and city you are launching to. It finds the weakest-supported choice, researches a better-supported alternative in Qloo, swaps only that choice and re-tests the whole plan, with every decision traceable to a recorded Qloo query.
 
 Built for the **Qloo Agentic Hackathon 2026**. Work in progress.
 
-- Product plan: [`docs/PLAN.md`](docs/PLAN.md)
-- API research behind the plan: [`research/`](research/) (probe scripts; raw responses are never committed)
+- Product and build plan: [`docs/PLAN.md`](docs/PLAN.md)
+- Decisions and evidence: [`docs/DECISIONS.md`](docs/DECISIONS.md)
+- API research: [`research/`](research/) (probe scripts; raw responses are never committed)
+- The earlier Transcreate prototype, whose Qloo engine this builds on, is at the tag `transcreate-final`.
 
 ## Run locally
 
