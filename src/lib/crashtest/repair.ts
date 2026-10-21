@@ -202,9 +202,9 @@ export async function repairEntity(input: {
   assessment: ComponentAssessment;
   rejected: string[];
   /**
-   * Upgrade a choice the evidence doesn't contradict but only thinly supports. Then only the
-   * agent's own suggestions for the job count: an upgrade must be a sensible pick for the role,
-   * not merely a higher-scoring name from the audience list.
+   * Upgrade a choice the evidence doesn't contradict but only thinly supports. Candidates (the
+   * agent's suggestions and the audience list alike) must be from the city's own country: an
+   * upgrade must be a sensible local pick, not merely a higher-scoring import.
    */
   upgrade?: boolean;
 }): Promise<RepairProposal[]> {
@@ -294,7 +294,7 @@ export async function repairEntity(input: {
     }).evidenceId;
   }
 
-  const fromList = input.upgrade ? [] : result.entities.filter(allowed).slice(0, SCREEN);
+  const fromList = result.entities.filter(allowed).slice(0, SCREEN);
   const seen = new Set<string>();
   const pool: { e: QlooEntity; rank: number; proposed: boolean }[] = [];
   for (const p of [
@@ -324,8 +324,13 @@ export async function repairEntity(input: {
   const candidates: (Candidate & { proposed: boolean })[] = records.map(({ e, rank, proposed }) => {
     const l = { ...local.get(e.id)! };
     // The agent's venue suggestions may be of another kind than the draft's; only unsuitable venues are out.
-    const fits = roleFits(slot, e, original ?? null, proposed ? null : current.placeCategory);
-    if (!fits) l.why = place ? "not a venue of the planned kind" : "a different kind of business";
+    const roleOk = roleFits(slot, e, original ?? null, proposed ? null : current.placeCategory);
+    // An upgrade replaces a choice nothing contradicts, so it must be a local pick: from the
+    // city's own country (venues: in it), whoever suggested it.
+    const upgradeOk = !input.upgrade || isLocalOrigin(e, domain, ctx.market);
+    const fits = roleOk && upgradeOk;
+    if (!roleOk) l.why = place ? "not a venue of the planned kind" : "a different kind of business";
+    else if (!upgradeOk) l.why = "not from here (an upgrade must be a local pick)";
     const role = original ? roleSimilarity(originalRole, roleTags(e)) : { score: 0, shared: [] as string[] };
     const shared = role.shared.map((id) => kindLabel(id) ?? e.tags.find((t) => t.id === id)?.name ?? id);
     const fit = Math.max(0, 1 - (rank - 1) / LIST_SIZE);
@@ -450,6 +455,8 @@ export async function repairDirection(input: {
   brief: LaunchBrief;
   plan: CulturalPlan;
   assessment: ComponentAssessment;
+  /** Keep the direction's intent; replace only the words this audience here doesn't lean to. */
+  upgrade?: boolean;
 }): Promise<RepairProposal | null> {
   const { ctx, plan } = input;
   const current = plan.components.find((c) => c.slot === "creative_direction")!;
@@ -461,7 +468,10 @@ export async function repairDirection(input: {
   const { data } = await generateStructured(input.llm, {
     schema: directionSchema,
     system:
-      "Revise a launch's creative direction so it matches what the audience in this city leans to, while keeping the brand's attributes. Choose 1-3 words from the list only, copied exactly, ordered by fit.",
+      "Revise a launch's creative direction so it matches what the audience in this city leans to, while keeping the brand's attributes. Choose 1-3 words from the list only, copied exactly, ordered by fit." +
+      (input.upgrade
+        ? " Keep the current direction's intent: keep any current word that is on the list, and replace only the ones that aren't."
+        : ""),
     prompt: [
       briefText(input.brief, ctx.market),
       `Current direction: "${current.label}" (${current.tags.map((t) => t.name).join(", ")}). Finding: ${input.assessment.finding}`,

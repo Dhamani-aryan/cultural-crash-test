@@ -24,6 +24,10 @@ for (const c of CASES.filter((x) => ids.includes(x.id))) {
     console.log(`  ${a.slot.padEnd(20)} ${a.label} — ${a.status}${a.contradicted ? " CONTRADICTED" : ""}`);
     for (const d of a.dimensions) console.log(`      ${d.key}: ${d.score?.toFixed(2) ?? "-"} ${d.explanation}`);
   }
-  for (const ch of s.changes) console.log(`  CHANGE ${ch.before} → ${ch.after}${ch.reverted ? " (not kept)" : ""}: ${ch.observedEffect}`);
+  for (const a of s.actions) console.log(`  ACTION r${a.iteration} ${a.slot}: ${a.why.slice(0, 160)}`);
+  for (const ch of s.changes) console.log(`  CHANGE r${ch.iteration} ${ch.before} → ${ch.after}${ch.reverted ? " (not kept)" : ""}: ${ch.observedEffect}`);
+  for (const r of s.evidenceLedger.filter((x) => /candidates|suggestions|judged/.test(x.purpose)))
+    console.log(`  ${r.evidenceId} ${r.purpose} | ${r.results.slice(0, 8).map((x) => x.name).join(", ")} | ${r.warnings.join(" ")}`);
+  console.log("  STOP", s.stopReason, s.stopDetail ?? "");
   console.log("  OPEN", s.unresolvedQuestions);
 }

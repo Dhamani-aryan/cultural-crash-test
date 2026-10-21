@@ -151,14 +151,16 @@ export async function runCrashTest(
     let stall = 0;
     while (true) {
       // Once nothing is contradicted, spare rounds go to upgrading thinly supported choices,
-      // weakest first. Creative direction isn't upgraded: its words are the brand's voice.
+      // weakest first.
       const thin = current.accepted
         ? current.components
             .filter(
               (c) =>
                 !c.contradicted &&
                 c.status !== "supported" &&
-                c.slot !== "creative_direction" &&
+                // No support for a name from here is Qloo's blind spot for very popular local
+                // names (Sanrio in Tokyo), not a weak choice: it stays.
+                c.status !== "no_support" &&
                 !upgradeTried.has(c.slot) &&
                 !state.plan!.components.find((x) => x.slot === c.slot)?.locked,
             )
@@ -209,7 +211,9 @@ export async function runCrashTest(
       const before = state.plan!;
       const proposals: RepairProposal[] =
         target === "creative_direction"
-          ? [await repairDirection({ llm, ctx, brief, plan: before, assessment })].filter((p): p is RepairProposal => p !== null)
+          ? [await repairDirection({ llm, ctx, brief, plan: before, assessment, upgrade })].filter(
+              (p): p is RepairProposal => p !== null,
+            )
           : await repairEntity({
               llm,
               ctx,

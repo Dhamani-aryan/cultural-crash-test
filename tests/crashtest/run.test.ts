@@ -104,7 +104,8 @@ describe("runCrashTest", () => {
   });
 
   it("keeps a local choice with thin evidence, and one Qloo doesn't know, as open questions", async () => {
-    const { client } = worldClient();
+    // No local alternative in the audience list, so nothing can upgrade them.
+    const { client } = worldClient({ artistCandidates: [W.otherUs] });
     const { llm } = worldLlm({ draft: { artist: "Canal Echo", brand: "Unknown Collective" } });
     const state = await runCrashTest({ qloo: client, llm }, LONDON_BRIEF);
     expect(state.changes).toHaveLength(0);
@@ -137,11 +138,26 @@ describe("runCrashTest", () => {
   });
 
   it("keeps the thin choice when the upgrade wouldn't be Supported", async () => {
-    const { client } = worldClient();
+    const { client } = worldClient({ artistCandidates: [W.otherUs] });
     const { llm } = worldLlm({ draft: { artist: "Canal Echo", brand: "Unknown Collective" }, propose: ["Unknown Collective"] });
     const state = await runCrashTest({ qloo: client, llm }, LONDON_BRIEF);
     expect(state.plan!.components.find((c) => c.slot === "artist_music")?.label).toBe("Canal Echo");
     expect(state.stopReason).toBe("acceptance_criteria_met");
+  });
+
+  it("upgrades a thin choice to a local act from Qloo's list, but never to an import", async () => {
+    const { client } = worldClient({ artistCandidates: [W.otherUs, W.localRapper] });
+    const { llm } = worldLlm({ draft: { artist: "Canal Echo" }, pick: [W.otherUs.id, W.localRapper.id] });
+    const state = await runCrashTest({ qloo: client, llm }, LONDON_BRIEF);
+    expect(state.plan!.components.find((c) => c.slot === "artist_music")?.label).toBe("Grey Lane");
+    expect(state.changes.some((c) => c.after === "Coast Kid")).toBe(false);
+  });
+
+  it("never upgrades to an agent suggestion from another country", async () => {
+    const { client } = worldClient({ artistCandidates: [W.otherUs] });
+    const { llm } = worldLlm({ draft: { artist: "Canal Echo" }, propose: ["Coast Kid"], pick: [W.otherUs.id] });
+    const state = await runCrashTest({ qloo: client, llm }, LONDON_BRIEF);
+    expect(state.plan!.components.find((c) => c.slot === "artist_music")?.label).toBe("Canal Echo");
   });
 
   it("ignores a model pick that isn't on the screened list", async () => {
