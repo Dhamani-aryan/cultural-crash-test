@@ -1,312 +1,104 @@
 "use client";
 
-import { useState } from "react";
-import type { DecisionEvidence, DecisionExplanation } from "@/lib/crashtest/explain";
-import { buildDecisionGraph } from "@/lib/crashtest/graph";
+import type { DecisionExplanation } from "@/lib/crashtest/explain";
 import { toMarkdown } from "@/lib/crashtest/report";
-import { SLOT_LABEL, SLOTS, STOP_LABEL, type EvidenceRecord, type RunState, type Slot } from "@/lib/crashtest/types";
-import { DecisionGraphView } from "./decision-graph";
-import { StatusBadge } from "./status";
+import { SLOT_LABEL, STATUS_LABEL, STOP_LABEL, type RunState } from "@/lib/crashtest/types";
 
-/**
- * The decision matrix: one aligned row per choice across three stages (your brief, the LLM
- * completion, the Qloo-tested agent), with the deciding reason between the last two. Every
- * word comes from the deterministic decision model (src/lib/crashtest/explain.ts); nothing here
- * calls Qloo or a model.
- */
+const eyebrow = "font-mono text-[10px] uppercase tracking-[0.11em] text-muted";
 
-const SOURCE_LABEL: Record<DecisionEvidence["source"], string> = {
-  qloo: "Qloo result",
-  user: "User constraint",
-  application: "Application evaluation",
-};
-
-const eyebrow = "font-mono text-[10px] uppercase tracking-[0.12em] text-muted";
-const pad = (n: number) => String(n).padStart(2, "0");
-
-function EvidenceList({ ids, ledger }: { ids: string[]; ledger: Map<string, EvidenceRecord> }) {
+function StageValue({ value, note, status, strong = false }: { value: string; note: string; status?: string; strong?: boolean }) {
   return (
-    <ul className="mt-2 space-y-2">
-      {ids.map((id) => {
-        const r = ledger.get(id);
-        if (!r) return null;
-        return (
-          <li key={id} className="text-xs">
-            <span className="font-mono text-muted">{id}</span> <span className="text-ink-2">{r.purpose}</span>{" "}
-            <span className="text-muted">({r.coverageStatus})</span>
-            <span className="mt-0.5 block pl-6 text-[11px] text-muted">
-              {r.resultCount} result{r.resultCount === 1 ? "" : "s"}
-              {r.results.length ? `: ${r.results.slice(0, 5).map((x) => x.name).join(", ")}` : ""}
-            </span>
-            <code className="mt-0.5 block break-all pl-6 text-[11px] text-muted">{JSON.stringify(r.sanitizedRequest).slice(0, 260)}</code>
-            {r.warnings.length > 0 && <span className="block pl-6 text-[11px] text-weak">{r.warnings.join(" ")}</span>}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-/** Three human-readable evidence blocks, each with its provenance. */
-export function EvidenceSummary({ evidence }: { evidence: DecisionEvidence[] }) {
-  return (
-    <ul className="grid gap-px overflow-hidden border border-line bg-line sm:grid-cols-3">
-      {evidence
-        .filter((e) => e.kind !== "constraint")
-        .map((e) => (
-          <li key={e.kind} className="bg-panel px-3 py-3">
-            <p className={eyebrow}>{e.label}</p>
-            <p className="mt-1.5 text-[13px] leading-5 text-ink">{e.value}</p>
-            <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.1em] text-muted">{SOURCE_LABEL[e.source]}</p>
-          </li>
-        ))}
-    </ul>
-  );
-}
-
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="grid gap-1 sm:grid-cols-[9rem_1fr] sm:gap-4">
-      <h4 className={eyebrow}>{title}</h4>
-      <div className="text-sm leading-6 text-ink-2">{children}</div>
-    </section>
-  );
-}
-
-/** The opened decision, in a fixed order: stages, why, what stayed fixed, proof, limits. */
-export function DecisionDetail({ d, ledger, id, labelledBy }: { d: DecisionExplanation; ledger: Map<string, EvidenceRecord>; id: string; labelledBy?: string }) {
-  const stages: [string, string][] = [
-    ["Your brief", d.userChoice ? `${d.userChoice.label}${d.userChoice.locked ? " · fixed" : ""}` : "Not specified"],
-    ["LLM completion", `${d.baseline.label} · ${d.baseline.origin === "user_provided" ? "carried forward" : "added by LLM"}`],
-    ["Agent revision", `${d.revised.label} · ${d.changed ? "changed" : "retained"}`],
-  ];
-  const constraint = d.evidence.find((e) => e.kind === "constraint");
-  return (
-    <div id={id} role="region" aria-labelledby={labelledBy} aria-label={labelledBy ? undefined : `Decision ${pad(d.sequence)}, ${SLOT_LABEL[d.slot]}`} className="expand space-y-5 border-l-2 border-accent bg-panel/60 px-4 py-5 sm:px-6">
-      <p className={eyebrow}>
-        Decision {pad(d.sequence)} · {SLOT_LABEL[d.slot]}
+    <div>
+      <p className={`text-[15px] leading-5 ${strong ? "font-semibold text-ink" : "text-ink"}`}>{value}</p>
+      <p className="mt-1 text-xs leading-4 text-muted">
+        {note}
+        {status ? ` · ${status}` : ""}
       </p>
-      <dl className="grid grid-cols-[8.5rem_1fr] gap-x-4 gap-y-1 text-sm">
-        {stages.map(([k, v]) => (
-          <div key={k} className="contents">
-            <dt className="text-muted">{k}</dt>
-            <dd className="text-ink">{v}</dd>
-          </div>
-        ))}
-      </dl>
-      {d.changed ? (
-        <>
-          <Block title="Why move away">{d.whyAway.join(" ")}</Block>
-          <Block title="Why this replacement">{d.whyToward.join(" ")}</Block>
-        </>
-      ) : (
-        <Block title="Why it stayed">{d.whyStayed.join(" ")}</Block>
-      )}
-      <Block title="What stayed fixed">{d.preservedConstraints.join(" ")}</Block>
-      <section className="space-y-2">
-        <h4 className={eyebrow}>Proof</h4>
-        <EvidenceSummary evidence={d.evidence} />
-        {constraint && (
-          <p className="text-xs text-ink-2">
-            <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted">{SOURCE_LABEL.user}</span> {constraint.value}
-          </p>
-        )}
-      </section>
-      <Block title="Limits">
-        <ul className="space-y-1">
-          {d.limitations.map((l, i) => (
-            <li key={i}>{l}</li>
-          ))}
-        </ul>
-      </Block>
-      <div className="space-y-2 border-t border-line pt-3">
-        {d.alternatives.length > 0 && (
-          <details>
-            <summary className="cursor-pointer text-xs text-ink">Other candidates tested ({d.alternatives.length})</summary>
-            <ul className="mt-2 space-y-1.5 text-xs text-ink-2">
-              {d.alternatives.map((c, i) => (
-                <li key={i}>
-                  <span className="text-ink">{c.after}</span>: not kept. {c.observedEffect}
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-        {d.evidenceIds.length > 0 && (
-          <details>
-            <summary className="cursor-pointer text-xs text-ink">Inspect recorded evidence ({d.evidenceIds.length})</summary>
-            <EvidenceList ids={d.evidenceIds} ledger={ledger} />
-          </details>
-        )}
-      </div>
     </div>
   );
 }
 
-function Cell({ label, className = "", children }: { label: string; className?: string; children: React.ReactNode }) {
-  return (
-    <div className={className}>
-      {/* The stage label stays visible on phones; wide screens read it from the column header. */}
-      <p className={`${eyebrow} mb-1 lg:sr-only`}>{label}</p>
-      {children}
-    </div>
-  );
+/** One human paragraph that explains the full user → LLM → agent decision. */
+export function decisionNarrative(d: DecisionExplanation): string {
+  const opening = d.userChoice
+    ? `You chose ${d.userChoice.label}${d.userChoice.locked ? " and marked it as fixed" : ""}. The LLM carried that choice into its draft.`
+    : `You left this open, so the LLM proposed ${d.baseline.label}.`;
+
+  if (!d.changed) return `${opening} The agent kept ${d.revised.label}. ${d.whyStayed.join(" ")}`;
+
+  const originalFinding = d.whyAway[0] ?? d.summaryReason;
+  const permission = d.userChoice && !d.userChoice.locked ? " Because it was not fixed, the agent was allowed to test alternatives." : "";
+  return `${opening} ${originalFinding}${permission} The agent chose ${d.revised.label} instead. ${d.whyToward.join(" ")}`;
 }
 
-const sub = "mt-1 block font-mono text-[9px] uppercase tracking-[0.09em]";
-
-export function DecisionRow({ d, open, onToggle, ledger }: { d: DecisionExplanation; open: boolean; onToggle: () => void; ledger: Map<string, EvidenceRecord> }) {
-  const panel = `decision-${d.slot}`;
-  const control = `review-${d.slot}`;
+function DecisionRows({ d }: { d: DecisionExplanation }) {
   return (
-    <li className="border-b border-line">
-      {/* The whole row opens the decision for a mouse; the Review button is the keyboard control. */}
-      <div
-        onClick={onToggle}
-        className={`grid cursor-pointer grid-cols-2 gap-x-4 gap-y-4 py-5 transition-colors hover:bg-panel/50 lg:grid-cols-[7rem_1fr_1fr_1.35fr_1fr] lg:gap-5 lg:px-2 ${open ? "bg-panel/50" : ""}`}
-      >
-        <p className="col-span-2 font-mono text-[10px] uppercase tracking-[0.1em] text-muted lg:col-span-1 lg:pt-0.5">
-          <span className="text-ink">{pad(d.sequence)}</span> {SLOT_LABEL[d.slot]}
-        </p>
-        <Cell label="Your brief">
+    <tbody className="border-t border-line first:border-t-0">
+      <tr className="align-top">
+        <th scope="row" className="w-[13%] px-4 py-5 text-left font-mono text-[10px] font-medium uppercase tracking-[0.1em] text-muted">
+          {SLOT_LABEL[d.slot]}
+        </th>
+        <td className="w-[27%] px-4 py-5">
           {d.userChoice ? (
-            <>
-              <span className="text-sm text-ink">{d.userChoice.label}</span>
-              <span className={`${sub} text-muted`}>User supplied{d.userChoice.locked ? " · fixed" : ""}</span>
-            </>
+            <StageValue value={d.userChoice.label} note={d.userChoice.locked ? "Your choice · fixed" : "Your choice"} />
           ) : (
-            <span className="text-sm italic text-muted">Not specified</span>
+            <StageValue value="Not specified" note="You left this open" />
           )}
-        </Cell>
-        <Cell label="LLM completion">
-          <span className="text-sm text-ink">{d.baseline.label}</span>
-          <span className={`${sub} text-muted`}>{d.baseline.origin === "user_provided" ? "From your brief" : "Added by LLM"}</span>
-          <span className="mt-1 block">
-            <StatusBadge status={d.baseline.status} />
-          </span>
-        </Cell>
-        <Cell label="Evidence / decision" className="col-span-2 border-l-2 border-line pl-3 lg:col-span-1 lg:border-l-0 lg:pl-0">
-          <p className="flex gap-2 text-sm leading-5 text-ink-2">
-            <span aria-hidden className={d.changed ? "text-accent" : "text-muted"}>
-              {d.changed ? "→" : "="}
-            </span>
-            <span>
-              <span className="sr-only">{d.changed ? "Changed: " : "Retained: "}</span>
-              {d.summaryReason}
-            </span>
-          </p>
-          <button
-            id={control}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggle();
-            }}
-            aria-expanded={open}
-            aria-controls={panel}
-            className="mt-2 font-mono text-[10px] uppercase tracking-[0.09em] text-accent hover:underline focus-visible:underline"
-          >
-            {open ? "Close decision" : "Review decision →"}
-          </button>
-        </Cell>
-        <Cell label="Qloo-tested agent" className="col-span-2 lg:col-span-1">
-          <span className={`text-sm font-semibold ${d.changed ? "text-accent" : "text-ink"}`}>{d.revised.label}</span>
-          <span className={`${sub} ${d.changed ? "text-accent" : "text-muted"}`}>{d.changed ? "Changed by agent" : "Retained"}</span>
-          <span className="mt-1 block">
-            <StatusBadge status={d.revised.status} />
-          </span>
-        </Cell>
-      </div>
-      {open && (
-        <div className="pb-5">
-          <DecisionDetail d={d} ledger={ledger} id={panel} labelledBy={control} />
-        </div>
-      )}
-    </li>
+        </td>
+        <td className="w-[30%] px-4 py-5">
+          <StageValue value={d.baseline.label} note={d.baseline.origin === "user_provided" ? "Carried forward from you" : "Added by the LLM"} status={STATUS_LABEL[d.baseline.status]} />
+        </td>
+        <td className="w-[30%] px-4 py-5">
+          <StageValue value={d.revised.label} note={d.changed ? "Changed by the agent" : "Kept by the agent"} status={STATUS_LABEL[d.revised.status]} strong />
+        </td>
+      </tr>
+      <tr className="bg-panel-2/55 align-top">
+        <th scope="row" className="px-4 py-4 text-left font-mono text-[10px] font-medium uppercase tracking-[0.1em] text-muted">
+          Why
+        </th>
+        <td colSpan={3} className="px-4 py-4">
+          <p className="max-w-4xl text-[14px] leading-6 text-ink-2">{decisionNarrative(d)}</p>
+          {d.limitations.length > 1 && <p className="mt-2 text-xs leading-5 text-muted">Note: {d.limitations.slice(0, -1).join(" ")}</p>}
+        </td>
+      </tr>
+    </tbody>
   );
 }
 
-export function DecisionMatrix({
-  decisions,
-  ledger,
-  open,
-  onToggle,
-  planOrder = false,
-}: {
-  decisions: DecisionExplanation[];
-  ledger: Map<string, EvidenceRecord>;
-  open: Slot | null;
-  onToggle: (slot: Slot) => void;
-  planOrder?: boolean;
-}) {
-  const rows = planOrder ? [...decisions].sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot)) : decisions;
+/** The complete comparison. Reasons are visible by default; there are no tabs or review drawers. */
+export function ComparisonTable({ decisions }: { decisions: DecisionExplanation[] }) {
   return (
-    <section aria-label="Decision matrix">
-      <div aria-hidden className={`hidden border-y border-line py-2 lg:grid lg:grid-cols-[7rem_1fr_1fr_1.35fr_1fr] lg:gap-5 lg:px-2 ${eyebrow}`}>
-        <span>Choice</span>
-        <span>Your brief</span>
-        <span>LLM completion</span>
-        <span>Evidence / decision</span>
-        <span>Qloo-tested agent</span>
+    <section aria-labelledby="comparison-title">
+      <div className="mb-4">
+        <p className={eyebrow}>Plan comparison</p>
+        <h3 id="comparison-title" className="mt-1 text-xl font-semibold tracking-[-0.025em] text-ink">
+          Your direction, the LLM draft and the agent&apos;s recommendation
+        </h3>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-2">
+          Each choice is shown side by side. The row beneath it explains, in plain language, why the agent kept it or changed it.
+        </p>
       </div>
-      <ol className="border-t border-line lg:border-t-0">
-        {rows.map((d) => (
-          <DecisionRow key={d.slot} d={d} open={open === d.slot} onToggle={() => onToggle(d.slot)} ledger={ledger} />
-        ))}
-      </ol>
+      <div className="overflow-x-auto border border-line bg-panel">
+        <table className="w-full min-w-[780px] border-collapse">
+          <thead>
+            <tr className="border-b border-line bg-[#eeede8] text-left">
+              <th className={`px-4 py-3 ${eyebrow}`}>Choice</th>
+              <th className={`px-4 py-3 ${eyebrow}`}>You</th>
+              <th className={`px-4 py-3 ${eyebrow}`}>LLM</th>
+              <th className={`px-4 py-3 ${eyebrow}`}>Agent</th>
+            </tr>
+          </thead>
+          {decisions.map((d) => <DecisionRows key={d.slot} d={d} />)}
+        </table>
+      </div>
+      <p className="mt-3 text-xs leading-5 text-muted">
+        “Supported” means supported by the recorded cultural evidence in this test. It is not a prediction of commercial success.
+      </p>
     </section>
   );
 }
 
-/**
- * Matrix and graph share one selection: opening a row selects its lane in the graph, and
- * choosing a lane opens that decision. One decision is open at a time on every screen.
- */
-export function DecisionReview({ state, decisions, ledger }: { state: RunState; decisions: DecisionExplanation[]; ledger: Map<string, EvidenceRecord> }) {
-  const [view, setView] = useState<"matrix" | "graph">("matrix");
-  const [open, setOpen] = useState<Slot | null>(null);
-  const [planOrder, setPlanOrder] = useState(false);
-  const graph = buildDecisionGraph(state, decisions);
-  const selected = open ?? decisions[0]?.slot ?? null;
-  const detail = decisions.find((d) => d.slot === selected);
-  const tab = (v: typeof view, label: string) => (
-    <button
-      type="button"
-      aria-pressed={view === v}
-      onClick={() => setView(v)}
-      className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.09em] ${view === v ? "bg-ink text-bg" : "text-muted hover:text-ink"}`}
-    >
-      {label}
-    </button>
-  );
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div role="group" aria-label="View" className="flex border border-line">
-          {tab("matrix", "Matrix")}
-          {tab("graph", "Graph")}
-        </div>
-        {view === "matrix" ? (
-          <button type="button" onClick={() => setPlanOrder((v) => !v)} className="text-xs text-muted hover:text-ink">
-            {planOrder ? "Show changes first" : "Show plan order"}
-          </button>
-        ) : (
-          <p className={eyebrow}>Select a lane to review it</p>
-        )}
-      </div>
-      {view === "matrix" ? (
-        <DecisionMatrix decisions={decisions} ledger={ledger} open={open} onToggle={(s) => setOpen((o) => (o === s ? null : s))} planOrder={planOrder} />
-      ) : (
-        <>
-          <DecisionGraphView graph={graph} active={selected} onSelect={setOpen} />
-          {detail && <DecisionDetail d={detail} ledger={ledger} id={`decision-${detail.slot}`} />}
-        </>
-      )}
-    </div>
-  );
-}
-
-/** Methodology, budgets and the report: available, never in the way. */
+/** Methodology, budgets and the report remain available without competing with the comparison. */
 export function AuditDetails({ state }: { state: RunState }) {
   const last = state.evaluations.at(-1);
   const download = () => {
@@ -319,36 +111,26 @@ export function AuditDetails({ state }: { state: RunState }) {
   };
   return (
     <details className="border-t border-line pt-3">
-      <summary className="cursor-pointer text-xs text-muted">Run methodology</summary>
+      <summary className="cursor-pointer text-xs text-muted">Method and run details</summary>
       <ol className="mt-3 list-decimal space-y-1 pl-5 text-xs text-ink-2">
-        <li>The LLM completed the plan from your brief, without Qloo.</li>
-        <li>Every choice was tested against Qloo for this audience and market.</li>
-        <li>Only choices the evidence contradicted (or, where allowed, thin ones) were opened; fixed choices never were.</li>
-        <li>Candidates were searched in Qloo, checked against your rules and re-tested in the full plan.</li>
-        <li>A candidate was kept only when the re-tested plan improved; otherwise the original stayed.</li>
+        <li>The LLM completed the choices you left open, without using Qloo.</li>
+        <li>The completed plan was tested against Qloo for the selected audience and market.</li>
+        <li>Fixed choices stayed fixed. Other choices were changed only when the recorded test justified it.</li>
+        <li>Every replacement was tested again as part of the complete plan.</li>
       </ol>
       <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs text-ink-2">
         <dt className="text-muted">Stopped</dt>
-        <dd>
-          {state.stopReason ? STOP_LABEL[state.stopReason] : "–"}
-          {state.stopDetail ? ` (${state.stopDetail})` : ""}
-        </dd>
+        <dd>{state.stopReason ? STOP_LABEL[state.stopReason] : "–"}{state.stopDetail ? ` (${state.stopDetail})` : ""}</dd>
         <dt className="text-muted">Repair rounds</dt>
-        <dd>
-          {state.currentIteration} of {state.maxIterations}
-        </dd>
+        <dd>{state.currentIteration} of {state.maxIterations}</dd>
         <dt className="text-muted">Qloo calls</dt>
-        <dd>
-          {state.qlooCallsUsed} of {state.maxQlooCalls}
-        </dd>
+        <dd>{state.qlooCallsUsed} of {state.maxQlooCalls}</dd>
         <dt className="text-muted">Model calls</dt>
         <dd>{state.llmCalls}</dd>
         <dt className="text-muted">Rubric</dt>
-        <dd>{last?.rubricVersion ?? "–"} (scores are this app&apos;s own, not a forecast)</dd>
+        <dd>{last?.rubricVersion ?? "–"} (application-defined; not a forecast)</dd>
       </dl>
-      <button type="button" onClick={download} className="mt-2 text-xs text-accent hover:underline">
-        Download report
-      </button>
+      <button type="button" onClick={download} className="mt-3 text-xs text-accent hover:underline">Download report</button>
     </details>
   );
 }
