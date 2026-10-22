@@ -35,6 +35,47 @@ export function budgeted(client: QlooClient, max: number, onCall: (used: number)
   return { client: wrapped, used: () => used };
 }
 
+/**
+ * Answer a repeated request inside one run from the run's own memory. Re-testing a candidate
+ * asks again for evidence that doesn't depend on the swap (the other choices' own audience and
+ * locality results); those repeats are reused, while anything that does depend on the changed
+ * plan is a new request and is still asked. Errors are not remembered.
+ */
+export function memoized(client: QlooClient) {
+  let reused = 0;
+  const seen = new Map<string, Promise<unknown>>();
+  const memo =
+    <I, O>(name: string, fn: (input: I) => Promise<O>) =>
+    (input: I): Promise<O> => {
+      const key = `${name}:${stableKey(input)}`;
+      const hit = seen.get(key);
+      if (hit) {
+        reused++;
+        return hit as Promise<O>;
+      }
+      const work = fn(input);
+      seen.set(key, work);
+      work.catch(() => seen.delete(key));
+      return work;
+    };
+  const wrapped: QlooClient = {
+    searchEntities: memo("search", (i) => client.searchEntities(i)),
+    getEntities: memo("entities", (i) => client.getEntities(i)),
+    getDemographics: memo("demographics", (i) => client.getDemographics(i)),
+    searchTags: memo("tags", (i) => client.searchTags(i)),
+    getInsights: memo("insights", (i) => client.getInsights(i)),
+    compareProfiles: memo("compare", (i) => client.compareProfiles(i)),
+  };
+  return { client: wrapped, reused: () => reused };
+}
+
+/** JSON with object keys sorted, so equal requests give equal keys. */
+function stableKey(v: unknown): string {
+  return JSON.stringify(v, (_, x) =>
+    x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x,
+  );
+}
+
 /** The request as Qloo sees it, in its own parameter names, with nothing secret in it. */
 export function sanitizeInsights(input: InsightsInput): Record<string, unknown> {
   const out: Record<string, unknown> = {

@@ -217,6 +217,34 @@ export interface PlanEvaluation {
 
 // ---------- changes and run ----------
 
+/** Why a re-tested candidate was not kept. */
+export type RejectionCode =
+  | "no_improvement"
+  | "target_not_supported"
+  | "plan_regression"
+  | "constraint_conflict"
+  | "better_candidate_selected";
+
+/** A candidate's full-plan re-test, as numbers: the source of truth the UI reads. */
+export interface RetestResult {
+  slotStatusBefore: ComponentStatus;
+  slotStatusAfter: ComponentStatus;
+  slotScoreBefore?: number;
+  slotScoreAfter?: number;
+  supportedBefore: number;
+  supportedAfter: number;
+  /** Components in the plan, for "2 of 4". */
+  components: number;
+  planScoreBefore?: number;
+  planScoreAfter?: number;
+  contradictedBefore: number;
+  contradictedAfter: number;
+  /** Other choices that were Supported before this re-test and are not after it. */
+  lostSupported: Slot[];
+  accepted: boolean;
+  rejectionCode?: RejectionCode;
+}
+
 export interface PlanChange {
   iteration: number;
   slot: Slot;
@@ -225,9 +253,50 @@ export interface PlanChange {
   reason: string;
   triggeringEvidenceIds: string[];
   expectedEffect: string;
+  /** A sentence for reports only; read `retest` for the facts. */
   observedEffect?: string;
+  retest?: RetestResult;
   /** Set when the candidate was tested but not kept (worse, or another candidate tested better). */
   reverted?: boolean;
+}
+
+/** One candidate the agent considered for a choice: screened out, not picked, or re-tested. */
+export interface CandidateTrial {
+  iteration: number;
+  slot: Slot;
+  name: string;
+  entityId?: string;
+  source: "qloo_list" | "llm_proposal";
+  evidenceIds: string[];
+  /** Rank for this audience with the rest of the plan in the city. */
+  audienceRank?: number;
+  /** What the locality screen found ("from here", "just as big elsewhere", …). */
+  localityResult?: string;
+  /** Shared-role similarity with the original, 0–1, when there was an original to compare. */
+  roleFit?: number;
+  briefFit: "pass" | "fail" | "unknown";
+  /** Set when the candidate never reached a re-test, with the recorded reason. */
+  screenedOutReason?: string;
+  retest?: RetestResult;
+}
+
+/** Where a result came from: run just now, or replayed from a recording. */
+export interface RunProvenance {
+  mode: "live" | "recorded";
+  recordedAt?: string;
+  runVersion: string;
+}
+
+/** What the run asked of Qloo, measured separately so none is mistaken for another. */
+export interface QlooUsage {
+  /** Logical operations the run asked for (what the budget counts). */
+  checks: number;
+  /** Repeats inside this run answered from the run's own memory. */
+  reused: number;
+  /** Answered from the server's shared cache. Present only when a cache was measured. */
+  cacheHits?: number;
+  /** Actual HTTP requests sent to Qloo. Present only when they were measured. */
+  requests?: number;
 }
 
 export type StopReason =
@@ -274,6 +343,10 @@ export interface RunState {
   evaluations: PlanEvaluation[];
   actions: ActionRecord[];
   changes: PlanChange[];
+  /** Every candidate considered, per round, with its screening or re-test outcome. */
+  trials?: CandidateTrial[];
+  qlooUsage?: QlooUsage;
+  provenance?: RunProvenance;
   unresolvedQuestions: string[];
   /** Names the agent tried and Qloo ruled out, per slot, so they aren't retried. */
   rejected: Partial<Record<Slot, string[]>>;

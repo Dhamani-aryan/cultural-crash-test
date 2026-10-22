@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createMemoryCache } from "@/lib/cache/cache";
-import type { RunEvent } from "@/lib/crashtest/types";
-import { eventStream, handleCrashTest, runKey } from "@/lib/server/handlers";
+import type { RunEvent, RunState } from "@/lib/crashtest/types";
+import { eventStream, handleCrashTest, runKey, RUN_VERSION } from "@/lib/server/handlers";
 import { LONDON_BRIEF, worldClient, worldLlm } from "../crashtest/world";
 
 const post = (body: unknown) =>
@@ -37,6 +37,13 @@ describe("handleCrashTest", () => {
     expect(replayed[0]).toMatchObject({ type: "stage", stage: "replay" });
     expect((replayed[0] as Extract<RunEvent, { type: "stage" }>).message).toMatch(/recorded/);
     expect(replayed.length).toBe(live.length + 1);
+    // The finished state itself carries the label, so a saved copy stays recorded after a reload.
+    const done = (e: RunEvent[]) => (e.at(-1) as Extract<RunEvent, { type: "done" }>).state;
+    expect(done(live).provenance).toMatchObject({ mode: "live", runVersion: RUN_VERSION });
+    expect(done(replayed).provenance).toMatchObject({ mode: "recorded", runVersion: RUN_VERSION });
+    expect(done(replayed).provenance?.recordedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const restored = JSON.parse(JSON.stringify(done(replayed))) as RunState;
+    expect(restored.provenance?.mode).toBe("recorded");
   });
 
   it("runs live when asked for a fresh run, even with a recording", async () => {

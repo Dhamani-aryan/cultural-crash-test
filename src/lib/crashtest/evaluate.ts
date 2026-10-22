@@ -9,6 +9,8 @@ import {
   type CulturalPlan,
   type DimensionScore,
   type PlanEvaluation,
+  type RejectionCode,
+  type RetestResult,
   type Slot,
 } from "./types";
 
@@ -296,6 +298,45 @@ export function evaluatePlan(input: EvaluateInput): PlanEvaluation {
     accepted,
     materialImprovementFromPrevious:
       prev !== undefined && totalScore !== undefined ? totalScore - prev : undefined,
+  };
+}
+
+/**
+ * The acceptance guard for one candidate's full-plan re-test, as structured facts. Replacing a
+ * choice must improve the plan without breaking a hard rule, and without costing another
+ * Supported choice unless that trade removes a contradiction (then the loss is recorded). An
+ * upgrade of a choice nothing contradicts must also land on Supported and be materially better.
+ * `accepted` is left false here: only the best passing candidate of a round is accepted.
+ */
+export function judgeRetest(prev: PlanEvaluation, next: PlanEvaluation, slot: Slot, upgrade: boolean): RetestResult {
+  const before = prev.components.find((c) => c.slot === slot)!;
+  const now = next.components.find((c) => c.slot === slot)!;
+  const progress = compareEvaluations(prev, next, slot);
+  const lostSupported = prev.components
+    .filter((c) => c.slot !== slot && c.status === "supported" && next.components.find((x) => x.slot === c.slot)?.status !== "supported")
+    .map((c) => c.slot);
+  let rejectionCode: RejectionCode | undefined;
+  if (now.status === "constraint_conflict" || next.hardConstraintViolations.length > prev.hardConstraintViolations.length)
+    rejectionCode = "constraint_conflict";
+  else if (lostSupported.length && !(next.contradicted < prev.contradicted)) rejectionCode = "plan_regression";
+  else if (!progress.better) rejectionCode = "no_improvement";
+  else if (upgrade && now.status !== "supported") rejectionCode = "target_not_supported";
+  else if (upgrade && !progress.material) rejectionCode = "no_improvement";
+  return {
+    slotStatusBefore: before.status,
+    slotStatusAfter: now.status,
+    slotScoreBefore: before.total,
+    slotScoreAfter: now.total,
+    supportedBefore: prev.supported,
+    supportedAfter: next.supported,
+    components: next.components.length,
+    planScoreBefore: prev.totalScore,
+    planScoreAfter: next.totalScore,
+    contradictedBefore: prev.contradicted,
+    contradictedAfter: next.contradicted,
+    lostSupported,
+    accepted: false,
+    rejectionCode,
   };
 }
 

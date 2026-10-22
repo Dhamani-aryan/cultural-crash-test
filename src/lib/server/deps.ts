@@ -7,5 +7,7 @@ import type { Deps } from "./handlers";
 
 /** Real clients for route handlers (Qloo answers cached server-side). Throws if keys are missing. */
 export function getDeps(): Deps {
-  return { qloo: withCache(getQlooClient(), getCache()), llm: getLlm() };
+  // One wrapper per request, so its counts belong to this run alone.
+  const qlooStats = { hits: 0, requests: 0 };
+  return { qloo: withCache(getQlooClient(), getCache(), undefined, qlooStats), llm: getLlm(), qlooStats };
 }

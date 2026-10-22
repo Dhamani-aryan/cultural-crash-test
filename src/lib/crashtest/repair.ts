@@ -15,6 +15,7 @@ import {
   SLOT_TYPE,
   type Component,
   type ComponentAssessment,
+  type CandidateTrial,
   type CulturalPlan,
   type LaunchBrief,
   type Slot,
@@ -49,6 +50,16 @@ export interface RepairProposal {
   evidenceIds: string[];
   /** Shown in the trace: what else was considered. */
   considered: string[];
+}
+
+/** A trial before the controller knows its round or its re-test. */
+export type DraftTrial = Omit<CandidateTrial, "iteration">;
+
+export interface EntityRepair {
+  /** Re-test these, best first. */
+  proposals: RepairProposal[];
+  /** Every candidate considered, with why it didn't reach a re-test when it didn't. */
+  trials: DraftTrial[];
 }
 
 const domainOf = (slot: Slot): Domain =>
@@ -299,7 +310,7 @@ export async function repairEntity(input: {
    * upgrade must be a sensible local pick, not merely a higher-scoring import.
    */
   upgrade?: boolean;
-}): Promise<RepairProposal[]> {
+}): Promise<EntityRepair> {
   const { ctx, plan, slot, brief } = input;
   const current = plan.components.find((c) => c.slot === slot)!;
   const domain = domainOf(slot);
@@ -386,6 +397,18 @@ export async function repairEntity(input: {
     }).evidenceId;
   }
 
+  // The agent's suggestions that never reached the screen, each with the recorded reason.
+  const trials: DraftTrial[] = [];
+  const proposalIds = proposalRecordId ? [proposalRecordId] : [];
+  names.forEach((n, i) => {
+    const e = found[i];
+    const out = (screenedOutReason: string, entityId?: string) =>
+      trials.push({ slot, name: e?.displayName ?? n, entityId, source: "llm_proposal", evidenceIds: proposalIds, briefFit: "unknown", screenedOutReason });
+    if (!e) out("Not found in Qloo");
+    else if (!allowed(e)) out("Excluded: ruled out by the brief, already tried, or already in the plan", e.id);
+    else if (!proposalFit.has(e.id)) out("No affinity returned for this audience", e.id);
+  });
+
   const fromList = result.entities.filter(allowed).slice(0, SCREEN);
   const seen = new Set<string>();
   const pool: { e: QlooEntity; rank: number; proposed: boolean }[] = [];
@@ -397,7 +420,7 @@ export async function repairEntity(input: {
     seen.add(p.e.id);
     pool.push(p);
   }
-  if (!pool.length) return [];
+  if (!pool.length) return { proposals: [], trials };
 
   // Full records carry the origin and role tags the screen needs.
   const full = await ctx.client.getEntities(pool.map((p) => p.e.id));
@@ -413,8 +436,9 @@ export async function repairEntity(input: {
   );
   const originalRole = original ? roleTags(original) : new Map<string, number>();
 
-  const candidates: (Candidate & { proposed: boolean })[] = records.map(({ e, rank, proposed }) => {
+  const candidates: (Candidate & { proposed: boolean; locality: string; briefOk: boolean })[] = records.map(({ e, rank, proposed }) => {
     const l = { ...local.get(e.id)! };
+    const locality = l.why;
     // The agent's venue suggestions may be of another kind than the draft's; only unsuitable venues are out.
     const roleOk = roleFits(slot, e, original ?? null, proposed ? null : current.placeCategory, {
       foodAndDrink: isFoodAndDrink(brief.productCategory),
@@ -441,6 +465,8 @@ export async function repairEntity(input: {
       role: role.score,
       sharedRole: shared,
       proposed,
+      locality,
+      briefOk: briefFit.ok,
       score: 0.5 * fit + 0.3 * role.score + (l.local ? 0.2 : 0),
     };
   });
@@ -466,7 +492,30 @@ export async function repairEntity(input: {
     coverageStatus: shortlist.length ? "usable" : "empty",
     warnings: shortlist.length ? [] : [`No candidate passed the screen: ${screenSummary(candidates)}.`],
   });
-  if (!shortlist.length) return [];
+  // One trial per screened candidate; the outcome is filled in below as each stage decides it.
+  const screened = new Map(
+    candidates.map((c) => [
+      c.entity.id,
+      {
+        slot,
+        name: c.entity.displayName,
+        entityId: c.entity.id,
+        source: c.proposed ? ("llm_proposal" as const) : ("qloo_list" as const),
+        evidenceIds: [record.evidenceId, ...(c.proposed ? proposalIds : []), screenRecord.evidenceId],
+        audienceRank: c.fitRank,
+        localityResult: c.locality,
+        roleFit: original ? c.role : undefined,
+        briefFit: c.briefOk ? ("pass" as const) : ("fail" as const),
+        screenedOutReason: c.local
+          ? shortlist.includes(c)
+            ? undefined
+            : `Below the shortlist of ${SHORTLIST}`
+          : c.localWhy.charAt(0).toUpperCase() + c.localWhy.slice(1),
+      } satisfies DraftTrial,
+    ]),
+  );
+  const finish = (proposals: RepairProposal[]): EntityRepair => ({ proposals, trials: [...trials, ...screened.values()] });
+  if (!shortlist.length) return finish([]);
 
   const lines = shortlist.map(
     (c) =>
@@ -499,7 +548,8 @@ export async function repairEntity(input: {
         `No candidate passed the screen: the model found none fit the role (${(data.none ?? "no reason given").replace(/\.$/, "")}).`,
       ],
     });
-    return [];
+    for (const c of shortlist) screened.get(c.entity.id)!.screenedOutReason = "The model judged none of the shortlist could do the job";
+    return finish([]);
   }
   // Only ids from the shortlist count; an unknown id falls back to the top-ranked candidate.
   const picks = data.choices.flatMap((ch) => {
@@ -513,7 +563,14 @@ export async function repairEntity(input: {
       expectedEffect: data.choices[0].expectedEffect,
     });
   const evidenceIds = [record.evidenceId, ...(proposalRecordId ? [proposalRecordId] : []), screenRecord.evidenceId];
-  return picks.slice(0, MAX_TRIALS).map(({ c, reason, expectedEffect }) => ({
+  const tried = picks.slice(0, MAX_TRIALS);
+  for (const c of shortlist) {
+    const t = screened.get(c.entity.id)!;
+    const at = picks.findIndex((p) => p.c === c);
+    if (at < 0) t.screenedOutReason = "Not among the model's picks";
+    else if (at >= MAX_TRIALS) t.screenedOutReason = `Beyond the ${MAX_TRIALS} re-tests per round`;
+  }
+  return finish(tried.map(({ c, reason, expectedEffect }) => ({
     slot,
     after: {
       slot,
@@ -529,7 +586,7 @@ export async function repairEntity(input: {
     expectedEffect,
     evidenceIds,
     considered: shortlist.map((x) => x.entity.displayName),
-  }));
+  })));
 }
 
 /** The first suitable category a venue is filed under, to test it among venues of its own kind. */

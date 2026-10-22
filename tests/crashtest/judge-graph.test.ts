@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildDecisions } from "@/lib/crashtest/explain";
-import { buildJudgeGraph, graphAsTree, pathText, RELATION_LABEL, retestOutcome, visibleGraph } from "@/lib/crashtest/judge-graph";
+import { changeOutcome } from "@/lib/crashtest/decision-trace";
+import { buildJudgeGraph, graphAsTree, pathText, RELATION_LABEL, visibleGraph } from "@/lib/crashtest/judge-graph";
 import { layoutGraph } from "@/lib/crashtest/judge-layout";
 import { runCrashTest } from "@/lib/crashtest/run";
 import type { LaunchBriefInput, RunState } from "@/lib/crashtest/types";
@@ -54,14 +55,21 @@ describe("buildJudgeGraph", () => {
 
   it("candidates come only from recorded changes; rejections need a reverted re-test", async () => {
     const s = await run();
-    const reverted = { ...s.changes[0], after: "Coast Kid", reverted: true, observedEffect: "Music act n/a → 0.25 (weak); plan 2/4 supported, score 0.40 → 2/4, 0.41." };
+    const reverted = {
+      ...s.changes[0],
+      after: "Coast Kid",
+      reverted: true,
+      // A deliberately misleading sentence: the graph must read the structured re-test, not this.
+      observedEffect: "Music act → Supported; plan 4/4 supported.",
+      retest: { ...s.changes[0].retest!, slotStatusAfter: "weak" as const, supportedAfter: 2, accepted: false, rejectionCode: "target_not_supported" as const },
+    };
     const state: RunState = { ...s, changes: [reverted, ...s.changes] };
     const g = buildJudgeGraph(state);
     const candidates = g.nodes.filter((n) => n.kind === "candidate");
     expect(candidates.map((n) => n.label).sort()).toEqual(state.changes.map((c) => c.after).sort());
     const coast = candidates.find((n) => n.label === "Coast Kid")!;
     expect(coast.state).toBe("rejected");
-    expect(coast.detail).toBe("Rejected after the full-plan re-test: as the music act it tested weak; the plan went from 2/4 to 2/4 supported.");
+    expect(coast.detail).toBe("Rejected after the full-plan re-test (it did not reach supported): No support found → Weak evidence; plan 2/4 → 2/4 supported");
     const rejections = g.edges.filter((e) => e.relation === "rejected_after_retest");
     expect(rejections.map((e) => e.target)).toEqual([coast.id]);
     expect(g.nodes.find((n) => n.label === "Grey Lane" && n.kind === "candidate")?.state).toBe("accepted");
@@ -136,9 +144,9 @@ describe("buildJudgeGraph", () => {
     expect(path.some((p) => p.inspectable && p.kind === "qloo_evidence")).toBe(true);
   });
 
-  it("reads an unparsable re-test record plainly", () => {
-    expect(retestOutcome({ iteration: 1, slot: "artist_music", before: "a", after: "b", reason: "", triggeringEvidenceIds: [], expectedEffect: "", reverted: true })).toBe(
-      "Rejected after the full-plan re-test.",
+  it("says only kept or not for a change recorded before structured re-tests existed", () => {
+    expect(changeOutcome({ iteration: 1, slot: "artist_music", before: "a", after: "b", reason: "", triggeringEvidenceIds: [], expectedEffect: "", reverted: true })).toBe(
+      "Rejected after the full-plan re-test",
     );
   });
 

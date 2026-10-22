@@ -1,3 +1,4 @@
+import { changeOutcome, buildDecisionTrace } from "./decision-trace";
 import { buildDecisions, type DecisionExplanation } from "./explain";
 import { unverifiableRules } from "./constraints";
 import {
@@ -106,18 +107,11 @@ export interface JudgeGraph {
 
 const KEYS: DimensionKey[] = ["audience", "local", "coherence"];
 
-/** "Music act 0.25 → 0.86 (supported); plan 2/4 supported, score … → 3/4, …" in plain words. */
-export function retestOutcome(c: PlanChange): string {
-  const m = c.observedEffect?.match(/\(([^)]+)\); plan (\d+)\/(\d+) supported, score [^→]*→ (\d+)\/(\d+)/);
-  const verdict = c.reverted ? "Rejected after the full-plan re-test" : "Accepted after the full-plan re-test";
-  if (!m) return `${verdict}.`;
-  return `${verdict}: as the ${SLOT_LABEL[c.slot].toLowerCase()} it tested ${m[1]}; the plan went from ${m[2]}/${m[3]} to ${m[4]}/${m[5]} supported.`;
-}
-
 export function buildJudgeGraph(state: RunState, decisions: DecisionExplanation[] = buildDecisions(state)): JudgeGraph {
   const first = state.evaluations[0];
   const last = state.evaluations.at(-1);
   if (!first || !last) return { nodes: [], edges: [], decisions: [] };
+  const trace = buildDecisionTrace(state);
   const brief = state.brief;
   const ledger = new Set(state.evidenceLedger.map((r) => r.evidenceId));
   const real = (ids: string[]) => [...new Set(ids)].filter((id) => ledger.has(id));
@@ -206,7 +200,7 @@ export function buildJudgeGraph(state: RunState, decisions: DecisionExplanation[
       edge(llm, `${s}:lock`, "constrained_by", s);
     }
 
-    const tried = state.changes.filter((c) => c.slot === s);
+    const tried = trace.find((t) => t.slot === s)!.changes;
     if (tried.length) {
       nodes.push({
         id: retest,
@@ -227,7 +221,7 @@ export function buildJudgeGraph(state: RunState, decisions: DecisionExplanation[
           kind: "candidate",
           slot: s,
           label: c.after,
-          detail: accepted || c.reverted ? retestOutcome(c) : "Kept for a round, then replaced by a later repair.",
+          detail: accepted || c.reverted ? changeOutcome(c) : "Kept for a round, then replaced by a later repair.",
           evidenceIds: real(c.triggeringEvidenceIds),
           state: c.reverted ? "rejected" : accepted ? "accepted" : "neutral",
           step: 4,

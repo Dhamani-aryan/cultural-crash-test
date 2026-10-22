@@ -1,6 +1,6 @@
-import { nameKey } from "@/lib/engine/stats";
 import { comparePlans, type ComparisonOutcome } from "./compare";
 import { unverifiableRules } from "./constraints";
+import { buildDecisionTrace, sameChoice } from "./decision-trace";
 import {
   SLOT_LABEL,
   SLOTS,
@@ -108,16 +108,7 @@ const kind = (slot: Slot) =>
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const quote = (s: string) => `“${s}”`;
 
-/** Same choice? Identity, not label: a re-labelled direction with the same tags is the same. */
-export function sameChoice(a: Component | undefined, b: Component | undefined): boolean {
-  if (!a || !b) return a === b;
-  if (a.entity && b.entity) return a.entity.id === b.entity.id;
-  if (a.slot === "creative_direction" && a.tags.length && b.tags.length) {
-    const ids = (c: Component) => c.tags.map((t) => t.id).sort().join("|");
-    return ids(a) === ids(b);
-  }
-  return nameKey(a.label) === nameKey(b.label);
-}
+export { sameChoice };
 
 const dim = (a: ComponentAssessment, key: DimensionScore["key"]) => a.dimensions.find((d) => d.key === key);
 
@@ -202,16 +193,17 @@ export function buildDecisions(state: RunState): DecisionExplanation[] {
   const hard = brief.constraints.filter((c) => c.kind === "hard");
   const rulesHeld = last.hardConstraintViolations.length === 0;
   const finalLabel = (slot: Slot) => last.components.find((c) => c.slot === slot)?.label;
+  const trace = buildDecisionTrace(state);
 
   const rows = last.components.map((a) => {
     const slot = a.slot;
     const b = first.components.find((x) => x.slot === slot)!;
     const orig = state.initialPlan?.components.find((x) => x.slot === slot);
     const fin = state.plan?.components.find((x) => x.slot === slot);
-    const changed = !sameChoice(orig, fin);
-    const tried = state.changes.filter((c) => c.slot === slot);
-    const acceptedChange = changed ? [...tried].reverse().find((c) => !c.reverted && nameKey(c.after) === nameKey(a.label)) : undefined;
-    const alternatives = tried.filter((c) => c.reverted);
+    const entry = trace.find((t) => t.slot === slot)!;
+    const changed = entry.changed;
+    const acceptedChange = entry.acceptedChange;
+    const alternatives = entry.changes.filter((c) => c.reverted);
     const given = brief.existingChoices.find((c) => c.slot === slot);
     const lock = hard.find((c) => c.lockSlot === slot);
     const userChoice = given ? { label: given.name, locked: !!lock } : null;

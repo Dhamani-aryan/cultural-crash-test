@@ -14,6 +14,8 @@ import { sseResponse } from "./sse";
 export interface Deps {
   qloo: QlooClient;
   llm: LlmClient;
+  /** Cache hits and outbound Qloo requests for this run, when the client measures them. */
+  qlooStats?: { hits: number; requests: number };
 }
 
 export const CrashTestRequestSchema = z.union([
@@ -31,7 +33,7 @@ export const CrashTestRequestSchema = z.union([
 ]);
 
 /** Bump when the agent, rubric or prompts change in a way that should invalidate recordings. */
-export const RUN_VERSION = "crash:v12";
+export const RUN_VERSION = "crash:v13";
 const RECORDING_TTL = 14 * 24 * 60 * 60;
 
 export function runKey(brief: unknown): string {
@@ -102,7 +104,10 @@ async function* replay(rec: Recording, pauseMs = 60) {
     if (e.type === "stage" || e.type === "change" || e.type === "evaluation")
       await new Promise((r) => setTimeout(r, pauseMs * 4));
     else if (e.type !== "done") await new Promise((r) => setTimeout(r, pauseMs / 4));
-    yield e;
+    // The finished state says it was replayed, so a saved copy stays labelled as recorded.
+    yield e.type === "done"
+      ? ({ ...e, state: { ...e.state, provenance: { mode: "recorded", recordedAt: rec.recordedAt, runVersion: RUN_VERSION } } } satisfies RunEvent)
+      : e;
   }
 }
 
@@ -151,7 +156,7 @@ export async function handleCrashTest(
     return errorResponse(err);
   }
   const live = eventStream<RunEvent>(
-    (emit) => runCrashTest(resolved, input, { emit, signal: req.signal }),
+    (emit) => runCrashTest(resolved, input, { emit, signal: req.signal, runVersion: RUN_VERSION }),
     (message) => ({ type: "error", message }),
   );
   return sseResponse(store ? record(live, store, key) : live, req.signal);

@@ -3,17 +3,18 @@ import type { LlmClient } from "@/lib/llm/types";
 import { marketById } from "@/lib/markets";
 import type { QlooClient } from "@/lib/qloo";
 import { unverifiableRules } from "./constraints";
-import { MATERIAL_DELTA, compareEvaluations, evaluatePlan, type Progress } from "./evaluate";
+import { MATERIAL_DELTA, compareEvaluations, evaluatePlan, judgeRetest, type Progress } from "./evaluate";
 import { gatherEvidence, type GatherContext } from "./gather";
-import { BudgetExceeded, budgeted, createLedger } from "./ledger";
+import { BudgetExceeded, budgeted, createLedger, memoized } from "./ledger";
 import { buildPlan, draftPlan } from "./plan";
 import { QueryRequestSchema, parseQuery, type QueryRequest } from "./query";
-import { applyRepair, repairDirection, repairEntity, type RepairProposal } from "./repair";
+import { applyRepair, repairDirection, repairEntity, type DraftTrial, type RepairProposal } from "./repair";
 import { writeVerdict } from "./report";
 import {
   DEPTHS,
   LaunchBriefSchema,
   SLOT_LABEL,
+  type CandidateTrial,
   type CulturalPlan,
   type LaunchBriefInput,
   type PlanChange,
@@ -35,6 +36,8 @@ import {
 export interface RunDeps {
   qloo: QlooClient;
   llm: LlmClient;
+  /** Cache hits and outbound requests, when the Qloo client measures them. */
+  qlooStats?: { hits: number; requests: number };
 }
 
 export interface RunOptions {
@@ -43,6 +46,8 @@ export interface RunOptions {
   runId?: string;
   /** Override the depth's limits (tests, evaluation). */
   limits?: { maxRepairs?: number; maxQlooCalls?: number };
+  /** Recorded in the run's provenance. */
+  runVersion?: string;
 }
 
 /** Stop after this many rounds in a row without a material improvement. */
@@ -100,6 +105,8 @@ export async function runCrashTest(
     evaluations: [],
     actions: [],
     changes: [],
+    trials: [],
+    provenance: { mode: "live", runVersion: opts.runVersion ?? "dev" },
     unresolvedQuestions: [],
     rejected: {},
     startedAt: new Date().toISOString(),
@@ -113,16 +120,19 @@ export async function runCrashTest(
       return deps.llm.generateText({ ...req, signal: opts.signal });
     },
   };
+  const statsAtStart = deps.qlooStats ? { ...deps.qlooStats } : undefined;
   const counted = budgeted(deps.qloo, state.maxQlooCalls, (used) => {
     state.qlooCallsUsed = used;
     if (used % 10 === 0) emit({ type: "budget", qlooCallsUsed: used, maxQlooCalls: state.maxQlooCalls });
   });
+  // Repeats inside the run are answered from memory, so they reach neither the budget nor Qloo.
+  const memo = memoized(counted.client);
   const ledger = createLedger(
     () => state.currentIteration,
     (record) => emit({ type: "evidence", record }),
   );
   state.evidenceLedger = ledger.records;
-  const ctx: GatherContext = { client: counted.client, ledger, market };
+  const ctx: GatherContext = { client: memo.client, ledger, market };
   const stage = (s: string, message: string) => {
     if (opts.signal?.aborted) throw new Cancelled();
     emit({ type: "stage", stage: s, message });
@@ -242,21 +252,28 @@ export async function runCrashTest(
       stage("repair", `Researching a better-supported ${SLOT_LABEL[target].toLowerCase()} in Qloo`);
 
       const before = state.plan!;
-      const proposals: RepairProposal[] =
-        target === "creative_direction"
-          ? [await repairDirection({ llm, ctx, brief, plan: before, assessment, upgrade })].filter(
-              (p): p is RepairProposal => p !== null,
-            )
-          : await repairEntity({
-              llm,
-              ctx,
-              brief,
-              plan: before,
-              slot: target,
-              assessment,
-              rejected: state.rejected[target] ?? [],
-              upgrade,
-            });
+      let proposals: RepairProposal[];
+      let drafts: DraftTrial[];
+      if (target === "creative_direction") {
+        const p = await repairDirection({ llm, ctx, brief, plan: before, assessment, upgrade });
+        proposals = p ? [p] : [];
+        drafts = p ? [{ slot: target, name: p.after.label, source: "llm_proposal", evidenceIds: p.evidenceIds, briefFit: "unknown" }] : [];
+      } else {
+        ({ proposals, trials: drafts } = await repairEntity({
+          llm,
+          ctx,
+          brief,
+          plan: before,
+          slot: target,
+          assessment,
+          rejected: state.rejected[target] ?? [],
+          upgrade,
+        }));
+      }
+      const roundTrials: CandidateTrial[] = drafts.map((t) => ({ ...t, iteration: state.currentIteration }));
+      state.trials!.push(...roundTrials);
+      const trialOf = (p: RepairProposal) =>
+        roundTrials.find((t) => (p.after.entity ? t.entityId === p.after.entity.id : t.name === p.after.label && !t.entityId));
       if (!proposals.length && upgrade) continue;
       if (!proposals.length) {
         exhausted.add(target);
@@ -278,7 +295,10 @@ export async function runCrashTest(
         const next = await evaluate(applyRepair(before, proposal), current);
         const now = next.components.find((c) => c.slot === target)!;
         const progress = compareEvaluations(current, next, target);
+        const retest = judgeRetest(current, next, target, upgrade);
+        const rejection = retest.rejectionCode;
         const change: PlanChange = {
+          retest,
           iteration: state.currentIteration,
           slot: target,
           before: assessment.label,
@@ -292,20 +312,23 @@ export async function runCrashTest(
             `${next.supported}/${next.components.length}, ${next.totalScore?.toFixed(2) ?? "n/a"}.`,
         };
         tried.push(change);
-        // An upgrade must land on Supported; a sideways move between thin choices isn't one.
-        // An upgrade must land on Supported. Replacing the user's own choice also needs a
-        // material improvement to the deterministic evaluation, not just a nudge.
-        const userChoice = before.components.find((x) => x.slot === target)?.origin === "user_provided";
-        const counts =
-          progress.better && (!upgrade || (now.status === "supported" && (!userChoice || progress.material)));
-        if (counts && (!best || compareEvaluations(best.next, next, target).better))
-          best = { proposal, next, progress, change };
-        if (progress.better && now.status === "supported") break;
+        const trial = trialOf(proposal);
+        if (trial) trial.retest = retest;
+        if (!rejection && (!best || compareEvaluations(best.next, next, target).better)) best = { proposal, next, progress, change };
+        // The first candidate that passes and makes this choice Supported ends the round.
+        if (!rejection && now.status === "supported") break;
+      }
+      for (const p of proposals) {
+        const t = trialOf(p);
+        if (t && !t.retest) t.screenedOutReason = "Not re-tested: an earlier candidate already passed";
       }
       for (const change of tried) {
         if (change !== best?.change) {
           change.reverted = true;
+          change.retest!.rejectionCode ??= "better_candidate_selected";
           (state.rejected[target] ??= []).push(change.after);
+        } else {
+          change.retest!.accepted = true;
         }
         state.changes.push(change);
         emit({ type: "change", change });
@@ -358,6 +381,13 @@ export async function runCrashTest(
   }
 
   state.qlooCallsUsed = counted.used();
+  state.qlooUsage = {
+    checks: counted.used() + memo.reused(),
+    reused: memo.reused(),
+    ...(deps.qlooStats && statsAtStart
+      ? { cacheHits: deps.qlooStats.hits - statsAtStart.hits, requests: deps.qlooStats.requests - statsAtStart.requests }
+      : {}),
+  };
   if (state.evaluations.length && state.stopReason !== "user_cancelled") {
     try {
       emit({ type: "stage", stage: "report", message: "Writing the verdict from the recorded evidence" });
