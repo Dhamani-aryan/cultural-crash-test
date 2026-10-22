@@ -112,6 +112,16 @@ describe("buildJudgeGraph", () => {
     expect(g.nodes.filter((n) => n.state === "accepted").every((n) => n.kind !== "final_choice" || n.detail?.includes("Supported"))).toBe(true);
   });
 
+  it("draws a run that changed nothing as four retained decisions, with no candidates or green change", async () => {
+    const s = await run();
+    const same: RunState = { ...s, plan: s.initialPlan, changes: [], evaluations: [s.evaluations[0], s.evaluations[0]] };
+    const g = buildJudgeGraph(same);
+    expect(g.nodes.filter((n) => n.kind === "candidate")).toEqual([]);
+    expect(g.nodes.filter((n) => n.state === "accepted")).toEqual([]);
+    expect(g.edges.filter((e) => e.relation === "retained")).toHaveLength(4);
+    expect(g.decisions.every((d) => !d.changed && d.headline.endsWith("· kept"))).toBe(true);
+  });
+
   it("names every relationship and never claims causation or success", async () => {
     const g = buildJudgeGraph(await run());
     const words = [...g.edges.map((e) => RELATION_LABEL[e.relation]), ...g.nodes.map((n) => `${n.label} ${n.detail ?? ""}`)].join(" ");
@@ -132,12 +142,17 @@ describe("buildJudgeGraph", () => {
     );
   });
 
-  it("lays out deterministically: overview left to right, focus by replay step", async () => {
+  it("lays out deterministically: plan centred in the overview, focus by replay step", async () => {
     const g = buildJudgeGraph(await run());
     const a = layoutGraph(g);
     expect(layoutGraph(g)).toEqual(a);
-    expect(a.positions.brief[0]).toBeLessThan(a.positions["artist_music:final"][0]);
-    expect(a.positions["artist_music:final"][0]).toBeLessThan(a.positions.plan[0]);
+    const plan = a.positions.plan;
+    const finals = g.nodes.filter((n) => n.kind === "final_choice").map((n) => a.positions[n.id]);
+    // Four decisions surround the plan: two on each side, two above and two below it.
+    expect(finals.filter((p) => p[0] < plan[0])).toHaveLength(2);
+    expect(finals.filter((p) => p[1] > plan[1])).toHaveLength(2);
+    // The brief sits outside that ring, so its lines to the decisions never cross the plan.
+    expect(a.positions.brief[0]).toBeLessThan(Math.min(...finals.map((p) => p[0])));
     const f = layoutGraph(g, "artist_music");
     const x = (id: string) => f.positions[id][0];
     expect(x("artist_music:user")).toBeLessThan(x("artist_music:llm"));
