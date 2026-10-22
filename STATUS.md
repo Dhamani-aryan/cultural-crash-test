@@ -25,6 +25,7 @@ More detail: [`README.md`](README.md), [`docs/PLAN.md`](docs/PLAN.md), [`docs/DE
 | Requirement | Status | Where |
 |---|---|---|
 | Submit a brief with a target market and constraints | ✅ Conversational intake (ask only what's missing, editable brief, confirm before any Qloo call) or the detailed form | `src/lib/intake/`, `src/components/intake-chat.tsx`, `brief-review.tsx`, `brief-form.tsx` |
+| Show results without clutter | ✅ Two compact cards (LLM alone, agent) with Changed/Kept markers. Results remain compact until the user chooses Compare plans & see why. Each agent choice can then be opened to show why the original was reconsidered, why the replacement was selected, which alternatives were rejected, and the exact recorded Qloo evidence behind the decision. | `src/components/run-result.tsx`, `plan-comparison.tsx`, `src/lib/crashtest/explain.ts` |
 | Compare the LLM-only plan with the agent's | ✅ Deterministic comparison: agent / baseline / mixed / insufficient evidence, per choice and overall, evidence-linked | `src/lib/crashtest/compare.ts`, `src/components/plan-comparison.tsx` |
 | Validate the brief; state assumptions when details are missing | ✅ Recorded as assumptions | `run.ts`, `plan.ts` |
 | Real Qloo API for core research | ✅ Search, entities, insights (entities and tags), explainability | `src/lib/qloo/` |

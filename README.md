@@ -55,6 +55,7 @@ conversation ─► confirmed brief ─► draft (model alone) ─► resolve in
   - the Qloo call budget (700 / 1,400), enforced before each call.
 
   The report says which one stopped the run.
+- **Results, progressively** ([`run-result.tsx`](src/components/run-result.tsx), [`plan-comparison.tsx`](src/components/plan-comparison.tsx), [`explain.ts`](src/lib/crashtest/explain.ts)). Results remain compact until the user chooses Compare plans & see why. Each agent choice can then be opened to show why the original was reconsidered, why the replacement was selected, which alternatives were rejected, and the exact recorded Qloo evidence behind the decision. Unchanged choices explain why they stayed: already supported, fixed in the brief, not verifiable in Qloo, or no better alternative. Every line comes from the recorded run; nothing is generated for the view.
 - **Compare plans** ([`compare.ts`](src/lib/crashtest/compare.ts)).
   - Code decides whether the LLM-only plan or the agent's is better supported, choice by choice and overall. The order is: hard constraints, contradicted choices, supported choices, evidence coverage, then the score.
   - The outcome can be the agent, the baseline, mixed, or not enough evidence, and every reason links to its evidence records. No model picks the winner.

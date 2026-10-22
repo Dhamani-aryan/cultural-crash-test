@@ -1,13 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { comparePlans } from "@/lib/crashtest/compare";
-import { toMarkdown } from "@/lib/crashtest/report";
-import { SLOT_LABEL, type ComponentAssessment, type RunState } from "@/lib/crashtest/types";
 import { MAX_MESSAGE, type Chip } from "@/lib/intake/types";
 import { chatTitle, getChats, getServerChats, putChats, subscribeChats, type SavedChat } from "./chat-store";
-import { PlanComparisonView } from "./plan-comparison";
-import { StatusBadge } from "./status";
+import { RunResult } from "./run-result";
 import { useCrashTest } from "./use-crash-test";
 import { useIntake } from "./use-intake";
 
@@ -79,90 +75,6 @@ function Bubble({ role, children }: { role: "user" | "assistant"; children: Reac
     </div>
   ) : (
     <div className="max-w-[92%] whitespace-pre-wrap text-[15px] leading-relaxed text-ink-2">{children}</div>
-  );
-}
-
-function PlanTable({ title, sub, rows, accent }: { title: string; sub: string; rows: ComponentAssessment[]; accent?: boolean }) {
-  const supported = rows.filter((r) => r.status === "supported").length;
-  return (
-    <div className={`overflow-hidden rounded-xl border ${accent ? "border-accent" : "border-line"} bg-panel`}>
-      <div className="flex items-baseline justify-between border-b border-line px-4 py-2.5">
-        <div>
-          <p className={`text-sm font-medium ${accent ? "text-accent" : "text-ink"}`}>{title}</p>
-          <p className="text-xs text-muted">{sub}</p>
-        </div>
-        <p className="text-xs text-muted">
-          {supported} of {rows.length} supported
-        </p>
-      </div>
-      <table className="w-full text-sm">
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.slot} className="border-b border-line last:border-0">
-              <th scope="row" className="w-28 px-4 py-2.5 text-left align-top text-xs font-normal text-muted">
-                {SLOT_LABEL[r.slot]}
-              </th>
-              <td className="px-2 py-2.5 align-top text-ink">{r.label}</td>
-              <td className="px-4 py-2.5 text-right align-top">
-                <StatusBadge status={r.status} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function RunResult({ state }: { state: RunState }) {
-  const [open, setOpen] = useState(false);
-  const first = state.evaluations[0];
-  const last = state.evaluations.at(-1);
-  const cmp = comparePlans(state);
-  if (!first || !last) return <Bubble role="assistant">The run stopped before any choice could be tested{state.stopDetail ? `: ${state.stopDetail}` : "."}</Bubble>;
-  const download = () => {
-    const url = URL.createObjectURL(new Blob([toMarkdown(state)], { type: "text/markdown" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `crash-test-${state.marketLabel.toLowerCase()}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-  return (
-    <div className="space-y-3">
-      <div className="grid gap-3 md:grid-cols-2">
-        <PlanTable title="LLM alone" sub="No data, its own picks" rows={first.components} />
-        <PlanTable title="Agent" sub={`Tested against Qloo in ${state.marketLabel}`} rows={last.components} accent />
-      </div>
-      {cmp && (
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-            aria-expanded={open}
-            className="rounded-full border border-line px-4 py-1.5 text-sm text-ink hover:border-muted"
-          >
-            {open ? "Hide comparison" : "Compare"}
-          </button>
-          {open && (
-            <button type="button" onClick={download} className="text-xs text-muted hover:text-ink">
-              Download report
-            </button>
-          )}
-        </div>
-      )}
-      {cmp && open && <PlanComparisonView cmp={cmp} ledger={state.evidenceLedger} />}
-      {open && state.unresolvedQuestions.length > 0 && (
-        <div className="rounded-xl border border-line p-4 text-sm">
-          <p className="text-ink">Worth checking by hand</p>
-          <ul className="mt-1 list-disc space-y-1 pl-5 text-ink-2">
-            {state.unresolvedQuestions.map((q, i) => (
-              <li key={i}>{q}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -373,7 +285,20 @@ export function ChatApp() {
                     </button>
                   </div>
                 )}
-                {view.replay && <p className="text-xs text-muted">{view.replay}</p>}
+                {view.replay && (
+                  <p className="text-xs text-muted">
+                    {view.replay}
+                    {s && view.phase === "done" && (
+                      <button
+                        type="button"
+                        onClick={() => crash.run({ intake: s, depth: "thorough" }, true)}
+                        className="ml-2 text-accent hover:underline"
+                      >
+                        Run live again
+                      </button>
+                    )}
+                  </p>
+                )}
                 {view.error && <p className="text-sm text-nosupport">{view.error}</p>}
                 {view.result && <RunResult state={view.result} />}
                 {intake.error && <p className="text-sm text-nosupport">{intake.error}</p>}

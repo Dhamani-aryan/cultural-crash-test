@@ -29,6 +29,10 @@ A small brand or agency launching in a city it doesn't know makes several cultur
 5. **It stops for a stated reason:** accepted, no progress, round limit or call budget, all enforced in code.
 6. **It shows LLM alone vs agent side by side,** with Qloo's verdict on every choice on both sides, why each change was made, a full evidence ledger, open questions for a human, and a Markdown/JSON export.
 
+## What you see
+
+You chat: describe the launch, answer any follow-up, or say "figure out the rest". Results remain compact until the user chooses Compare plans & see why. Each agent choice can then be opened to show why the original was reconsidered, why the replacement was selected, which alternatives were rejected, and the exact recorded Qloo evidence behind the decision.
+
 ## Why it's agentic, not a prompt
 
 The controller is a deterministic state machine with typed state, an evidence ledger, a versioned rubric and code-enforced budgets. The model does five bounded jobs:

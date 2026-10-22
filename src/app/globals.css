@@ -141,3 +141,23 @@ input[type="radio"] {
     opacity: 0.6;
   }
 }
+
+/* Subtle expansion for comparison mode and explanations. */
+.expand {
+  animation: expand-in 160ms ease-out;
+}
+@keyframes expand-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .expand {
+    animation: none;
+  }
+}

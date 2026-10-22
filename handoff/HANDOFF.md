@@ -76,7 +76,10 @@ Other parts of the code:
 - **UI, `src/components/`:**
   - `crash-test.tsx`: the page.
   - `chat-app.tsx`: the whole UI, ChatGPT-style. A top bar and a title, one composer. Follow-up questions arrive as chat replies (chips only under the reply that offers them). The summary shows one **Generate recommendations** button, and "go" works too. The run happens inside the thread and ends in two tables (LLM alone, Agent) plus a **Compare** button.
-  - `use-intake.ts`, `use-crash-test.ts`: the hooks. `plan-comparison.tsx`: the Compare panel. `status.tsx`: status badges.
+  - `run-result.tsx`: the two compact plan cards (agent card marks each choice → Changed or = Kept) and the one filled **Compare plans & see why · N changes** button.
+  - `plan-comparison.tsx`: comparison mode. The overall outcome comes from `comparePlans`. Each choice is a row (original → agent, or =) whose agent choice and **Why this change? / Why it stayed** button open an explanation: why the original was reconsidered, why the replacement won, other alternatives tested, Qloo evidence and caveats. The last three are collapsed. Phones keep one explanation open at a time. Run details sit collapsed at the end.
+  - `src/lib/crashtest/explain.ts`: `buildChangeExplanations(state)`, the deterministic view model behind it. It reads only recorded state (evaluations, changes, brief, ledger) and treats missing Qloo evidence as missing, never as a verdict.
+  - `use-intake.ts`, `use-crash-test.ts`: the hooks (`restore` reopens a saved run). `chat-store.ts`: saved chats in localStorage. `status.tsx`: status badges.
   - The detailed form and the brief card were removed at the owner's request ("just the chat interface"). Locks, exclusions and exploration now come from the chat text.
   - `brief-form.tsx`: the detailed form, one click away.
   - `results.tsx`: the LLM-alone and agent score cards, the verdict, the choice-by-choice comparison with "Why", then collapsible evidence, revision log, open questions, scoring and exports.
