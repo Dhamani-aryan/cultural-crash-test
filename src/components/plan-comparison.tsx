@@ -1,43 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { comparePlans, OUTCOME_LABEL, type ComparisonOutcome } from "@/lib/crashtest/compare";
-import type { ComponentChangeExplanation } from "@/lib/crashtest/explain";
+import type { DecisionEvidence, DecisionExplanation } from "@/lib/crashtest/explain";
 import { toMarkdown } from "@/lib/crashtest/report";
-import { SLOT_LABEL, STOP_LABEL, type EvidenceRecord, type RunState, type Slot } from "@/lib/crashtest/types";
+import { SLOT_LABEL, SLOTS, STOP_LABEL, type EvidenceRecord, type RunState, type Slot } from "@/lib/crashtest/types";
 import { StatusBadge } from "./status";
 
 /**
- * Comparison mode: progressive disclosure over the recorded run. The overall outcome is
- * comparePlans (code, not a model); each choice opens to explain itself from the recorded
- * evaluations, changes and ledger. Nothing here calls Qloo or a model.
+ * The decision matrix: one aligned row per choice across three stages (your brief, the LLM
+ * completion, the Qloo-tested agent), with the deciding reason between the last two. Every
+ * word comes from the deterministic decision model (src/lib/crashtest/explain.ts); nothing here
+ * calls Qloo or a model.
  */
 
-const OUTCOME_STYLE: Record<ComparisonOutcome, { color: string; mark: string; short: string }> = {
-  agent: { color: "var(--supported)", mark: "+", short: "Stronger evidence" },
-  baseline: { color: "var(--nosupport)", mark: "−", short: "Baseline stronger" },
-  mixed: { color: "var(--weak)", mark: "·", short: "Level" },
-  insufficient_evidence: { color: "var(--unresolved)", mark: "?", short: "Not enough evidence" },
-  same: { color: "var(--muted)", mark: "=", short: "Kept" },
+const SOURCE_LABEL: Record<DecisionEvidence["source"], string> = {
+  qloo: "Qloo result",
+  user: "User constraint",
+  application: "Application evaluation",
 };
 
-const OVERALL: Record<ComparisonOutcome, string> = {
-  agent: "Evidence-led plan is better supported",
-  baseline: "Initial concept is better supported",
-  mixed: "Mixed result",
-  insufficient_evidence: "Insufficient evidence",
-  same: "Same plan",
-};
-
-function Outcome({ o }: { o: ComparisonOutcome }) {
-  const s = OUTCOME_STYLE[o];
-  return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-mono text-[9px] font-medium uppercase tracking-[0.08em]" style={{ color: s.color }}>
-      <span aria-hidden>{s.mark}</span>
-      {s.short}
-    </span>
-  );
-}
+const eyebrow = "font-mono text-[10px] uppercase tracking-[0.12em] text-muted";
+const pad = (n: number) => String(n).padStart(2, "0");
 
 function EvidenceList({ ids, ledger }: { ids: string[]; ledger: Map<string, EvidenceRecord> }) {
   return (
@@ -62,134 +45,217 @@ function EvidenceList({ ids, ledger }: { ids: string[]; ledger: Map<string, Evid
   );
 }
 
-export function Explanation({ e, ledger, id }: { e: ComponentChangeExplanation; ledger: Map<string, EvidenceRecord>; id: string }) {
+/** Three human-readable evidence blocks, each with its provenance. */
+export function EvidenceSummary({ evidence }: { evidence: DecisionEvidence[] }) {
   return (
-    <div id={id} className="expand mt-4 space-y-5 border-l-2 border-accent bg-panel/60 py-4 pl-5 pr-4 text-sm">
-      {e.changed ? (
+    <ul className="grid gap-px overflow-hidden border border-line bg-line sm:grid-cols-3">
+      {evidence
+        .filter((e) => e.kind !== "constraint")
+        .map((e) => (
+          <li key={e.kind} className="bg-panel px-3 py-3">
+            <p className={eyebrow}>{e.label}</p>
+            <p className="mt-1.5 text-[13px] leading-5 text-ink">{e.value}</p>
+            <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.1em] text-muted">{SOURCE_LABEL[e.source]}</p>
+          </li>
+        ))}
+    </ul>
+  );
+}
+
+function Block({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="grid gap-1 sm:grid-cols-[9rem_1fr] sm:gap-4">
+      <h4 className={eyebrow}>{title}</h4>
+      <div className="text-sm leading-6 text-ink-2">{children}</div>
+    </section>
+  );
+}
+
+/** The opened decision, in a fixed order: stages, why, what stayed fixed, proof, limits. */
+export function DecisionDetail({ d, ledger, id, labelledBy }: { d: DecisionExplanation; ledger: Map<string, EvidenceRecord>; id: string; labelledBy?: string }) {
+  const stages: [string, string][] = [
+    ["Your brief", d.userChoice ? `${d.userChoice.label}${d.userChoice.locked ? " · fixed" : ""}` : "Not specified"],
+    ["LLM completion", `${d.baseline.label} · ${d.baseline.origin === "user_provided" ? "carried forward" : "added by LLM"}`],
+    ["Agent revision", `${d.revised.label} · ${d.changed ? "changed" : "retained"}`],
+  ];
+  const constraint = d.evidence.find((e) => e.kind === "constraint");
+  return (
+    <div id={id} role="region" aria-labelledby={labelledBy} className="expand space-y-5 border-l-2 border-accent bg-panel/60 px-4 py-5 sm:px-6">
+      <p className={eyebrow}>
+        Decision {pad(d.sequence)} · {SLOT_LABEL[d.slot]}
+      </p>
+      <dl className="grid grid-cols-[8.5rem_1fr] gap-x-4 gap-y-1 text-sm">
+        {stages.map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt className="text-muted">{k}</dt>
+            <dd className="text-ink">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      {d.changed ? (
         <>
-          <section className="grid gap-2 sm:grid-cols-[8rem_1fr]">
-            <h4 className="font-mono text-[10px] uppercase tracking-[0.11em] text-muted">Signal against</h4>
-            <ul className="mt-1 list-disc space-y-1 pl-5 text-ink-2">
-              {e.reasonToReconsider.map((r, i) => (
-                <li key={i}>{r}</li>
-              ))}
-            </ul>
-          </section>
-          <section className="grid gap-2 sm:grid-cols-[8rem_1fr]">
-            <h4 className="font-mono text-[10px] uppercase tracking-[0.11em] text-accent">Signal for</h4>
-            <ul className="mt-1 list-disc space-y-1 pl-5 text-ink-2">
-              {e.reasonForAgentChoice.map((r, i) => (
-                <li key={i}>{r}</li>
-              ))}
-            </ul>
-          </section>
+          <Block title="Why move away">{d.whyAway.join(" ")}</Block>
+          <Block title="Why this replacement">{d.whyToward.join(" ")}</Block>
         </>
       ) : (
-        <section>
-          <h4 className="font-mono text-[10px] uppercase tracking-[0.11em] text-muted">Why it stayed</h4>
-          <p className="mt-1 text-ink-2">{e.keptReason}</p>
-          <p className="mt-1 text-ink-2">{e.agentFinding}</p>
-        </section>
+        <Block title="Why it stayed">{d.whyStayed.join(" ")}</Block>
       )}
-      {e.caveats.length > 0 && (
-        <ul className="space-y-1 border-l-2 border-weak pl-3 text-xs text-ink-2">
-          {e.caveats.map((c, i) => (
-            <li key={i}>{c}</li>
+      <Block title="What stayed fixed">{d.preservedConstraints.join(" ")}</Block>
+      <section className="space-y-2">
+        <h4 className={eyebrow}>Proof</h4>
+        <EvidenceSummary evidence={d.evidence} />
+        {constraint && (
+          <p className="text-xs text-ink-2">
+            <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted">{SOURCE_LABEL.user}</span> {constraint.value}
+          </p>
+        )}
+      </section>
+      <Block title="Limits">
+        <ul className="space-y-1">
+          {d.limitations.map((l, i) => (
+            <li key={i}>{l}</li>
           ))}
         </ul>
-      )}
-      {e.rejectedChanges.length > 0 && (
-        <details>
-          <summary className="cursor-pointer text-xs text-ink">Other alternatives tested ({e.rejectedChanges.length})</summary>
-          <ul className="mt-2 space-y-1.5 text-xs text-ink-2">
-            {e.rejectedChanges.map((c, i) => (
-              <li key={i}>
-                <span className="text-ink">{c.after}</span>: not kept. {c.observedEffect}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-      {e.evidenceIds.length > 0 && (
-        <details>
-          <summary className="cursor-pointer text-xs text-ink">View Qloo evidence ({e.evidenceIds.length})</summary>
-          <EvidenceList ids={e.evidenceIds} ledger={ledger} />
-        </details>
-      )}
+      </Block>
+      <div className="space-y-2 border-t border-line pt-3">
+        {d.alternatives.length > 0 && (
+          <details>
+            <summary className="cursor-pointer text-xs text-ink">Other candidates tested ({d.alternatives.length})</summary>
+            <ul className="mt-2 space-y-1.5 text-xs text-ink-2">
+              {d.alternatives.map((c, i) => (
+                <li key={i}>
+                  <span className="text-ink">{c.after}</span>: not kept. {c.observedEffect}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+        {d.evidenceIds.length > 0 && (
+          <details>
+            <summary className="cursor-pointer text-xs text-ink">Inspect recorded evidence ({d.evidenceIds.length})</summary>
+            <EvidenceList ids={d.evidenceIds} ledger={ledger} />
+          </details>
+        )}
+      </div>
     </div>
   );
 }
 
-function Row({
-  e,
-  outcome,
-  open,
-  onToggle,
-  ledger,
-}: {
-  e: ComponentChangeExplanation;
-  outcome: ComparisonOutcome;
-  open: boolean;
-  onToggle: () => void;
-  ledger: Map<string, EvidenceRecord>;
-}) {
-  const panel = `why-${e.slot}`;
+function Cell({ label, className = "", children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
-    <li className="py-5">
-      <p className="font-mono text-[10px] uppercase tracking-[0.11em] text-muted">{SLOT_LABEL[e.slot]}</p>
-      <div className="mt-1 flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-        <span className="text-ink-2">
-          {e.originalChoice} <StatusBadge status={e.originalStatus} />
-        </span>
-        <span aria-hidden className="text-muted sm:px-1">
-          {e.changed ? "→" : "="}
-        </span>
-        <span className="sr-only">{e.changed ? "changed to" : "kept as"}</span>
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={open}
-          aria-controls={panel}
-          className="w-fit text-left font-semibold text-ink underline decoration-dotted decoration-muted underline-offset-4 hover:decoration-accent focus-visible:decoration-accent"
-        >
-          {e.agentChoice}
-        </button>
-        <StatusBadge status={e.agentStatus} />
-        <span className="sm:ml-auto">
-          <Outcome o={outcome} />
-        </span>
-      </div>
-      <button
-        type="button"
+    <div className={className}>
+      {/* The stage label stays visible on phones; wide screens read it from the column header. */}
+      <p className={`${eyebrow} mb-1 lg:sr-only`}>{label}</p>
+      {children}
+    </div>
+  );
+}
+
+const sub = "mt-1 block font-mono text-[9px] uppercase tracking-[0.09em]";
+
+export function DecisionRow({ d, open, onToggle, ledger }: { d: DecisionExplanation; open: boolean; onToggle: () => void; ledger: Map<string, EvidenceRecord> }) {
+  const panel = `decision-${d.slot}`;
+  const control = `review-${d.slot}`;
+  return (
+    <li className="border-b border-line">
+      {/* The whole row opens the decision for a mouse; the Review button is the keyboard control. */}
+      <div
         onClick={onToggle}
-        aria-expanded={open}
-        aria-controls={panel}
-        className="mt-3 font-mono text-[10px] uppercase tracking-[0.09em] text-accent hover:underline"
+        className={`grid cursor-pointer grid-cols-2 gap-x-4 gap-y-4 py-5 transition-colors hover:bg-panel/50 lg:grid-cols-[7rem_1fr_1fr_1.35fr_1fr] lg:gap-5 lg:px-2 ${open ? "bg-panel/50" : ""}`}
       >
-        {open ? "Hide" : e.changed ? "Why this change?" : "Why it stayed"}
-      </button>
-      {open && <Explanation e={e} ledger={ledger} id={panel} />}
+        <p className="col-span-2 font-mono text-[10px] uppercase tracking-[0.1em] text-muted lg:col-span-1 lg:pt-0.5">
+          <span className="text-ink">{pad(d.sequence)}</span> {SLOT_LABEL[d.slot]}
+        </p>
+        <Cell label="Your brief">
+          {d.userChoice ? (
+            <>
+              <span className="text-sm text-ink">{d.userChoice.label}</span>
+              <span className={`${sub} text-muted`}>User supplied{d.userChoice.locked ? " · fixed" : ""}</span>
+            </>
+          ) : (
+            <span className="text-sm italic text-muted">Not specified</span>
+          )}
+        </Cell>
+        <Cell label="LLM completion">
+          <span className="text-sm text-ink">{d.baseline.label}</span>
+          <span className={`${sub} text-muted`}>{d.baseline.origin === "user_provided" ? "From your brief" : "Added by LLM"}</span>
+          <span className="mt-1 block">
+            <StatusBadge status={d.baseline.status} />
+          </span>
+        </Cell>
+        <Cell label="Evidence / decision" className="col-span-2 border-l-2 border-line pl-3 lg:col-span-1 lg:border-l-0 lg:pl-0">
+          <p className="flex gap-2 text-sm leading-5 text-ink-2">
+            <span aria-hidden className={d.changed ? "text-accent" : "text-muted"}>
+              {d.changed ? "→" : "="}
+            </span>
+            <span>
+              <span className="sr-only">{d.changed ? "Changed: " : "Retained: "}</span>
+              {d.summaryReason}
+            </span>
+          </p>
+          <button
+            id={control}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+            aria-expanded={open}
+            aria-controls={panel}
+            className="mt-2 font-mono text-[10px] uppercase tracking-[0.09em] text-accent hover:underline focus-visible:underline"
+          >
+            {open ? "Close decision" : "Review decision →"}
+          </button>
+        </Cell>
+        <Cell label="Qloo-tested agent" className="col-span-2 lg:col-span-1">
+          <span className={`text-sm font-semibold ${d.changed ? "text-accent" : "text-ink"}`}>{d.revised.label}</span>
+          <span className={`${sub} ${d.changed ? "text-accent" : "text-muted"}`}>{d.changed ? "Changed by agent" : "Retained"}</span>
+          <span className="mt-1 block">
+            <StatusBadge status={d.revised.status} />
+          </span>
+        </Cell>
+      </div>
+      {open && (
+        <div className="pb-5">
+          <DecisionDetail d={d} ledger={ledger} id={panel} labelledBy={control} />
+        </div>
+      )}
     </li>
   );
 }
 
-export function PlanComparisonView({ state, explanations }: { state: RunState; explanations: ComponentChangeExplanation[] }) {
-  const cmp = comparePlans(state);
-  const [open, setOpen] = useState<Set<Slot>>(new Set());
-  const ledger = new Map(state.evidenceLedger.map((r) => [r.evidenceId, r]));
-  const first = state.evaluations[0];
-  const last = state.evaluations.at(-1);
-  if (!cmp || !first || !last) return null;
+export function DecisionMatrix({ decisions, ledger }: { decisions: DecisionExplanation[]; ledger: Map<string, EvidenceRecord> }) {
+  // One decision open at a time on every screen, so the before/after context never scrolls away.
+  const [open, setOpen] = useState<Slot | null>(null);
+  const [planOrder, setPlanOrder] = useState(false);
+  const rows = planOrder ? [...decisions].sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot)) : decisions;
+  return (
+    <section aria-label="Decision matrix">
+      <div className="flex items-baseline justify-between gap-4 pb-2">
+        <p className={eyebrow}>{planOrder ? "In plan order" : "Changes first"}</p>
+        <button type="button" onClick={() => setPlanOrder((v) => !v)} className="text-xs text-muted hover:text-ink">
+          {planOrder ? "Show changes first" : "Show plan order"}
+        </button>
+      </div>
+      <div aria-hidden className={`hidden border-y border-line py-2 lg:grid lg:grid-cols-[7rem_1fr_1fr_1.35fr_1fr] lg:gap-5 lg:px-2 ${eyebrow}`}>
+        <span>Choice</span>
+        <span>Your brief</span>
+        <span>LLM completion</span>
+        <span>Evidence / decision</span>
+        <span>Qloo-tested agent</span>
+      </div>
+      <ol className="border-t border-line lg:border-t-0">
+        {rows.map((d) => (
+          <DecisionRow key={d.slot} d={d} open={open === d.slot} onToggle={() => setOpen((o) => (o === d.slot ? null : d.slot))} ledger={ledger} />
+        ))}
+      </ol>
+    </section>
+  );
+}
 
-  const toggle = (slot: Slot) =>
-    setOpen((prev) => {
-      // Phones keep one explanation open at a time; larger screens may open several.
-      const single = typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
-      const next = new Set(single ? [] : prev);
-      if (prev.has(slot)) next.delete(slot);
-      else next.add(slot);
-      return next;
-    });
+/** Methodology, budgets and the report: available, never in the way. */
+export function AuditDetails({ state }: { state: RunState }) {
+  const last = state.evaluations.at(-1);
   const download = () => {
     const url = URL.createObjectURL(new Blob([toMarkdown(state)], { type: "text/markdown" }));
     const a = document.createElement("a");
@@ -198,60 +264,38 @@ export function PlanComparisonView({ state, explanations }: { state: RunState; e
     a.click();
     URL.revokeObjectURL(url);
   };
-
   return (
-    <section id="compare-plans" aria-label="Decision review" className="expand pt-2">
-      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">Decision review</p>
-      <div className="mt-3 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-[-0.035em]" style={{ color: OUTCOME_STYLE[cmp.outcome].color }}>{OVERALL[cmp.outcome]}</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-2">{cmp.headline}</p>
-        </div>
-        <span className="border-l border-line pl-4 font-mono text-[10px] uppercase leading-5 tracking-[0.09em] text-muted">Recorded run<br />No live re-query</span>
-      </div>
-      <p className="mt-5 border-y border-line py-3 font-mono text-[10px] uppercase leading-5 tracking-[0.07em] text-muted">
-        Supported: baseline {first.supported} of {first.components.length}, revision {last.supported} of {last.components.length} ·
-        contradicted: {first.contradicted} → {last.contradicted}. Decided by code from the recorded evaluations ({OUTCOME_LABEL[cmp.outcome].toLowerCase()}).
-      </p>
-
-      <ul className="divide-y divide-line">
-        {explanations.map((e) => (
-          <Row
-            key={e.slot}
-            e={e}
-            outcome={cmp.componentComparisons.find((c) => c.slot === e.slot)?.outcome ?? "same"}
-            open={open.has(e.slot)}
-            onToggle={() => toggle(e.slot)}
-            ledger={ledger}
-          />
-        ))}
-      </ul>
-
-      <details className="mt-3 border-t border-line pt-3">
-        <summary className="cursor-pointer text-xs text-muted">Run details</summary>
-        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs text-ink-2">
-          <dt className="text-muted">Stopped</dt>
-          <dd>
-            {state.stopReason ? STOP_LABEL[state.stopReason] : "–"}
-            {state.stopDetail ? ` (${state.stopDetail})` : ""}
-          </dd>
-          <dt className="text-muted">Repair rounds</dt>
-          <dd>
-            {state.currentIteration} of {state.maxIterations}
-          </dd>
-          <dt className="text-muted">Qloo calls</dt>
-          <dd>
-            {state.qlooCallsUsed} of {state.maxQlooCalls}
-          </dd>
-          <dt className="text-muted">Model calls</dt>
-          <dd>{state.llmCalls}</dd>
-          <dt className="text-muted">Rubric</dt>
-          <dd>{last.rubricVersion} (scores are this app&apos;s own, not a forecast)</dd>
-        </dl>
-        <button type="button" onClick={download} className="mt-2 text-xs text-accent hover:underline">
-          Download report
-        </button>
-      </details>
-    </section>
+    <details className="border-t border-line pt-3">
+      <summary className="cursor-pointer text-xs text-muted">Run methodology</summary>
+      <ol className="mt-3 list-decimal space-y-1 pl-5 text-xs text-ink-2">
+        <li>The LLM completed the plan from your brief, without Qloo.</li>
+        <li>Every choice was tested against Qloo for this audience and market.</li>
+        <li>Only choices the evidence contradicted (or, where allowed, thin ones) were opened; fixed choices never were.</li>
+        <li>Candidates were searched in Qloo, checked against your rules and re-tested in the full plan.</li>
+        <li>A candidate was kept only when the re-tested plan improved; otherwise the original stayed.</li>
+      </ol>
+      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs text-ink-2">
+        <dt className="text-muted">Stopped</dt>
+        <dd>
+          {state.stopReason ? STOP_LABEL[state.stopReason] : "–"}
+          {state.stopDetail ? ` (${state.stopDetail})` : ""}
+        </dd>
+        <dt className="text-muted">Repair rounds</dt>
+        <dd>
+          {state.currentIteration} of {state.maxIterations}
+        </dd>
+        <dt className="text-muted">Qloo calls</dt>
+        <dd>
+          {state.qlooCallsUsed} of {state.maxQlooCalls}
+        </dd>
+        <dt className="text-muted">Model calls</dt>
+        <dd>{state.llmCalls}</dd>
+        <dt className="text-muted">Rubric</dt>
+        <dd>{last?.rubricVersion ?? "–"} (scores are this app&apos;s own, not a forecast)</dd>
+      </dl>
+      <button type="button" onClick={download} className="mt-2 text-xs text-accent hover:underline">
+        Download report
+      </button>
+    </details>
   );
 }

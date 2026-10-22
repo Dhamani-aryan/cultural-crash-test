@@ -31,7 +31,7 @@ A small brand or agency launching in a city it doesn't know makes several cultur
 
 ## What you see
 
-You chat: describe the launch, answer any follow-up, or say "figure out the rest". Results remain compact until the user chooses Compare plans & see why. Each agent choice can then be opened to show why the original was reconsidered, why the replacement was selected, which alternatives were rejected, and the exact recorded Qloo evidence behind the decision.
+You chat: describe the launch, answer any follow-up, or say "figure out the rest". Results lead with the real delta (choices changed and retained; supported and contradicted counts for the LLM completion and the agent's revision), then one aligned decision matrix with three stages per choice: Your brief (only what the user named, otherwise Not specified), LLM completion (labelled From your brief or Added by LLM) and the Qloo-tested agent (Retained or Changed by agent), with the deciding reason in between. Review decision opens one choice at a time: why it moved away and why the replacement (or why it stayed), what stayed fixed, three evidence summaries labelled Qloo result, User constraint or Application evaluation, and the limits. Other candidates, raw evidence and the run methodology stay collapsed.
 
 ## Why it's agentic, not a prompt
 

@@ -331,7 +331,7 @@ export function ChatApp() {
                   </p>
                 )}
                 {view.error && <p className="text-sm text-nosupport">{view.error}</p>}
-                {view.result && <RunResult state={view.result} />}
+                {view.result && <RunResult state={view.result} recorded={!!view.replay} />}
                 {intake.error && <p className="text-sm text-nosupport">{intake.error}</p>}
                 <div ref={end} />
               </div>
