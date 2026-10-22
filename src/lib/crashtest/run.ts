@@ -188,7 +188,10 @@ export async function runCrashTest(
     while (true) {
       // Once nothing is contradicted, spare rounds go to upgrading thinly supported choices,
       // weakest first.
-      const thin = current.accepted
+      const repairTarget = current.accepted ? undefined : current.weakest.find((s) => !exhausted.has(s));
+      // Spare rounds also go to thin choices when every contradicted choice has been tried and
+      // none could be replaced: an unfixable choice shouldn't freeze the rest of the plan.
+      const thin = current.accepted || !repairTarget
         ? current.components
             .filter(
               (c) =>
@@ -220,8 +223,8 @@ export async function runCrashTest(
         }
         break;
       }
-      const upgrade = current.accepted;
-      const target = upgrade ? thin[0].slot : current.weakest.find((s) => !exhausted.has(s));
+      const upgrade = !repairTarget && thin.length > 0;
+      const target = upgrade ? thin[0].slot : repairTarget;
       if (upgrade) upgradeTried.add(target!);
       if (!target) {
         const locked = current.components.filter((c) => c.status !== "supported" && state.plan!.components.find((x) => x.slot === c.slot)?.locked);
@@ -244,7 +247,7 @@ export async function runCrashTest(
         kind: target === "creative_direction" ? ("retest_direction" as const) : ("find_alternatives" as const),
         slot: target,
         why: upgrade
-          ? `Nothing in the plan is contradicted. ${SLOT_LABEL[target]} "${assessment.label}" has the thinnest support (${assessment.status.replace("_", " ")}): ${assessment.finding} Trying the agent's own suggestions; one is kept only if Qloo rates it Supported.`
+          ? `${current.accepted ? "Nothing in the plan is contradicted." : "No candidate could replace the contradicted choices."} ${SLOT_LABEL[target]} "${assessment.label}" has the thinnest support (${assessment.status.replace("_", " ")}): ${assessment.finding} Trying the agent's own suggestions; one is kept only if Qloo rates it Supported.`
           : `${SLOT_LABEL[target]} "${assessment.label}" is the weakest adjustable choice (${assessment.status.replace("_", " ")}): ${assessment.finding}`,
       };
       state.actions.push(action);

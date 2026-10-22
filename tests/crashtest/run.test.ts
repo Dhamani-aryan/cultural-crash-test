@@ -77,6 +77,29 @@ describe("runCrashTest", () => {
     expect(state.unresolvedQuestions.join(" ")).toMatch(/Music act/);
   });
 
+  it("keeps upgrading thin choices when a contradicted choice can't be replaced", async () => {
+    const { client } = worldClient();
+    const { llm } = worldLlm({ draft: { artist: "Canal Echo" } });
+    // Both brands in this world are excluded, so the contradicted brand has no possible replacement.
+    const state = await runCrashTest({ qloo: client, llm }, {
+      ...LONDON_BRIEF,
+      constraints: [{ id: "x", kind: "hard", description: "No Mossgrove or Fieldnote", excludeNames: ["Mossgrove", "Fieldnote"] }],
+    });
+    expect(state.evaluations[0].components.find((c) => c.slot === "brand_collaboration")).toMatchObject({ status: "constraint_conflict", contradicted: true });
+    expect(state.evaluations[0].components.find((c) => c.slot === "artist_music")?.status).toBe("weak");
+    // The brand round finds nothing; the spare round still upgrades the thin music act.
+    expect(state.actions.map((a) => a.slot)).toEqual(["brand_collaboration", "artist_music"]);
+    expect(state.actions[1].why).toMatch(/^No candidate could replace the contradicted choices/);
+    expect(state.changes).toHaveLength(1);
+    expect(state.changes[0]).toMatchObject({ slot: "artist_music", before: "Canal Echo", after: "Grey Lane", retest: { accepted: true } });
+    const last = state.evaluations.at(-1)!;
+    expect(last.components.find((c) => c.slot === "artist_music")?.status).toBe("supported");
+    // The unfixable choice stays, still flagged, and the run says why it stopped.
+    expect(last.components.find((c) => c.slot === "brand_collaboration")?.label).toBe("Mossgrove");
+    expect(state.stopReason).toBe("no_material_improvement");
+    expect(state.unresolvedQuestions.join(" ")).toMatch(/Collaboration brand/);
+  });
+
   it("lets the model veto every candidate as the wrong role, as an open question", async () => {
     const { client } = worldClient();
     const { llm } = worldLlm({ pick: "none", reason: "None of these acts suits a skate launch." });
