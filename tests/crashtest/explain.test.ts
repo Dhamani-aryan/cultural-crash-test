@@ -172,26 +172,39 @@ describe("summarizeRun and briefConstants", () => {
 });
 
 describe("agentReceipt", () => {
-  it("counts only what the run recorded", async () => {
+  it("counts only what the run recorded, in accurate terms", async () => {
     const s = await run({ ...LONDON_BRIEF, constraints: [{ id: "x", kind: "hard", description: "No Supreme", excludeNames: ["Supreme"] }] });
-    const r = agentReceipt({ ...s, finishedAt: "2026-10-22T10:00:00.000Z" }, true)!;
+    const live = { ...s, finishedAt: "2026-10-22T10:00:00.000Z", provenance: { mode: "live" as const, runVersion: "t" } };
+    const r = agentReceipt(live)!;
     expect(r).toMatchObject({
       choicesTested: 4,
+      candidatesConsidered: s.trials!.length,
       alternativesTested: s.changes.length,
       accepted: 1,
       retained: 3,
-      qlooCalls: s.qlooCallsUsed,
+      qlooChecks: s.qlooUsage!.checks,
       evidenceRecords: s.evidenceLedger.length,
       hardConstraints: 1,
       constraintsPreserved: 1,
       date: "22 Oct 2026",
     });
-    expect(r.lines[1]).toBe(`${s.qlooCallsUsed} Qloo queries · 1 constraint preserved · full plan re-tested ${s.changes.length === 1 ? "once" : s.changes.length === 2 ? "twice" : `${s.changes.length} times`}`);
-    expect(r.lines[2]).toBe("Recorded run · 22 Oct 2026");
-    expect(agentReceipt(s, false)!.lines[2]).toMatch(/^Live run/);
+    const n = s.changes.length;
+    expect(r.lines[1]).toBe(`${s.qlooUsage!.checks} Qloo checks · 1 constraint preserved · full plan re-tested ${n === 1 ? "once" : n === 2 ? "twice" : `${n} times`}`);
+    expect(r.lines[2]).toBe("Live run · 22 Oct 2026");
   });
 
-  it("leaves out constraints when the brief has none", async () => {
-    expect(agentReceipt(await run(), true)!.lines[1]).not.toMatch(/constraint/);
+  it("dates a recorded run by its recording, and reports requests only when measured", async () => {
+    const s = await run();
+    const rec = { ...s, provenance: { mode: "recorded" as const, recordedAt: "2026-10-01T08:00:00.000Z", runVersion: "t" } };
+    expect(agentReceipt(rec)!.lines[2]).toBe("Recorded run · 1 Oct 2026");
+    expect(agentReceipt(rec)!.lines[1]).not.toMatch(/sent to Qloo/);
+    const measured = { ...rec, qlooUsage: { ...s.qlooUsage!, cacheHits: 40, requests: 12 } };
+    expect(agentReceipt(measured)!.lines[1]).toMatch(/Qloo checks · 12 sent to Qloo/);
+  });
+
+  it("leaves out constraints when the brief has none, and the mode when it wasn't recorded", async () => {
+    const s = await run();
+    expect(agentReceipt(s)!.lines[1]).not.toMatch(/constraint/);
+    expect(agentReceipt({ ...s, provenance: undefined })!.lines[2]).not.toMatch(/run/);
   });
 });

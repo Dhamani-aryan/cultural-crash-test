@@ -124,6 +124,61 @@ export function trialOutcome(t: CandidateTrial): string {
   return `${t.retest.accepted ? "Accepted" : "Rejected"} after the full-plan re-test: ${retestLine(t.retest)}`;
 }
 
+/** One labelled fact in Decision details; a field without a recorded value is never produced. */
+export interface DetailField {
+  label: string;
+  value?: string;
+  items?: { text: string; id?: string }[];
+}
+
+/** "38 From another country · 2 Below the shortlist of 6": screened-out candidates by reason. */
+function screenedSummary(trials: CandidateTrial[]): string | undefined {
+  const out = trials.filter((t) => t.screenedOutReason);
+  if (!out.length) return undefined;
+  const by = new Map<string, number>();
+  for (const t of out) by.set(t.screenedOutReason!, (by.get(t.screenedOutReason!) ?? 0) + 1);
+  return `${out.length} screened out: ${[...by].map(([why, n]) => `${n} ${why.charAt(0).toLowerCase()}${why.slice(1)}`).join(" · ")}`;
+}
+
+/** The recorded decision process for one choice, field by field, in the order it happened. */
+export function decisionDetails(entry: DecisionTraceEntry, nodeFor: (name: string, iteration: number) => string | undefined = () => undefined): DetailField[] {
+  const fields: DetailField[] = [];
+  const b = entry.baseline;
+  const who = entry.userChoice ? `Your choice${entry.userChoice.locked ? ", fixed" : ""}` : "Added by the LLM";
+  fields.push({ label: "Original", value: `${b.label} · ${who}` });
+  fields.push({ label: "What the test returned", value: `${STATUS_LABEL[b.status]} · ${b.finding}` });
+
+  const retested = entry.trials.filter((t) => t.retest);
+  // Re-tests without a structured trial (runs recorded before trials existed) still count.
+  const changesOnly = entry.changes.filter((c) => !retested.some((t) => t.iteration === c.iteration && t.name === c.after));
+  const alternatives = [
+    ...retested.map((t) => ({ text: `${t.name}: ${trialOutcome(t)}`, id: nodeFor(t.name, t.iteration) })),
+    ...changesOnly.map((c) => ({ text: `${c.after}: ${changeOutcome(c)}`, id: nodeFor(c.after, c.iteration) })),
+  ];
+  const screened = screenedSummary(entry.trials);
+  if (screened) alternatives.push({ text: screened, id: undefined });
+  if (alternatives.length) fields.push({ label: "Alternatives tested", items: alternatives });
+
+  const rejected = retested.filter((t) => t.retest && !t.retest.accepted && t.retest.rejectionCode);
+  if (rejected.length)
+    fields.push({ label: "Why rejected", items: rejected.map((t) => ({ text: `${t.name}: ${REJECTION_LABEL[t.retest!.rejectionCode!]}`, id: nodeFor(t.name, t.iteration) })) });
+
+  const accepted = entry.acceptedChange;
+  if (accepted?.retest) {
+    const trial = entry.trials.find((t) => t.iteration === accepted.iteration && t.name === accepted.after);
+    fields.push({ label: "Why accepted", items: acceptanceChecks(accepted.retest, entry.slot, trial).map((text) => ({ text })) });
+    const r = accepted.retest;
+    fields.push({
+      label: "Full-plan result",
+      value: `${count(r, true)} → ${count(r, false)} supported · ${r.contradictedBefore} → ${r.contradictedAfter} contradicted · ${SLOT_LABEL[entry.slot]} ${STATUS_LABEL[entry.final.status]}`,
+    });
+  } else {
+    fields.push({ label: "Full-plan result", value: `${SLOT_LABEL[entry.slot]} ${STATUS_LABEL[entry.final.status]}` });
+  }
+  if (entry.constraints.length) fields.push({ label: "Constraints preserved", items: entry.constraints.map((c) => ({ text: c.description })) });
+  return fields;
+}
+
 /** The acceptance checks a kept candidate passed, from its structured re-test. */
 export function acceptanceChecks(r: RetestResult, slot: Slot, trial?: CandidateTrial): string[] {
   const out = [`${SLOT_LABEL[slot]}: ${STATUS_LABEL[r.slotStatusBefore]} → ${STATUS_LABEL[r.slotStatusAfter]}`];

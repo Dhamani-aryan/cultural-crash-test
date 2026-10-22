@@ -18,61 +18,21 @@ function StageValue({ value, note, status }: { value: string; note: string; stat
   );
 }
 
-/** Where a sentence's claim comes from, shown inline so evidence and judgment stay apart. */
-export type ProvenanceTag = "Qloo audience result" | "Qloo local result" | "Qloo lookup" | "User constraint" | "Full-plan re-test";
-export interface NarrativeSegment {
-  text: string;
-  tag?: ProvenanceTag;
+/**
+ * The Why paragraph, from recorded facts only, in order. Changed: the original and who supplied
+ * it, what the test returned, the alternative, the evidence for it, the full-plan re-test.
+ * Retained: the choice and who supplied it, then the evidence or rule that kept it.
+ */
+export function decisionSentences(d: DecisionExplanation): string[] {
+  const opening = d.userChoice
+    ? `You chose ${d.userChoice.label}${d.userChoice.locked ? " and fixed it" : ""}.`
+    : `The LLM proposed ${d.baseline.label}.`;
+  if (!d.changed) return [opening, ...d.whyStayed];
+  return [opening, d.whyAway[0] ?? d.summaryReason, `The agent chose ${d.revised.label}.`, ...d.whyToward];
 }
 
-const awayTag = (d: DecisionExplanation): ProvenanceTag | undefined => {
-  const code = d.reasonCodes[0];
-  if (code === "audience_contradiction" || code === "audience_affinity" || code === "weak_coverage") return "Qloo audience result";
-  if (code === "local_relevance") return "Qloo local result";
-  if (code === "qloo_unknown") return "Qloo lookup";
-  if (code === "constraint_conflict") return "User constraint";
-};
-
-const stayedTag = (d: DecisionExplanation, i: number): ProvenanceTag | undefined => {
-  const code = d.reasonCodes[0];
-  if (i === 0) {
-    if (code === "constraint_locked") return "User constraint";
-    if (code === "already_supported") return "Qloo audience result";
-    if (code === "qloo_unknown" || code === "user_rule_unverified") return "Qloo lookup";
-  }
-  if (code === "no_better_alternative" && i === 1) return "Full-plan re-test";
-};
-
-/** The user → LLM → agent decision as sentences, each tagged with where its claim comes from. */
-export function narrativeSegments(d: DecisionExplanation): NarrativeSegment[] {
-  const opening: NarrativeSegment = {
-    text: d.userChoice
-      ? `You chose ${d.userChoice.label}${d.userChoice.locked ? " and marked it as fixed" : ""}. The LLM carried that choice into its draft.`
-      : `You left this open, so the LLM proposed ${d.baseline.label}.`,
-  };
-  if (!d.changed) return [opening, { text: `The agent kept ${d.revised.label}.` }, ...d.whyStayed.map((text, i) => ({ text, tag: stayedTag(d, i) }))];
-  const out: NarrativeSegment[] = [opening, { text: d.whyAway[0] ?? d.summaryReason, tag: awayTag(d) }];
-  if (d.userChoice && !d.userChoice.locked) out.push({ text: "Because it was not fixed, the agent was allowed to test alternatives." });
-  out.push({ text: `The agent chose ${d.revised.label} instead.` });
-  const [toward, retest] = d.whyToward;
-  if (toward) out.push({ text: toward, tag: "Qloo audience result" });
-  if (retest) out.push({ text: retest, tag: "Full-plan re-test" });
-  return out;
-}
-
-/** One human paragraph that explains the full user → LLM → agent decision. */
 export function decisionNarrative(d: DecisionExplanation): string {
-  return narrativeSegments(d)
-    .map((s) => s.text)
-    .join(" ");
-}
-
-function Tag({ children }: { children: string }) {
-  return (
-    <span className="mr-1.5 inline-block rounded-[3px] border border-line bg-panel px-1 py-px align-[1px] font-mono text-[9.5px] font-medium uppercase tracking-[0.06em] text-muted">
-      {children}
-    </span>
-  );
+  return decisionSentences(d).join(" ");
 }
 
 function DecisionRows({ d, focused, onEvidencePath }: { d: DecisionExplanation; focused: boolean; onEvidencePath?: (slot: Slot) => void }) {
@@ -101,24 +61,15 @@ function DecisionRows({ d, focused, onEvidencePath }: { d: DecisionExplanation; 
           Why
         </th>
         <td colSpan={3} className="px-5 py-4">
-          <p className="max-w-4xl text-[14px] leading-6 text-ink-2">
-            {narrativeSegments(d).map((s, i) => (
-              <span key={i}>
-                {i ? " " : ""}
-                {s.tag && <Tag>{s.tag}</Tag>}
-                {s.text}
-              </span>
-            ))}
-          </p>
-          <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-            {d.limitations.length > 1 ? <p className="text-xs leading-5 text-muted">Note: {d.limitations.slice(0, -1).join(" ")}</p> : <span />}
+          <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-1">
+            <p className="max-w-4xl text-[14px] leading-6 text-ink-2">{decisionNarrative(d)}</p>
             {onEvidencePath && (
               <button
                 type="button"
                 onClick={() => onEvidencePath(d.slot)}
                 className="-my-2 min-h-11 shrink-0 px-1 text-xs font-medium text-accent hover:underline focus-visible:underline"
               >
-                Evidence path →
+                Decision trace →
               </button>
             )}
           </div>
@@ -147,9 +98,6 @@ export function ComparisonTable({
         <h3 id="comparison-title" className="mt-1 text-xl font-semibold tracking-[-0.025em] text-ink">
           Your direction, the LLM draft and the agent&apos;s recommendation
         </h3>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-2">
-          Each choice is shown side by side. The row beneath it explains, in plain language, why the agent kept it or changed it.
-        </p>
       </div>
       <div className="overflow-x-auto rounded-xl border border-line bg-panel shadow-sm">
         <table className="w-full min-w-[780px] border-collapse">
@@ -164,9 +112,6 @@ export function ComparisonTable({
           {decisions.map((d) => <DecisionRows key={d.slot} d={d} focused={focus === d.slot} onEvidencePath={onEvidencePath} />)}
         </table>
       </div>
-      <p className="mt-3 text-xs leading-5 text-muted">
-        “Supported” means supported by the recorded cultural evidence in this test. It is not a prediction of commercial success.
-      </p>
     </section>
   );
 }
@@ -196,8 +141,28 @@ export function AuditDetails({ state }: { state: RunState }) {
         <dd>{state.stopReason ? STOP_LABEL[state.stopReason] : "–"}{state.stopDetail ? ` (${state.stopDetail})` : ""}</dd>
         <dt className="text-muted">Repair rounds</dt>
         <dd>{state.currentIteration} of {state.maxIterations}</dd>
-        <dt className="text-muted">Qloo calls</dt>
+        <dt className="text-muted">Qloo budget used</dt>
         <dd>{state.qlooCallsUsed} of {state.maxQlooCalls}</dd>
+        {state.qlooUsage && (
+          <>
+            <dt className="text-muted">Qloo checks</dt>
+            <dd>{state.qlooUsage.checks}</dd>
+            <dt className="text-muted">Reused within the run</dt>
+            <dd>{state.qlooUsage.reused}</dd>
+            {state.qlooUsage.cacheHits !== undefined && (
+              <>
+                <dt className="text-muted">Served from cache</dt>
+                <dd>{state.qlooUsage.cacheHits}</dd>
+              </>
+            )}
+            {state.qlooUsage.requests !== undefined && (
+              <>
+                <dt className="text-muted">Requests sent to Qloo</dt>
+                <dd>{state.qlooUsage.requests}</dd>
+              </>
+            )}
+          </>
+        )}
         <dt className="text-muted">Model calls</dt>
         <dd>{state.llmCalls}</dd>
         <dt className="text-muted">Rubric</dt>

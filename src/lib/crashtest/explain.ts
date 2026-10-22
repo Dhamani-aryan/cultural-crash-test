@@ -465,54 +465,68 @@ export const changeCount = (state: RunState) => buildDecisions(state).filter((d)
 /** What the agent did, counted from the recorded run only. Nothing is estimated. */
 export interface AgentReceipt {
   choicesTested: number;
-  /** Every candidate tried, kept or not; each one was a full-plan re-test. */
+  /** Candidates considered (screened or re-tested), when the run recorded them. */
+  candidatesConsidered?: number;
+  /** Candidates re-tested in the full plan, kept or not. */
   alternativesTested: number;
   accepted: number;
   retained: number;
-  qlooCalls: number;
+  /** Logical Qloo operations the run asked for. */
+  qlooChecks: number;
+  /** HTTP requests actually sent to Qloo, when they were measured. */
+  qlooRequests?: number;
   evidenceRecords: number;
   hardConstraints: number;
   constraintsPreserved: number;
   repairRounds: number;
-  /** The run's own timestamp, as "22 Oct 2026" (UTC). */
+  mode?: "live" | "recorded";
+  /** The run's own timestamp (the recording's, for a recorded run), as "22 Oct 2026" (UTC). */
   date: string;
   lines: string[];
 }
 
 const times = (n: number) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
+const day = (iso?: string) =>
+  iso ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(iso)) : "";
 
-export function agentReceipt(state: RunState, recorded: boolean): AgentReceipt | null {
+export function agentReceipt(state: RunState): AgentReceipt | null {
   const last = state.evaluations.at(-1);
   if (!last) return null;
   const decisions = buildDecisions(state);
   const accepted = decisions.filter((d) => d.changed).length;
   const hard = state.brief.constraints.filter((c) => c.kind === "hard").length;
   const preserved = Math.max(0, hard - last.hardConstraintViolations.length);
-  const at = state.finishedAt ?? state.startedAt;
-  const date = at ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(at)) : "";
+  const mode = state.provenance?.mode;
+  const date = day(mode === "recorded" ? (state.provenance?.recordedAt ?? state.finishedAt) : (state.finishedAt ?? state.startedAt));
   const r = {
     choicesTested: decisions.length,
+    candidatesConsidered: state.trials?.length,
     alternativesTested: state.changes.length,
     accepted,
     retained: decisions.length - accepted,
-    qlooCalls: state.qlooCallsUsed,
+    // Runs recorded before checks were measured separately: the budget count is the best record.
+    qlooChecks: state.qlooUsage?.checks ?? state.qlooCallsUsed,
+    qlooRequests: state.qlooUsage?.requests,
     evidenceRecords: state.evidenceLedger.length,
     hardConstraints: hard,
     constraintsPreserved: preserved,
     repairRounds: state.currentIteration,
+    mode,
     date,
   };
-  const second = [
-    `${r.qlooCalls} Qloo ${r.qlooCalls === 1 ? "query" : "queries"}`,
-    hard ? (preserved === hard ? `${plural(hard, "constraint")} preserved` : `${preserved} of ${hard} constraints preserved`) : "",
-    r.alternativesTested ? `full plan re-tested ${times(r.alternativesTested)}` : "no re-test needed",
+  const first = [
+    `${plural(r.choicesTested, "choice")} tested`,
+    r.candidatesConsidered ? `${plural(r.candidatesConsidered, "candidate")} considered` : "",
+    `${r.alternativesTested} re-tested`,
+    `${r.accepted} accepted`,
+    `${r.retained} retained`,
   ].filter(Boolean);
-  return {
-    ...r,
-    lines: [
-      `${plural(r.choicesTested, "choice")} tested · ${plural(r.alternativesTested, "alternative")} tried · ${r.accepted} accepted · ${r.retained} retained`,
-      second.join(" · "),
-      `${recorded ? "Recorded run" : "Live run"}${date ? ` · ${date}` : ""}`,
-    ],
-  };
+  const second = [
+    `${r.qlooChecks} Qloo ${r.qlooChecks === 1 ? "check" : "checks"}`,
+    r.qlooRequests !== undefined ? `${r.qlooRequests} sent to Qloo` : "",
+    hard ? (preserved === hard ? `${plural(hard, "constraint")} preserved` : `${preserved} of ${hard} constraints preserved`) : "",
+    r.alternativesTested ? `full plan re-tested ${times(r.alternativesTested)}` : "",
+  ].filter(Boolean);
+  const third = [mode === "recorded" ? "Recorded run" : mode === "live" ? "Live run" : "", date].filter(Boolean);
+  return { ...r, lines: [first.join(" · "), second.join(" · "), third.join(" · ")] };
 }

@@ -11,11 +11,13 @@ const EARLY = new Set(["user_cancelled", "error", "api_budget_limit", "insuffici
 const eyebrow = "font-mono text-[10px] uppercase tracking-[0.14em] text-muted";
 
 /** A plain introduction to the three-way comparison. */
-export function RunResultHeader({ state, summary, recorded }: { state: RunState; summary: RunSummary; recorded?: boolean }) {
+export function RunResultHeader({ state, summary }: { state: RunState; summary: RunSummary }) {
+  const mode = state.provenance?.mode;
   return (
     <header>
       <p className={eyebrow}>
-        {state.marketLabel} · {recorded ? "Recorded run" : "Live run"}
+        {state.marketLabel}
+        {mode ? ` · ${mode === "recorded" ? "Recorded run" : "Live run"}` : ""}
       </p>
       <h2 className="mt-2 max-w-2xl text-2xl font-semibold tracking-[-0.035em] text-ink">Here&apos;s how the three plans compare.</h2>
       <p className="mt-2 max-w-2xl text-[15px] leading-6 text-ink-2">
@@ -52,7 +54,7 @@ export function RunReceipt({ receipt }: { receipt: AgentReceipt }) {
       <p className={eyebrow}>What the agent did</p>
       <p className="mt-1 text-ink">{receipt.lines[0]}</p>
       <p>{receipt.lines[1]}</p>
-      <p className="text-xs text-muted">{receipt.lines[2]}</p>
+      {receipt.lines[2] && <p className="text-xs text-muted">{receipt.lines[2]}</p>}
     </section>
   );
 }
@@ -103,12 +105,12 @@ const JudgeGraphView = dynamic(() => import("./judge-graph-view"), {
   loading: () => <p className="py-16 text-center text-sm text-muted">Loading the decision graph…</p>,
 });
 
-export function RunResult({ state, recorded }: { state: RunState; recorded?: boolean }) {
+export function RunResult({ state }: { state: RunState }) {
   const [view, setView] = useState<ResultView>("table");
   const [focus, setFocus] = useState<Slot | null>(null);
   const [step, setStep] = useState<number | null>(null);
   const summary = summarizeRun(state);
-  const receipt = agentReceipt(state, !!recorded);
+  const receipt = agentReceipt(state);
   if (!summary || !receipt)
     return (
       <p className="text-[15px] text-ink-2">
@@ -124,7 +126,7 @@ export function RunResult({ state, recorded }: { state: RunState; recorded?: boo
           {state.stopDetail ? ` (${state.stopDetail})` : ""}. Showing what was tested so far.
         </p>
       )}
-      <RunResultHeader state={state} summary={summary} recorded={recorded} />
+      <RunResultHeader state={state} summary={summary} />
       <BriefConstants state={state} />
       <RunReceipt receipt={receipt} />
       <div className="space-y-3">
@@ -147,7 +149,7 @@ export function RunResult({ state, recorded }: { state: RunState; recorded?: boo
           }}
         />
       ) : (
-        <JudgeGraphView state={state} decisions={decisions} recorded={!!recorded} focus={focus} onFocus={setFocus} onStep={setStep} />
+        <JudgeGraphView state={state} decisions={decisions} focus={focus} onFocus={setFocus} onStep={setStep} />
       )}
       <AuditDetails state={state} />
     </div>
