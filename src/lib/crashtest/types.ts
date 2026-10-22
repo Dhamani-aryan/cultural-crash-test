@@ -260,6 +260,9 @@ export interface PlanChange {
   reverted?: boolean;
 }
 
+/** A ranked list a candidate can come from. v1 uses one combined list; v2 retrieves each intention separately. */
+export type CandidateView = "combined" | "audience" | "local" | "coherence" | "proposals";
+
 /** One candidate the agent considered for a choice: screened out, not picked, or re-tested. */
 export interface CandidateTrial {
   iteration: number;
@@ -268,8 +271,11 @@ export interface CandidateTrial {
   entityId?: string;
   source: "qloo_list" | "llm_proposal";
   evidenceIds: string[];
-  /** Rank for this audience with the rest of the plan in the city. */
+  /** Rank for this audience with the rest of the plan in the city (v1), or in the audience view (v2). */
   audienceRank?: number;
+  /** v2: the candidate's rank in each view it appeared in, and its rank after reciprocal rank fusion. */
+  views?: Partial<Record<CandidateView, number>>;
+  fusedRank?: number;
   /** What the locality screen found ("from here", "just as big elsewhere", …). */
   localityResult?: string;
   /** Shared-role similarity with the original, 0–1, when there was an original to compare. */
