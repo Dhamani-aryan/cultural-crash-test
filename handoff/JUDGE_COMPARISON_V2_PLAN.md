@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Make the completed run understandable to a hackathon judge in under 30 seconds, while preserving enough evidence to inspect every decision.
+Make the completed run understandable to a hackathon judge in under 30 seconds, while preserving enough evidence to inspect every decision and clearly separating the user's plan, the LLM's contribution, and the Qloo-tested agent's revision.
 
 This phase covers only the results comparison and reasoning experience. The knowledge-graph visualization is Phase 2 and must not begin until this comparison passes the acceptance criteria below.
 
@@ -19,16 +19,18 @@ The current results are visually cleaner, but they still make the viewer do too 
 5. A judge cannot immediately see the agent's method: test the original, isolate the weakest choice, search, re-test, then accept or reject.
 6. Changed choices are explained, but unchanged choices need equally intentional reasoning to demonstrate that the agent is selective rather than rewriting everything.
 7. Technical details such as evidence IDs, sanitized requests, rubric versions, and call counts are useful for auditability but should not compete with the product story.
+8. The current `Initial concept` is a hybrid: it preserves choices supplied by the user and fills missing slots with the LLM. Calling that whole plan an `LLM baseline` hides the user's authorship and makes it impossible to see exactly what the LLM added before the agent intervened.
 
 ## Product principle
 
-Every row must answer five questions in this exact order:
+Every row must answer six questions in this exact order:
 
-1. What was proposed?
-2. What did the evidence say about it?
-3. What did the agent decide?
-4. Why is the new decision more defensible?
-5. What evidence and limitations support that statement?
+1. What did the user actually specify?
+2. What did the LLM preserve or add without Qloo?
+3. What did the evidence say about that completed baseline?
+4. What did the agent decide?
+5. Why is the final decision more defensible?
+6. What evidence and limitations support that statement?
 
 No primary comparison sentence should be generated at render time by an LLM. All wording must come from structured recorded state and deterministic templates.
 
@@ -44,8 +46,9 @@ LONDON · RECORDED RUN
 2 choices strengthened. 2 retained.
 The revised plan removed both unsupported choices without breaking the booked venue or brand rules.
 
-Original plan    2 / 4 supported
-Revised plan     4 / 4 supported
+User choices     3 of 4 slots specified
+LLM completion   2 of 4 supported
+Agent revision   4 of 4 supported
 ```
 
 Rules:
@@ -55,35 +58,50 @@ Rules:
 - Do not call the application score a prediction, probability, or market-success score.
 - Keep the recorded/live state visible but secondary.
 
+### Three-stage provenance
+
+The comparison must always distinguish these three stages:
+
+1. **Your brief** — only the choices explicitly supplied or confirmed by the user. Missing choices remain visibly `Not specified`; do not pretend the user proposed a complete plan.
+2. **LLM completion** — the full no-Qloo draft. It carries user choices forward unchanged and fills only the missing slots. Every value is labelled `From your brief` or `Added by LLM`.
+3. **Qloo-tested agent** — the final plan after evaluation, candidate search, constraint checks, and full-plan re-testing. Every value is labelled `Retained` or `Changed by agent`.
+
+The LLM completion is still the baseline used by `comparePlans`, but the UI must never imply that user-supplied choices were invented by the LLM.
+
 ### Next 20 seconds: one-to-one decision matrix
 
-Replace the two independent plan tables with one aligned comparison matrix:
+Replace the two independent plan tables with one aligned three-stage comparison matrix:
 
 ```text
-CHOICE          ORIGINAL                 DECISION REASON                         REVISED
+CHOICE          YOUR BRIEF          LLM COMPLETION       EVIDENCE / DECISION       QLOO-TESTED AGENT
 
-Music act       Travis Scott             No London audience support found        slowthai
-                No support               Strong local affinity and plan fit       Supported
-                                           [Review decision →]
+Music act       Travis Scott        Travis Scott          No London audience       slowthai
+                User supplied       From your brief       support returned          Changed by agent
+                                                            [Review decision →]
 
-Venue           BOXPARK Shoreditch       Booked and supported; no reason to move  BOXPARK Shoreditch
-                Supported                                                        Retained
-                                           [Review decision →]
+Partner         Not specified       Vans                  No audience support       Palace Skateboards
+                                    Added by LLM          returned                  Changed by agent
+                                                            [Review decision →]
+
+Venue           BOXPARK             BOXPARK               Booked and supported      BOXPARK
+                User supplied       From your brief       no reason to move         Retained
+                                                            [Review decision →]
 ```
 
 Desktop columns:
 
 - component;
-- original choice and original status;
-- a central decision cell containing the arrow/equal sign and one concise reason;
-- revised choice and final status;
+- user's exact choice, or `Not specified`;
+- LLM-completed baseline choice with its provenance and evaluated status;
+- a central evidence/decision cell containing the arrow/equal sign and one concise reason;
+- final agent choice with retained/changed provenance and final status;
 - explicit `Review decision` action.
 
 Mobile layout:
 
 - one vertical decision block per component;
-- `Original` and `Revised` labels must remain visible;
-- show the reason between them, not after both;
+- `Your brief`, `LLM completion`, and `Qloo-tested agent` labels must remain visible;
+- show the evidence reason between the LLM baseline and agent result;
 - avoid horizontal scrolling.
 
 Default ordering:
@@ -103,7 +121,9 @@ For a changed choice, use this fixed structure:
 ```text
 DECISION 01 · MUSIC ACT
 
-Travis Scott  →  slowthai
+Your brief        Travis Scott
+LLM completion    Travis Scott · carried forward
+Agent revision    slowthai · changed
 
 Why move away
 No audience support was returned for Travis Scott in this London test. Because this was an
@@ -126,7 +146,9 @@ Qloo support is cultural evidence, not a forecast of commercial success.
 For a retained choice:
 
 ```text
-BOXPARK Shoreditch  =  BOXPARK Shoreditch
+Your brief        BOXPARK Shoreditch
+LLM completion    BOXPARK Shoreditch · carried forward
+Agent revision    BOXPARK Shoreditch · retained
 
 Why it stayed
 The venue is booked and the recorded evidence supports it. No contradictory evidence justified
@@ -165,6 +187,8 @@ Raw evidence IDs, sanitized request JSON, warnings, model/Qloo call counts, and 
 
 | Avoid | Use instead |
 | --- | --- |
+| LLM baseline, when the row came from the user | From your brief; carried forward by the LLM |
+| Original plan | Your brief, or LLM completion—whichever stage is meant |
 | Agent better supported | Revised plan has 2 fewer unsupported choices |
 | Stronger evidence | Ranked #1 for this London audience |
 | Qloo supports it | Returned with 0.96 affinity in this audience test |
@@ -215,8 +239,17 @@ type DecisionExplanation = {
   slot: Slot;
   sequence: number;
   changed: boolean;
-  original: { label: string; status: ComponentStatus };
-  revised: { label: string; status: ComponentStatus };
+  userChoice: { label: string; locked: boolean } | null;
+  baseline: {
+    label: string;
+    status: ComponentStatus;
+    origin: "user_provided" | "agent_proposed";
+  };
+  revised: {
+    label: string;
+    status: ComponentStatus;
+    origin: "user_provided" | "agent_proposed" | "agent_repair";
+  };
   summaryReason: string;
   reasonCodes: DecisionReasonCode[];
   whyAway: string[];
@@ -231,6 +264,10 @@ type DecisionExplanation = {
 Implementation rules:
 
 - Derive this from the initial/final evaluations, accepted/reverted changes, component origins, constraints, evidence ledger, and unresolved questions.
+- Derive `userChoice` only from `brief.existingChoices`; never reconstruct it from the LLM draft.
+- When `userChoice` is null, render `Not specified` in the user stage and make the LLM addition explicit.
+- When the LLM carries a user choice forward, show it as user-authored rather than an LLM recommendation.
+- Audience, goal, city, brand attributes, and free-text rules are also user context, but they should appear in a compact `Brief held constant` strip rather than pretending they are plan slots.
 - Preserve the stricter unknown-brand policy: a Qloo-unknown brand with a free-text rule that code cannot verify must be retained and flagged, never upgraded.
 - If Qloo returned no evidence, say `No support was returned`; never translate this to `bad`, `wrong`, or `will fail`.
 - A changed user choice must state why it was eligible to change. A locked choice must never appear as freely replaceable.
@@ -241,9 +278,10 @@ Implementation rules:
 
 Refactor the result UI into these responsibilities:
 
-- `RunResultHeader` — outcome, concise factual summary, original/revised counts.
-- `DecisionMatrix` — aligned one-to-one rows and changed-first ordering.
-- `DecisionRow` — original, reason, revised, status, disclosure control.
+- `RunResultHeader` — outcome, concise factual summary, user/baseline/revised counts.
+- `BriefConstants` — audience, market, brand attributes, and user rules held constant across all three stages.
+- `DecisionMatrix` — aligned user → LLM → agent rows and changed-first ordering.
+- `DecisionRow` — user choice, LLM completion, evidence reason, agent result, status, disclosure control.
 - `DecisionDetail` — why away, why toward/why retained, preserved constraints, limitations.
 - `EvidenceSummary` — three human-readable evidence blocks.
 - `AuditDetails` — alternatives, evidence records, methodology, report download.
@@ -269,10 +307,13 @@ Do not add a UI component library solely for this comparison. The current native
 
 ### Step 2 — build the one-to-one matrix
 
-1. Replace independent plan columns with aligned decision rows.
-2. Put the single most important reason in the center of every row.
-3. Sort changed/unresolved rows first while retaining an accessible plan-order option only if needed.
-4. Implement a clean vertical mobile version.
+1. Replace independent plan columns with aligned three-stage decision rows.
+2. Show `Not specified` wherever the user did not make a choice.
+3. Label each baseline value `From your brief` or `Added by LLM`.
+4. Label each final value `Retained` or `Changed by agent`.
+5. Put the single most important evidence reason between the baseline and final stages.
+6. Sort changed/unresolved rows first while retaining an accessible plan-order option only if needed.
+7. Implement a clean vertical mobile version.
 
 ### Step 3 — rewrite decision detail
 
@@ -294,6 +335,8 @@ Do not add a UI component library solely for this comparison. The current native
 Run the recorded London example and verify that a first-time viewer can answer:
 
 - What changed?
+- What did the user choose versus leave open?
+- What did the LLM add?
 - Why was the original questioned?
 - Why was this replacement selected?
 - Which user constraints were preserved?
@@ -319,12 +362,15 @@ Test desktop, narrow mobile, mouse, and keyboard. The comparison should remain r
 ### Component behavior
 
 - every component appears in one aligned comparison row;
+- user-provided and LLM-added choices are distinguishable in every row;
+- an unspecified user slot is not backfilled or mislabelled as a user choice;
+- a user choice carried into the LLM baseline keeps user provenance;
 - changed and unresolved rows appear before retained rows;
 - every row has an explicit review control;
 - opening a row closes the previously open row;
 - raw evidence and alternatives are closed by default;
 - decision details are keyboard accessible and correctly labelled;
-- mobile markup preserves Original → Reason → Revised order;
+- mobile markup preserves Your brief → LLM completion → Evidence reason → Agent revision order;
 - agent, baseline, mixed, same, and insufficient results render truthfully.
 
 ### Regression commands
@@ -340,7 +386,10 @@ No run-version bump is required if this remains a presentation-only change. Bump
 
 ## Acceptance criteria for Phase 1
 
-- A judge can identify every changed and retained choice without comparing separate tables manually.
+- A judge can identify every user choice, LLM addition, agent change, and retained choice without comparing separate tables manually.
+- The user plan, LLM completion, and agent revision appear as three distinct stages.
+- User omissions remain `Not specified`; they are never attributed to the user.
+- User-authored choices preserved by the LLM remain labelled as user-authored.
 - Each row contains a concrete reason, not only a status label.
 - Every changed choice provides both `Why move away` and `Why this replacement`.
 - Every retained choice explains why it stayed.
