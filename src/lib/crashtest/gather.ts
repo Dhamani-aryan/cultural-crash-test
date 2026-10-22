@@ -1,4 +1,5 @@
 import { checkPick } from "@/lib/agent/check";
+import type { Ranking } from "./version";
 import { mapLimit, nameKey } from "@/lib/engine/stats";
 import { SOURCE_MARKET, type Market } from "@/lib/markets";
 import type { InsightsInput, InsightsResult, QlooClient } from "@/lib/qloo";
@@ -63,6 +64,8 @@ export interface GatherContext {
   client: QlooClient;
   ledger: Ledger;
   market: Market;
+  /** How repair candidates are retrieved and ranked (v1 when absent). */
+  ranking?: Ranking;
 }
 
 async function insights(

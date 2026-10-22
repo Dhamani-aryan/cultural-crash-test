@@ -7,12 +7,16 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { SLOT_LABEL, STOP_LABEL, type Slot, type StopReason } from "../src/lib/crashtest/types";
 import { CASES } from "./cases";
 import type { CaseRow, Scored } from "./run";
+import { summarize, summaryRows } from "./summary";
 
 // EVAL_TAG reads results-<tag>.json and writes docs/EVALUATION-<tag>.md.
 const TAG = process.env.EVAL_TAG;
-const { ranAt, cases } = JSON.parse(readFileSync(TAG ? `eval/out/results-${TAG}.json` : "eval/out/results.json", "utf8")) as {
+const { ranAt, cases, runVersion, ranking, frozen } = JSON.parse(readFileSync(TAG ? `eval/out/results-${TAG}.json` : "eval/out/results.json", "utf8")) as {
   ranAt: string;
   cases: CaseRow[];
+  runVersion?: string;
+  ranking?: string;
+  frozen?: string | null;
 };
 const ok = cases.filter((c) => c.inRun);
 const pct = (x: number | null | undefined) => (x === null || x === undefined ? "–" : String(Math.round(x * 100)));
@@ -56,7 +60,17 @@ out.push(
   "",
   `**Run:** ${ranAt.slice(0, 10)} · **Briefs:** ${cases.length} (${cases.filter((c) => c.split === "dev").length} dev, ${cases.filter((c) => c.split === "heldout").length} held out) across ${new Set(cases.map((c) => c.city)).size} cities · **Mode:** live Qloo and model calls, thorough depth (≤ 3 repair rounds, ≤ 700 Qloo calls)`,
   "",
-  "Reproduce with `npm run live eval/run.ts`, then `npm run live eval/report.ts`. Raw outputs stay in the git-ignored `eval/out/` (they contain Qloo-derived data). The briefs are in [`eval/cases.ts`](../eval/cases.ts). Launching brands are fictional; audience anchors are real.",
+  "Reproduce with `npm run eval:live` (fresh drafts, end to end) or `FROZEN=<baseline> npm run eval:frozen` (identical starting plans, for comparing agent versions), then `npm run eval:report`. Raw outputs stay in the git-ignored `eval/out/` (they contain Qloo-derived data). The briefs are in [`eval/cases.ts`](../eval/cases.ts). Launching brands are fictional; audience anchors are real.",
+  "",
+  `**Agent:** ${runVersion ?? "not recorded"} · **Candidate ranking:** ${ranking ?? "v1"} · **Starting plans:** ${frozen ? `frozen baseline \`${frozen}\`` : "fresh LLM drafts (live)"}`,
+  "",
+  "## Summary (exact counts)",
+  "",
+  "| Measure | Result |",
+  "|---|---|",
+  ...summaryRows(summarize(cases)).map(([k, v]) => `| ${k} | ${v} |`),
+  "",
+  `With ${cases.length} briefs, these are exact counts, not rates; no significance is claimed.`,
   "",
   "## What is compared",
   "",

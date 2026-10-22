@@ -10,6 +10,7 @@ import { buildPlan, draftPlan } from "./plan";
 import { QueryRequestSchema, parseQuery, type QueryRequest } from "./query";
 import { applyRepair, repairDirection, repairEntity, type DraftTrial, type RepairProposal } from "./repair";
 import { writeVerdict } from "./report";
+import { rankingFrom, type Ranking } from "./version";
 import {
   DEPTHS,
   LaunchBriefSchema,
@@ -48,6 +49,13 @@ export interface RunOptions {
   limits?: { maxRepairs?: number; maxQlooCalls?: number };
   /** Recorded in the run's provenance. */
   runVersion?: string;
+  /** Candidate retrieval and ranking; defaults to RECOMMENDATION_RANKING, then v1. */
+  ranking?: Ranking;
+  /**
+   * Start from a saved, already-resolved plan instead of drafting one (frozen evaluation): the
+   * LLM draft and its resolution are skipped, so two agent versions start from identical plans.
+   */
+  start?: { plan: CulturalPlan; assumptions: string[] };
 }
 
 /** Stop after this many rounds in a row without a material improvement. */
@@ -132,7 +140,7 @@ export async function runCrashTest(
     (record) => emit({ type: "evidence", record }),
   );
   state.evidenceLedger = ledger.records;
-  const ctx: GatherContext = { client: memo.client, ledger, market };
+  const ctx: GatherContext = { client: memo.client, ledger, market, ranking: rankingFrom(opts.ranking) };
   const stage = (s: string, message: string) => {
     if (opts.signal?.aborted) throw new Cancelled();
     emit({ type: "stage", stage: s, message });
@@ -161,13 +169,21 @@ export async function runCrashTest(
     const hardText = brief.constraints.filter((c) => c.kind === "hard" && !c.lockSlot && !c.excludeNames?.length);
     for (const c of hardText) state.assumptions.push(`Hard constraint "${c.description}" isn't machine-checkable; it is shown to the model but not enforced in code.`);
 
-    stage("draft", "Drafting a first plan from the brief, without Qloo (this is also the LLM-only baseline)");
-    const draft = await draftPlan(llm, brief, market);
-    state.assumptions.push(...draft.assumptions);
+    let plan: CulturalPlan;
+    if (opts.start) {
+      stage("draft", "Starting from a saved first plan (frozen evaluation baseline)");
+      plan = opts.start.plan;
+      state.assumptions.push(...opts.start.assumptions);
+    } else {
+      stage("draft", "Drafting a first plan from the brief, without Qloo (this is also the LLM-only baseline)");
+      const draft = await draftPlan(llm, brief, market);
+      state.assumptions.push(...draft.assumptions);
 
-    stage("resolve", "Resolving the audience and every choice to Qloo entities and tags");
-    const { plan, notes } = await buildPlan({ llm, ctx, brief, draft, origin: "agent_proposed" });
-    state.assumptions.push(...notes);
+      stage("resolve", "Resolving the audience and every choice to Qloo entities and tags");
+      const built = await buildPlan({ llm, ctx, brief, draft, origin: "agent_proposed" });
+      state.assumptions.push(...built.notes);
+      plan = built.plan;
+    }
     state.initialPlan = plan;
     state.plan = plan;
     emit({ type: "plan", plan, label: "initial" });

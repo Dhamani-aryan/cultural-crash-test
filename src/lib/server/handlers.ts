@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { cacheKey, type Cache } from "@/lib/cache/cache";
 import { runCrashTest } from "@/lib/crashtest/run";
+import { RUN_VERSION, rankingFrom } from "@/lib/crashtest/version";
 import { applyIntake } from "@/lib/intake/state";
 import { IntakeRequestSchema, IntakeStateSchema } from "@/lib/intake/types";
 import { MISSING_LABEL, refresh, toLaunchBrief } from "@/lib/intake/validate";
@@ -32,12 +33,12 @@ export const CrashTestRequestSchema = z.union([
   }),
 ]);
 
-/** Bump when the agent, rubric or prompts change in a way that should invalidate recordings. */
-export const RUN_VERSION = "crash:v14";
+export { RUN_VERSION };
 const RECORDING_TTL = 14 * 24 * 60 * 60;
 
 export function runKey(brief: unknown): string {
-  return cacheKey(RUN_VERSION, brief);
+  // A recording belongs to one agent version and one candidate ranking.
+  return cacheKey(`${RUN_VERSION}:${rankingFrom()}`, brief);
 }
 
 /** Turn a callback-style run into an async stream of events. */

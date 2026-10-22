@@ -32,10 +32,18 @@ import type { LlmClient } from "../src/lib/llm/types";
 import { marketById, type Market } from "../src/lib/markets";
 import { createQlooClient, type QlooClient } from "../src/lib/qloo";
 import { withCache } from "../src/lib/qloo/cached";
+import { rankingFrom, RUN_VERSION } from "../src/lib/crashtest/version";
+import type { EntityRef } from "../src/lib/crashtest/types";
+import { loadBaseline, type BaselineCase } from "./baseline";
 import { CASES, type EvalCase } from "./cases";
 import { judgePlans, judgeWithEvidence, type EvidenceVerdict, type Verdict } from "./judge";
 
 const OUT = "eval/out";
+/** FROZEN=<baseline id> starts every brief from its saved plan instead of a fresh draft. */
+const FROZEN = process.env.FROZEN;
+if (process.argv.includes("--frozen") && !FROZEN) throw new Error("eval:frozen needs FROZEN=<baseline id> (make one with BASELINE_ID=<id> npm run eval:freeze).");
+const baseline = FROZEN ? loadBaseline(FROZEN) : null;
+const RANKING = rankingFrom();
 // EVAL_TAG writes to results-<tag>.json, so a model comparison never overwrites the main run.
 const FILE = process.env.EVAL_TAG ? `${OUT}/results-${process.env.EVAL_TAG}.json` : `${OUT}/results.json`;
 
@@ -81,6 +89,21 @@ function metered(llm: LlmClient) {
   return { client, usage };
 }
 
+export interface Metrics {
+  /** Hard rules the final plan breaks. */
+  violations: number;
+  /** User choices Qloo couldn't verify that the agent replaced anyway. */
+  unknownUserChoicesChanged: number;
+  /** Re-tested candidates kept / not kept, and choices left for a human (open questions). */
+  accepted: number;
+  rejected: number;
+  abstained: number;
+  qlooChecks: number;
+  qlooReused: number;
+  qlooCacheHits: number | null;
+  qlooRequests: number | null;
+}
+
 export interface Scored {
   supported: number;
   total: number | null;
@@ -106,6 +129,8 @@ export interface CaseRow {
     ms: number;
     usage?: Usage;
     changes: { slot: string; before: string; after: string; reverted: boolean; outcome?: string }[];
+    /** Counted from the finished run; see eval/report.ts for how each is used. */
+    metrics?: Metrics;
   };
   error: string | null;
 }
@@ -118,18 +143,19 @@ const scored = (e: PlanEvaluation): Scored => ({
 
 const labels = (p: CulturalPlan | null) => (p?.components ?? []).map((c) => `${c.slot}: ${c.label}`);
 
-async function heldOutScore(qloo: QlooClient, market: Market, c: EvalCase, state: RunState) {
+async function heldOutScore(qloo: QlooClient, market: Market, c: EvalCase, state: RunState, frozen?: BaselineCase) {
   // Every entity either plan uses as a choice: none of them may also be a held-out anchor.
   const chosen = [state.initialPlan, state.plan].flatMap((p) => p?.components ?? []);
   const isChoice = (e: { id: string; name: string }) =>
     chosen.some((x) => x.entity?.id === e.id || nameKey(x.label) === nameKey(e.name));
-  const names = [...c.heldOutAnchors, ...(c.heldOutSpares ?? [])];
-  const found = await Promise.all(names.map((n) => findInMarket(qloo, n, ["brand", "artist"], market)));
+  const names = frozen ? frozen.heldOut.map((h) => h.name) : [...c.heldOutAnchors, ...(c.heldOutSpares ?? [])];
+  // Frozen runs use the anchors as resolved when the baseline was made, so both versions match.
+  const found: (EntityRef | null)[] = frozen
+    ? frozen.heldOut.map((h) => h.ref)
+    : (await Promise.all(names.map((n) => findInMarket(qloo, n, ["brand", "artist"], market)))).map((e) => (e ? toRef(e) : null));
   const missing = names.filter((_, i) => !found[i]);
-  const excluded = found.flatMap((e) => (e && isChoice(e) ? [e.displayName] : []));
-  const anchors = found
-    .flatMap((e) => (e && !isChoice(e) ? [toRef(e)] : []))
-    .slice(0, c.heldOutAnchors.length);
+  const excluded = found.flatMap((e) => (e && isChoice(e) ? [e.name] : []));
+  const anchors = found.flatMap((e) => (e && !isChoice(e) ? [e] : [])).slice(0, frozen?.heldOutCount ?? c.heldOutAnchors.length);
   if (anchors.length < 2) return { anchors: anchors.map((a) => a.name), missing, excluded, draft: null, final: null };
   const score = async (plan: CulturalPlan) => {
     const ctx = { client: qloo, ledger: createLedger(() => 0), market };
@@ -146,11 +172,39 @@ async function heldOutScore(qloo: QlooClient, market: Market, c: EvalCase, state
   };
 }
 
+function metricsOf(state: RunState): Metrics {
+  const first = state.evaluations[0];
+  const last = state.evaluations.at(-1);
+  const unknownUserChoicesChanged = (state.initialPlan?.components ?? []).filter((c) => {
+    const before = first?.components.find((x) => x.slot === c.slot);
+    const after = state.plan?.components.find((x) => x.slot === c.slot);
+    return c.origin === "user_provided" && before?.status === "unresolved" && after && after.label !== c.label;
+  }).length;
+  const u = state.qlooUsage;
+  return {
+    violations: last?.hardConstraintViolations.length ?? 0,
+    unknownUserChoicesChanged,
+    accepted: state.changes.filter((c) => !c.reverted).length,
+    rejected: state.changes.filter((c) => c.reverted).length,
+    abstained: state.unresolvedQuestions.length,
+    qlooChecks: u?.checks ?? state.qlooCallsUsed,
+    qlooReused: u?.reused ?? 0,
+    qlooCacheHits: u?.cacheHits ?? null,
+    qlooRequests: u?.requests ?? null,
+  };
+}
+
 async function runCase(qloo: QlooClient, c: EvalCase): Promise<CaseRow> {
   const market = marketById(c.brief.marketId)!;
+  const frozen = baseline?.cases.find((x) => x.id === c.id);
+  if (baseline && !frozen) throw new Error(`baseline ${baseline.id} has no case ${c.id}`);
   const started = Date.now();
   const { client: llm, usage } = metered(agentLlm);
-  const state = await runCrashTest({ qloo, llm }, c.brief);
+  const state = await runCrashTest(
+    { qloo, llm, qlooStats },
+    frozen ? frozen.brief : c.brief,
+    { runVersion: RUN_VERSION, ranking: RANKING, start: frozen ? { plan: frozen.initialPlan, assumptions: frozen.assumptions } : undefined },
+  );
   const ms = Date.now() - started;
   const run = {
     stopReason: state.stopReason,
@@ -161,6 +215,7 @@ async function runCase(qloo: QlooClient, c: EvalCase): Promise<CaseRow> {
     usage,
     ms,
     changes: state.changes.map((x) => ({ slot: x.slot, before: x.before, after: x.after, reverted: Boolean(x.reverted), outcome: x.retest ? (x.retest.accepted ? "accepted" : x.retest.rejectionCode) : undefined })),
+    metrics: metricsOf(state),
   };
   const base = {
     id: c.id,
@@ -175,7 +230,7 @@ async function runCase(qloo: QlooClient, c: EvalCase): Promise<CaseRow> {
     return { ...base, inRun: null, heldOut: null, evidenceJudge: null, judge: null, error: state.stopDetail ?? "no evaluation" };
   }
   const inRun = { draft: scored(state.evaluations[0]), final: scored(state.evaluations.at(-1)!) };
-  const held = await heldOutScore(qloo, market, c, state);
+  const held = await heldOutScore(qloo, market, c, state, frozen);
   const judge = await judgePlans(judgeLlm, state.brief, market, state.plan, state.initialPlan).catch(() => null);
   const evidenceJudge =
     held.draft && held.final
@@ -201,10 +256,14 @@ async function runCase(qloo: QlooClient, c: EvalCase): Promise<CaseRow> {
   };
 }
 
-const only = process.argv.slice(2).filter((a) => a !== "--");
+const only = process.argv.slice(2).filter((a) => a !== "--" && a !== "--frozen");
+// Cache hits and real requests are counted per run (the controller takes the difference).
+const qlooStats = { hits: 0, requests: 0 };
 const qloo = withCache(
   createQlooClient({ ...getQlooEnv(), timeoutMs: 20_000, maxRetries: 4, onEmpty: () => {} }),
   createMemoryCache(50_000),
+  undefined,
+  qlooStats,
 );
 mkdirSync(OUT, { recursive: true });
 const previous: CaseRow[] = existsSync(FILE) ? JSON.parse(readFileSync(FILE, "utf8")).cases : [];
@@ -238,5 +297,8 @@ for (const c of CASES.filter((x) => only.length === 0 || only.includes(x.id))) {
       : `${Math.round(row.run.ms / 1000)} s, ${row.run.changes.length} changes, in-run ${row.inRun?.draft.supported}→${row.inRun?.final.supported}, held-out ${row.heldOut?.draft.supported ?? "-"}→${row.heldOut?.final.supported ?? "-"}, evidence judge ${row.evidenceJudge?.preferred ?? "-"}, blind judge ${row.judge?.preferred ?? "-"}${row.error ? ` (${row.error})` : ""}`,
   );
   const ordered = CASES.flatMap((x) => (rows.has(x.id) ? [rows.get(x.id)!] : []));
-  writeFileSync(FILE, JSON.stringify({ ranAt: new Date().toISOString(), cases: ordered }, null, 2));
+  writeFileSync(
+    FILE,
+    JSON.stringify({ ranAt: new Date().toISOString(), runVersion: RUN_VERSION, ranking: RANKING, frozen: FROZEN ?? null, model: agentLlm.model, cases: ordered }, null, 2),
+  );
 }

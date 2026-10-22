@@ -15,6 +15,12 @@
     "typecheck": "next typegen && tsc --noEmit",
     "format": "prettier --write .",
     "live": "tsx --env-file-if-exists=.env.local",
+    "eval:live": "tsx --env-file-if-exists=.env.local eval/run.ts",
+    "eval:freeze": "tsx --env-file-if-exists=.env.local eval/freeze.ts",
+    "eval:frozen": "tsx --env-file-if-exists=.env.local eval/run.ts --frozen",
+    "eval:report": "tsx --env-file-if-exists=.env.local eval/report.ts",
+    "eval:compare": "tsx --env-file-if-exists=.env.local eval/compare.ts",
+    "eval:plausibility": "tsx --env-file-if-exists=.env.local eval/plausibility-run.ts",
     "llm:login": "tsx --env-file-if-exists=.env.local scripts/chatgpt-login.ts",
     "llm:push-credential": "tsx --env-file-if-exists=.env.local scripts/push-chatgpt-credential.ts"
   },
