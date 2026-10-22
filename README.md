@@ -72,10 +72,10 @@ The model is used for four things only: the draft, mapping a direction onto Qloo
 - **Held-out audience anchors.** Both plans are re-scored with brands and artists the agent never saw.
 - **An evidence-based judge.** It is blind to which plan is the agent's and runs in both orders. It sees the same held-out Qloo evidence for both plans and must judge from it, not from taste.
 
-Latest run (run 15, agent `crash:v13`):
-- **Evidence judge:** prefers the agent's plan in 7 briefs, ties 1 (São Paulo skate, where the agent made no change) and loses none. Tokyo wasn't judged because Qloo didn't find two of its held-out anchors. Across the 6 held-out briefs: 6 / 0 / 0.
-- **Supported choices on held-out anchors:** 3 → 16 of 32. Support rose in 6 briefs and never fell. The run before measured 4 → 13 of 36, and the one before that 4 → 17. The drafts differ every run, and [`docs/DECISIONS.md`](docs/DECISIONS.md) explains the decline.
-- **A no-evidence "taste" judge** is also reported, as a reference only. It is the same model that wrote the LLM-only plan and sees no evidence, and it still prefers that plan in most briefs (0 / 6 / 3).
+Latest run (run 16, agent `crash:v14`):
+- **Evidence judge:** prefers the agent's plan in all 9 briefs, including the 6 never used for tuning.
+- **Supported choices on held-out anchors:** 4 → 18 of 36. Support rose in every brief. Recent runs measured 17, 13 and 16 (of 32). The LLM drafts differ every run, and [`docs/DECISIONS.md`](docs/DECISIONS.md) explains the spread.
+- **A no-evidence "taste" judge** is also reported, as a reference only. It is the same model that wrote the LLM-only plan and sees no evidence, and it prefers that plan in all 9 briefs.
 
 The sample is small and the report states its limits, including the earlier runs the agent lost and why.
 

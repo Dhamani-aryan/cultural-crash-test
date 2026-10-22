@@ -2,6 +2,31 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-22: Run 16 — spare rounds upgrade thin choices past an unfixable contradiction (RUN_VERSION crash:v14)
+
+**The change (owner's request).** Previously, a run stopped once every contradicted choice had been tried and none could be replaced, and its remaining repair rounds went unused. That left Madrid beer (run 14) and São Paulo skate (run 15) with no changes. Now the spare rounds go to the other thin choices, weakest first, under the same upgrade rules and acceptance guard. The unfixable choice stays in the plan, flagged for a human. A unit test covers the path: a rule-breaking brand with no allowed replacement, and the weak music act still upgraded.
+
+**Results** (the nine briefs are unchanged):
+
+| Measure | Run 13 | Run 14 | Run 15 | Run 16 (v14) |
+|---|---|---|---|---|
+| Evidence judge (agent / LLM / tie) | 8 / 0 / 1 | 7 / 0 / 2 | 7 / 0 / 1, 1 not judged | **9 / 0 / 0** |
+| Evidence judge, held-out briefs | 6 / 0 / 0 | 5 / 0 / 1 | 6 / 0 / 0 | 6 / 0 / 0 |
+| Held-out supported | 4 → 17 of 36 | 4 → 13 of 36 | 3 → 16 of 32 | **4 → 18 of 36** |
+| Briefs where held-out support rose / fell | 8 / 0 | 7 / 0 | 6 / 0 | **9 / 0** |
+| Blind reference judge | 0 / 8 / 1 | 1 / 6 / 2 | 0 / 6 / 3 | 0 / 9 / 0 |
+| Re-test outcomes recorded | – | – | 22 accepted, 1 not Supported, 1 beaten | 22 accepted, 8 not Supported, 3 no improvement |
+
+**Reading it honestly:**
+- **The new path didn't run in this evaluation.** Every brief ended with nothing contradicted (stop reason "no adjustable choice is contradicted"). The two briefs that motivated the change drafted fixable choices this time:
+  - São Paulo skate repaired its venue and direction.
+  - Madrid beer replaced its venue and act.
+
+  The gains are therefore draft variance. They don't show the change working, nor any harm from it.
+- **No loss and no held-out regression.** Support rose in all 9 briefs.
+- **The blind judge preferred the LLM draft in all 9 briefs,** the weakest result on that diagnostic. Some agent picks deserve a plausibility look, for example BAPE STORE® Harajuku as the venue for a skincare launch, or Supreme Shibuya in run 15. That is what the unreviewed cases in `eval/plausibility.ts` are for; they still need a human review.
+- **8 of 33 re-tests were upgrades that didn't reach Supported.** They were rejected and the originals kept, as the guard requires.
+
 ## 2026-10-22: Runs 14–15 — structured decision trace and acceptance guard (RUN_VERSION crash:v13)
 
 **The change (agent behaviour):**

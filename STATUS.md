@@ -83,7 +83,8 @@ All runs use the same 9 briefs. Two independent checks:
 | 12 | Unknown brands kept under unverifiable hard rules, with a human question | 4 → 19 of 36 (7 up, 0 down) | 7 / 1 / 1 (Madrid loss → tie; Tokyo loss from an anchor overlap) | 2 / 4 / 3 |
 | 13 | Eval: held-out anchors never double as plan choices (spares) | 4 → 17 of 36 (8 up, 0 down) | 8 / 0 / 1 (held-out briefs 6 / 0 / 0) | 0 / 8 / 1 |
 | 14 | `crash:v13`: structured trace, acceptance guard, run-local reuse, direction gates | 4 → 13 of 36 (7 up, 0 down) | 7 / 0 / 2 (held-out briefs 5 / 0 / 1) | 1 / 6 / 2 |
-| 15 | Same agent, re-run with rejection reasons recorded | **3 → 16 of 32 (6 up, 0 down)**; Tokyo not scored: two held-out anchors not found in Qloo | **7 / 0 / 1** (held-out briefs 6 / 0 / 0); Tokyo not judged | 0 / 6 / 3 |
+| 15 | Same agent, re-run with rejection reasons recorded | 3 → 16 of 32 (6 up, 0 down); Tokyo not scored: two held-out anchors not found in Qloo | 7 / 0 / 1 (held-out briefs 6 / 0 / 0); Tokyo not judged | 0 / 6 / 3 |
+| 16 | `crash:v14`: spare rounds upgrade thin choices when a contradicted one can't be replaced | **4 → 18 of 36 (9 up, 0 down)** | **9 / 0 / 0** (held-out briefs 6 / 0 / 0) | 0 / 9 / 0 |
 
 The no-evidence judge is the same model that wrote the LLM plan and sees no data, so it is *choosing*, not judging. It's reported for transparency only.
 
@@ -92,7 +93,8 @@ The no-evidence judge is the same model that wrote the LLM plan and sees no data
 - **Held-out total:** dropped from 17 to 13 in run 14, then measured 16 of 32 in run 15.
 - **Cause of the drop:** the LLM's drafts differ every run. In run 14 the Madrid beer draft named Fender, a guitar brand. No replacement passed the screen. The agent doesn't upgrade other choices while a contradicted one remains, so it stopped with no changes (held-out 0). That stop rule existed before this version.
 - **The new guard didn't cause it:** run 15 records each rejection. Of 24 re-tested candidates, 22 were accepted, 1 lost to a better candidate and 1 didn't reach Supported. None was rejected for costing another Supported choice or for breaking a rule.
-- **The blind judge still prefers the LLM draft** in most briefs. It's a plausibility diagnostic, not the acceptance test. Six plausibility cases are drafted in `eval/plausibility.ts` and await human review.
+- **Run 16 (`crash:v14`)** is the best evidence result since run 11 and the highest held-out total since then. But every brief ended with nothing contradicted, so the new upgrade-past-an-unfixable-choice path never ran. The gain is draft variance; the path itself is covered only by a unit test so far.
+- **The blind judge still prefers the LLM draft** in most briefs (all 9 in run 16). It's a plausibility diagnostic, not the acceptance test. Six plausibility cases are drafted in `eval/plausibility.ts` and await human review.
 
 ## What's left
 
