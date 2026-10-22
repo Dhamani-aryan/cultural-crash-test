@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildDecisions } from "@/lib/crashtest/explain";
 import { changeOutcome } from "@/lib/crashtest/decision-trace";
 import { buildJudgeGraph, graphAsTree, pathText, RELATION_LABEL, visibleGraph } from "@/lib/crashtest/judge-graph";
-import { layoutGraph } from "@/lib/crashtest/judge-layout";
+import { layoutGraph, NODE_RADIUS } from "@/lib/crashtest/judge-layout";
 import { runCrashTest } from "@/lib/crashtest/run";
 import type { LaunchBriefInput, RunState } from "@/lib/crashtest/types";
 import { LONDON_BRIEF, worldClient, worldLlm } from "./world";
@@ -150,17 +150,17 @@ describe("buildJudgeGraph", () => {
     );
   });
 
-  it("lays out deterministically: plan centred in the overview, focus by replay step", async () => {
+  it("lays out deterministically: brief | decisions | plan in the overview, focus by replay step", async () => {
     const g = buildJudgeGraph(await run());
     const a = layoutGraph(g);
     expect(layoutGraph(g)).toEqual(a);
-    const plan = a.positions.plan;
     const finals = g.nodes.filter((n) => n.kind === "final_choice").map((n) => a.positions[n.id]);
-    // Four decisions surround the plan: two on each side, two above and two below it.
-    expect(finals.filter((p) => p[0] < plan[0])).toHaveLength(2);
-    expect(finals.filter((p) => p[1] > plan[1])).toHaveLength(2);
-    // The brief sits outside that ring, so its lines to the decisions never cross the plan.
-    expect(a.positions.brief[0]).toBeLessThan(Math.min(...finals.map((p) => p[0])));
+    // One column of decisions between the brief and the plan.
+    expect(new Set(finals.map((p) => p[0])).size).toBe(1);
+    expect(a.positions.brief[0]).toBeLessThan(finals[0][0]);
+    expect(finals[0][0]).toBeLessThan(a.positions.plan[0]);
+    // Depth is shallow: it adds parallax, never hides a crossing.
+    for (const p of Object.values(a.positions)) expect(Math.abs(p[2])).toBeLessThanOrEqual(0.6);
     const f = layoutGraph(g, "artist_music");
     const x = (id: string) => f.positions[id][0];
     expect(x("artist_music:user")).toBeLessThan(x("artist_music:llm"));
@@ -170,6 +170,58 @@ describe("buildJudgeGraph", () => {
     expect(x("artist_music:retest")).toBeLessThan(x("artist_music:final"));
     expect(f.active.has("brand_collaboration:final")).toBe(false);
     for (const n of visibleGraph(g, "artist_music").nodes) expect(f.positions[n.id]).toBeDefined();
+  });
+
+  describe("edge routing", () => {
+    const d = (p: number[], q: number[]) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+    const views = async () => {
+      const s = await run();
+      const reverted = { ...s.changes[0], after: "Coast Kid", reverted: true, retest: { ...s.changes[0].retest!, accepted: false, rejectionCode: "no_improvement" as const } };
+      const g = buildJudgeGraph({ ...s, changes: [reverted, ...s.changes] });
+      return { g, views: [undefined, ...g.decisions.map((x) => x.slot)].map((focus) => ({ focus, layout: layoutGraph(g, focus), view: visibleGraph(g, focus) })) };
+    };
+
+    it("routes every visible edge, clipped at the boundary of both shapes", async () => {
+      const { g, views: vs } = await views();
+      for (const { layout, view } of vs) {
+        for (const e of view.edges) {
+          const r = layout.routes[e.id];
+          expect(r).toBeDefined();
+          expect(r.points.length).toBeGreaterThan(1);
+          const [first, last] = [r.points[0], r.points.at(-1)!];
+          // Starts and ends on the shapes' edges, never at their centres.
+          expect(d(first, layout.positions[e.source])).toBeGreaterThanOrEqual(r.sourceRadius - 1e-3);
+          expect(d(last, layout.positions[e.target])).toBeGreaterThanOrEqual(r.targetRadius - 1e-3);
+          expect(d(first, layout.positions[e.source])).toBeLessThan(r.sourceRadius + 0.1);
+          expect(d(last, layout.positions[e.target])).toBeLessThan(r.targetRadius + 0.1);
+        }
+      }
+      expect(g.edges.length).toBeGreaterThan(0);
+    });
+
+    it("never passes through an unrelated node in the default overview or any focused view", async () => {
+      const { g, views: vs } = await views();
+      const kind = new Map(g.nodes.map((n) => [n.id, n.kind]));
+      for (const { layout, view } of vs) {
+        for (const e of view.edges) {
+          for (const n of view.nodes) {
+            if (n.id === e.source || n.id === e.target) continue;
+            const r = NODE_RADIUS[kind.get(n.id)!];
+            for (const p of layout.routes[e.id].points) expect(d(p, layout.positions[n.id])).toBeGreaterThan(r);
+          }
+        }
+      }
+    });
+
+    it("gives two edges between the same nodes different routes", async () => {
+      const { views: vs } = await views();
+      const music = vs.find((v) => v.focus === "artist_music")!;
+      const pair = music.view.edges.filter((e) => [e.source, e.target].sort().join() === ["artist_music:candidate:0", "artist_music:retest"].sort().join());
+      expect(pair).toHaveLength(2);
+      const [p, q] = pair.map((e) => music.layout.routes[e.id].points);
+      const mid = (pts: number[][]) => pts[Math.floor(pts.length / 2)];
+      expect(d(mid(p), mid(q))).toBeGreaterThan(0.3);
+    });
   });
 
   it("matches the reviewed London fixture", async () => {

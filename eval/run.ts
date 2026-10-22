@@ -105,7 +105,7 @@ export interface CaseRow {
   run: Pick<RunState, "stopReason" | "stopDetail" | "currentIteration" | "qlooCallsUsed" | "llmCalls"> & {
     ms: number;
     usage?: Usage;
-    changes: { slot: string; before: string; after: string; reverted: boolean }[];
+    changes: { slot: string; before: string; after: string; reverted: boolean; outcome?: string }[];
   };
   error: string | null;
 }
@@ -160,7 +160,7 @@ async function runCase(qloo: QlooClient, c: EvalCase): Promise<CaseRow> {
     llmCalls: state.llmCalls,
     usage,
     ms,
-    changes: state.changes.map((x) => ({ slot: x.slot, before: x.before, after: x.after, reverted: Boolean(x.reverted) })),
+    changes: state.changes.map((x) => ({ slot: x.slot, before: x.before, after: x.after, reverted: Boolean(x.reverted), outcome: x.retest ? (x.retest.accepted ? "accepted" : x.retest.rejectionCode) : undefined })),
   };
   const base = {
     id: c.id,

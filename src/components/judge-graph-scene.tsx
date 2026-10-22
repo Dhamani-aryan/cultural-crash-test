@@ -5,7 +5,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { KIND_LABEL, RELATION_LABEL, visibleGraph, type JudgeGraph, type JudgeGraphEdge, type JudgeGraphNode } from "@/lib/crashtest/judge-graph";
-import type { GraphLayout } from "@/lib/crashtest/judge-layout";
+import { NODE_RADIUS, type GraphLayout, type RoutedEdge } from "@/lib/crashtest/judge-layout";
 import { replayTimes, type ReplayTimeline } from "@/lib/crashtest/judge-replay";
 import { SLOT_LABEL, type Slot } from "@/lib/crashtest/types";
 
@@ -30,6 +30,26 @@ export function nodeColor(n: JudgeGraphNode): string {
 type Store = Map<string, THREE.Vector3>;
 type NodeVis = (id: string) => { shown: boolean; opacity: number };
 type EdgeProgress = (id: string) => number;
+/** Per edge, chosen by the label pass: which route to draw and which of its segments sit under a label. */
+type EdgeChoice = Map<string, { alt: number; hidden: Set<number> }>;
+/** The most points any route has (its samples plus the two clipped ends). */
+const MAX_POINTS = 28;
+
+/** A route as drawn now: the routed points, carried along as its two nodes move or drift. */
+function livePoints(route: RoutedEdge, alt: number, e: JudgeGraphEdge, layout: GraphLayout, disp: Store): THREE.Vector3[] {
+  const pts = (alt > 0 ? route.alternatives[alt - 1] : undefined) ?? route.points;
+  const home = (id: string) => layout.positions[id];
+  const delta = (id: string) => {
+    const d = disp.get(id);
+    const h = home(id);
+    return d && h ? new THREE.Vector3(d.x - h[0], d.y - h[1], d.z - h[2]) : new THREE.Vector3();
+  };
+  const [da, db] = [delta(e.source), delta(e.target)];
+  return pts.map((p, i) => {
+    const t = pts.length > 1 ? i / (pts.length - 1) : 0;
+    return new THREE.Vector3(p[0], p[1], p[2]).add(da.clone().lerp(db, t));
+  });
+}
 type FrameHook = (camera: THREE.Camera, size: { width: number; height: number }, disp: Store, vis: NodeVis, progress: EdgeProgress) => void;
 
 export interface SceneProps {
@@ -196,26 +216,53 @@ function NodeMesh({
   );
 }
 
-/** A line that grows from its source to its target as the replay draws it. */
-function EdgeLine({ e, disp, progress, strong, selected }: { e: JudgeGraphEdge; disp: Store; progress: EdgeProgress; strong: boolean; selected: boolean }) {
+/**
+ * A routed curve that grows along its route as the replay draws it. It is drawn as segments, so
+ * a segment that would pass behind a label can be left out entirely.
+ */
+function EdgeLine({
+  e,
+  disp,
+  layout,
+  progress,
+  choice,
+  strong,
+  selected,
+}: {
+  e: JudgeGraphEdge;
+  disp: Store;
+  layout: GraphLayout;
+  progress: EdgeProgress;
+  choice: EdgeChoice;
+  strong: boolean;
+  selected: boolean;
+}) {
   const line = useRef<THREE.Object3D & { geometry: { setPositions: (p: number[]) => void }; material: THREE.Material & { opacity: number } }>(null);
-  const [end] = useState(() => new THREE.Vector3());
+  const [flat] = useState(() => new Array<number>((MAX_POINTS - 1) * 6).fill(0));
   useFrame(() => {
-    const a = disp.get(e.source);
-    const b = disp.get(e.target);
-    if (!a || !b || !line.current) return;
-    const p = progress(e.id);
-    end.lerpVectors(a, b, p);
-    line.current.geometry.setPositions([a.x, a.y, a.z, end.x, end.y, end.z]);
+    const route = layout.routes[e.id];
+    if (!line.current) return;
+    const p = route ? progress(e.id) : 0;
+    flat.fill(0);
+    if (route && p > 0) {
+      const c = choice.get(e.id);
+      const pts = livePoints(route, c?.alt ?? 0, e, layout, disp);
+      const drawn = p * (pts.length - 1);
+      for (let k = 0; k < pts.length - 1 && k < MAX_POINTS - 1; k++) {
+        if (k >= drawn || c?.hidden.has(k)) continue;
+        const a = pts[k];
+        const b = k + 1 <= drawn ? pts[k + 1] : a.clone().lerp(pts[k + 1], drawn - k);
+        flat.splice(k * 6, 6, a.x, a.y, a.z, b.x, b.y, b.z);
+      }
+    }
+    line.current.geometry.setPositions(flat);
     line.current.material.opacity = p <= 0 ? 0 : selected ? 0.95 : strong ? 0.55 : 0.18;
   });
   return (
     <Line
       ref={line as never}
-      points={[
-        [0, 0, 0],
-        [0, 0, 0.001],
-      ]}
+      segments
+      points={Array.from({ length: (MAX_POINTS - 1) * 2 }, () => [0, 0, 0] as [number, number, number])}
       color={selected ? COLOR.select : e.relation === "rejected_after_retest" || e.relation === "did_not_support" ? COLOR.amber : "#ffffff"}
       lineWidth={selected ? 2 : strong ? 1.3 : 1}
       transparent
@@ -242,7 +289,8 @@ function Rig({ layout, fitKey, reduced, selected }: { layout: GraphLayout; fitKe
     const [w, h] = at ? [8, 5] : layout.size;
     const d = Math.max(h / 2 / Math.tan(half), w / 2 / (Math.tan(half) * aspect)) + 1.2;
     const toT = new THREE.Vector3(...(at ?? layout.center));
-    const toP = toT.clone().add(new THREE.Vector3(0.1, 0.16, 1).normalize().multiplyScalar(d));
+    // Straight on: the routes and labels were laid out for this view.
+    const toP = toT.clone().add(new THREE.Vector3(0, 0, d));
     anim.current = { t0: performance.now(), fromP: camera.position.clone(), toP, fromT: controls.target.clone(), toT };
   }, [layout, fitKey, controls, camera, size.width, size.height, at]);
   useFrame(() => {
@@ -258,8 +306,8 @@ function Rig({ layout, fitKey, reduced, selected }: { layout: GraphLayout; fitKe
   return null;
 }
 
-function Scene(props: SceneProps & { visuals: Visuals; onFrame: FrameHook; onHover: (id: string | null) => void }) {
-  const { graph, layout, timeline, replayStart, reduced, selected, fitKey, onSelect, visuals, onFrame, onHover } = props;
+function Scene(props: SceneProps & { visuals: Visuals; onFrame: FrameHook; onHover: (id: string | null) => void; choice: EdgeChoice }) {
+  const { graph, layout, timeline, replayStart, reduced, selected, fitKey, onSelect, visuals, onFrame, onHover, choice } = props;
   // Live positions and the replay clock, mutated every frame; held in state so they are stable objects.
   const [cur] = useState<Store>(() => new Map());
   const [disp] = useState<Store>(() => new Map());
@@ -322,7 +370,7 @@ function Scene(props: SceneProps & { visuals: Visuals; onFrame: FrameHook; onHov
       <pointLight position={[4, 6, 8]} intensity={40} />
       {graph.edges.map((e) => {
         const v = visuals.edges.get(e.id)!;
-        return <EdgeLine key={e.id} e={e} disp={disp} progress={progress} strong={v.strong} selected={v.selected} />;
+        return <EdgeLine key={e.id} e={e} disp={disp} layout={layout} progress={progress} choice={choice} strong={v.strong} selected={v.selected} />;
       })}
       {graph.nodes.map((n) => (
         <NodeMesh key={n.id} n={n} disp={disp} vis={vis} selected={selected === n.id} onSelect={onSelect} onHover={onHover} />
@@ -335,6 +383,29 @@ function Scene(props: SceneProps & { visuals: Visuals; onFrame: FrameHook; onHov
 
 const PAD = 12;
 type Rect = { x: number; y: number; w: number; h: number };
+/** Does the segment p→q pass through rectangle r (with a hair of padding)? */
+function segmentHits(p: { x: number; y: number }, q: { x: number; y: number }, r: Rect): boolean {
+  const [x0, y0, x1, y1] = [r.x - 2, r.y - 2, r.x + r.w + 2, r.y + r.h + 2];
+  let [t0, t1] = [0, 1];
+  const dx = q.x - p.x;
+  const dy = q.y - p.y;
+  for (const [pp, qq] of [
+    [-dx, p.x - x0],
+    [dx, x1 - p.x],
+    [-dy, p.y - y0],
+    [dy, y1 - p.y],
+  ]) {
+    if (pp === 0) {
+      if (qq < 0) return false;
+      continue;
+    }
+    const t = qq / pp;
+    if (pp < 0) t0 = Math.max(t0, t);
+    else t1 = Math.min(t1, t);
+    if (t0 > t1) return false;
+  }
+  return true;
+}
 const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w + 4 && b.x < a.x + a.w + 4 && a.y < b.y + b.h + 2 && b.y < a.y + a.h + 2;
 
 export default function JudgeGraphScene(props: SceneProps & { onMiss: () => void }) {
@@ -344,70 +415,95 @@ export default function JudgeGraphScene(props: SceneProps & { onMiss: () => void
   const overlay = useRef<Map<string, HTMLElement>>(new Map());
   const tmp = useRef(new THREE.Vector3());
 
-  // Every frame: project each label's anchor, then place labels by priority so none overlap,
-  // none leave the canvas, and a label sits above its node in the lower part of the canvas.
+  // Which route each edge draws and which segments it hides; written by the label pass below.
+  const [choice] = useState<EdgeChoice>(() => new Map());
+
+  // Every frame: place labels, then make sure no line runs behind any of them.
   const onFrame: FrameHook = (camera, { width, height }, disp, vis, progress) => {
     const v = tmp.current;
-    const project = (p: THREE.Vector3) => {
-      v.copy(p).project(camera);
+    const project = (p: THREE.Vector3 | number[]) => {
+      if (p instanceof THREE.Vector3) v.copy(p);
+      else v.set(p[0], p[1], p[2]);
+      v.project(camera);
       return { x: ((v.x + 1) / 2) * width, y: ((1 - v.y) / 2) * height, behind: v.z > 1 };
     };
-    const placed: Rect[] = [];
-    const jobs: { el: HTMLElement; x: number; y: number; priority: number; node: boolean }[] = [];
+    const kindOf = new Map(scene.graph.nodes.map((n) => [n.id, n.kind]));
+    // Each visible node's projected disc; labels keep outside them.
+    const discs = new Map<string, { x: number; y: number; r: number }>();
+    for (const n of scene.graph.nodes) {
+      const p = disp.get(n.id);
+      if (!p || !vis(n.id).shown) continue;
+      const c = project(p);
+      const edge = project(new THREE.Vector3(p.x + NODE_RADIUS[n.kind], p.y, p.z));
+      if (!c.behind) discs.set(n.id, { x: c.x, y: c.y, r: Math.hypot(edge.x - c.x, edge.y - c.y) });
+    }
+    const placed: Rect[] = [...discs.values()].map((d) => ({ x: d.x - d.r, y: d.y - d.r, w: d.r * 2, h: d.r * 2 }));
+    const labels: Rect[] = [];
+    const jobs: { key: string; el: HTMLElement; priority: number; node: boolean }[] = [];
     for (const [key, el] of overlay.current) {
-      if (key.startsWith("edge:")) {
-        const id = key.slice(5);
-        const e = scene.graph.edges.find((x) => x.id === id);
-        const a = e && disp.get(e.source);
-        const b = e && disp.get(e.target);
-        if (!a || !b || progress(id) < 1) {
-          el.style.visibility = "hidden";
-          continue;
-        }
-        const m = project(new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5));
-        jobs.push({ el, x: m.x, y: m.y, priority: 9, node: false });
-      } else {
-        const p = disp.get(key);
-        const nv = visuals.nodes.get(key);
-        if (!p || !nv?.label || !vis(key).shown) {
-          el.style.visibility = "hidden";
-          continue;
-        }
-        const s = project(p);
-        // A node off the canvas keeps no label: clamping it in would put it beside another node.
-        if (s.behind || s.x < 0 || s.x > width || s.y < 0 || s.y > height) {
-          el.style.visibility = "hidden";
-          continue;
-        }
-        jobs.push({ el, x: s.x, y: s.y, priority: nv.priority, node: true });
+      const isEdge = key.startsWith("edge:");
+      const ok = isEdge ? progress(key.slice(5)) >= 1 : !!visuals.nodes.get(key)?.label && discs.has(key);
+      if (!ok) {
+        el.style.visibility = "hidden";
+        continue;
       }
+      jobs.push({ key, el, priority: isEdge ? 9 : visuals.nodes.get(key)!.priority, node: !isEdge });
     }
     jobs.sort((a, b) => a.priority - b.priority);
+    const inside = (r: Rect) => r.x >= PAD && r.y >= PAD && r.x + r.w <= width - PAD && r.y + r.h <= height - PAD;
     for (const j of jobs) {
       const w = j.el.offsetWidth;
       const h = j.el.offsetHeight;
-      const below = j.y < height * 0.62;
-      const x = Math.min(Math.max(PAD, j.x - w / 2), width - PAD - w);
-      const base = j.node ? (below ? j.y + 16 : j.y - 16 - h) : j.y - h / 2;
-      const dir = below ? 1 : -1;
-      const tries = [0, dir * (h + 4), -dir * (h + 4), dir * 2 * (h + 4)];
-      let spot: Rect | null = null;
-      for (const off of tries) {
-        const y = base + off;
-        if (y < PAD || y + h > height - PAD) continue;
-        const r = { x, y, w, h };
-        if (!placed.some((p) => overlaps(p, r))) {
-          spot = r;
-          break;
-        }
+      const spots: Rect[] = [];
+      if (j.node) {
+        const d = discs.get(j.key)!;
+        const gap = d.r + 6;
+        const home = scene.layout.positions[j.key];
+        const above = { x: d.x - w / 2, y: d.y - gap - h, w, h };
+        const below = { x: d.x - w / 2, y: d.y + gap, w, h };
+        // Overview anchors are fixed so the picture is stable; focused labels go above in the lower part.
+        if (!scene.focus && j.key === "brief") spots.push({ x: d.x - gap - w - 2, y: d.y - h / 2, w, h }, above, below);
+        else if (!scene.focus && j.key === "plan") spots.push({ x: d.x + gap + 2, y: d.y - h / 2, w, h }, above, below);
+        else if (!scene.focus && kindOf.get(j.key) === "final_choice") spots.push(...(home && home[1] > 0 ? [above, below] : [below, above]));
+        else spots.push(...(d.y > height * 0.62 ? [above, below] : [below, above]));
+        // Then the same spots nudged sideways, before giving up.
+        for (const s0 of [...spots]) spots.push({ ...s0, x: s0.x + w / 2 + 8 }, { ...s0, x: s0.x - w / 2 - 8 });
+      } else {
+        const e = scene.graph.edges.find((x) => x.id === j.key.slice(5));
+        const route = e && scene.layout.routes[e.id];
+        if (!e || !route) continue;
+        const pts = livePoints(route, choice.get(e.id)?.alt ?? 0, e, scene.layout, disp);
+        const m = project(pts[Math.floor(pts.length / 2)]);
+        spots.push({ x: m.x - w / 2, y: m.y - h / 2, w, h });
       }
+      const spot = spots.find((r) => inside(r) && !placed.some((p) => overlaps(p, r)));
       if (!spot) {
         j.el.style.visibility = "hidden";
         continue;
       }
       placed.push(spot);
+      labels.push(spot);
       j.el.style.visibility = "visible";
       j.el.style.transform = `translate(${spot.x}px, ${spot.y}px)`;
+    }
+
+    // No line may run behind a label: take the first route that clears every label, else hide
+    // the segments that would pass behind one.
+    for (const e of scene.graph.edges) {
+      const route = scene.layout.routes[e.id];
+      if (!route || !visuals.edges.get(e.id)?.inView) continue;
+      let pick = { alt: 0, hidden: new Set<number>() };
+      for (let alt = 0; alt <= route.alternatives.length; alt++) {
+        const pts = livePoints(route, alt, e, scene.layout, disp).map((p) => project(p));
+        const hidden = new Set<number>();
+        for (let k = 0; k < pts.length - 1; k++) if (labels.some((r) => segmentHits(pts[k], pts[k + 1], r))) hidden.add(k);
+        if (alt === 0) pick = { alt, hidden };
+        if (!hidden.size) {
+          pick = { alt, hidden };
+          break;
+        }
+      }
+      choice.set(e.id, pick);
     }
   };
   const keep = (key: string, el: HTMLElement | null) => {
@@ -417,7 +513,7 @@ export default function JudgeGraphScene(props: SceneProps & { onMiss: () => void
   return (
     <div className="relative h-full w-full">
       <Canvas dpr={[1, 2]} camera={{ fov: 38, position: [0, 1.5, 16] }} onPointerMissed={onMiss} aria-hidden>
-        <Scene {...scene} visuals={visuals} onFrame={onFrame} onHover={setHover} />
+        <Scene {...scene} visuals={visuals} onFrame={onFrame} onHover={setHover} choice={choice} />
       </Canvas>
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         {scene.graph.nodes.map((n) => {

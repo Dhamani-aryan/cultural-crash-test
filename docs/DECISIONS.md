@@ -2,6 +2,30 @@
 
 Newest first. Each entry: date, decision, evidence.
 
+## 2026-10-22: Runs 14–15 — structured decision trace and acceptance guard (RUN_VERSION crash:v13)
+
+**The change (agent behaviour):**
+- **Structured re-tests:** each candidate's full-plan re-test is recorded as numbers (`RetestResult`), and every candidate considered is a `CandidateTrial`. Nothing on screen parses a sentence any more.
+- **Acceptance guard:** a replacement may not cost another Supported choice unless it removes a contradiction. When it does, the trade-off is recorded. Hard rules are still enforced, and upgrades must reach Supported and be materially better.
+- **Run-local reuse:** repeated Qloo requests inside a run are answered from memory before the budget.
+- **Direction gates:** the creative direction keeps terms this audience already leans to and never adopts a tag the brief rules out.
+
+**Results** (the nine briefs are unchanged):
+
+| Measure | Run 13 (v12) | Run 14 (v13) | Run 15 (v13) |
+|---|---|---|---|
+| Evidence judge (agent / LLM / tie) | 8 / 0 / 1 | 7 / 0 / 2 | 7 / 0 / 1, Tokyo not judged |
+| Evidence judge, held-out briefs | 6 / 0 / 0 | 5 / 0 / 1 | 6 / 0 / 0 |
+| Held-out supported | 4 → 17 of 36 | 4 → 13 of 36 | 3 → 16 of 32 |
+| Briefs where held-out support rose / fell | 8 / 0 | 7 / 0 | 6 / 0 (of 8) |
+| Blind reference judge | 0 / 8 / 1 | 1 / 6 / 2 | 0 / 6 / 3 |
+
+**Reading it:**
+- **Gate:** no new evidence-judge loss, and no brief fell below its own draft on held-out anchors.
+- **The decline in run 14 is draft variance, not the guard.** Madrid beer's draft (Fender as collaborator) left a contradicted choice nothing could replace, and the agent doesn't upgrade other choices in that state. Run 15 recorded every rejection: 22 of 24 re-tests accepted, 1 lost to a better candidate, 1 didn't reach Supported, and none rejected for a lost Supported choice or a rule.
+- **Tokyo in run 15:** Qloo didn't find two of the held-out anchors (WTAPS, Cav Empt), so that brief has no held-out score or evidence verdict.
+- **Open question for the owner:** when a contradicted choice can't be replaced, the run stops without upgrading the other thin choices. This caused ties in Madrid beer (run 14) and São Paulo skate (run 15). Changing it is a behaviour change and needs its own evaluation.
+
 ## 2026-10-21: Run 13 — held-out anchors never double as plan choices
 
 **The fix (eval only, agent unchanged).** Each case now has spare held-out anchors. Any held-out anchor that either plan uses as a choice is swapped for a spare, and the report lists the exclusion. Qloo leaves signal entities out of its results, so otherwise that choice would be tested against itself. The overlap had already appeared twice:
