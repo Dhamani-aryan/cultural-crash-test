@@ -6,11 +6,11 @@ import { SLOT_LABEL, STATUS_LABEL, STOP_LABEL, type RunState } from "@/lib/crash
 
 const eyebrow = "font-mono text-[10px] uppercase tracking-[0.11em] text-muted";
 
-function StageValue({ value, note, status, strong = false }: { value: string; note: string; status?: string; strong?: boolean }) {
+function StageValue({ value, note, status }: { value: string; note: string; status?: string }) {
   return (
     <div>
-      <p className={`text-[15px] leading-5 ${strong ? "font-semibold text-ink" : "text-ink"}`}>{value}</p>
-      <p className="mt-1 text-xs leading-4 text-muted">
+      <p className="text-[15px] font-semibold leading-5 text-ink">{value}</p>
+      <p className="mt-1 text-xs font-medium leading-4 text-muted">
         {note}
         {status ? ` · ${status}` : ""}
       </p>
@@ -33,30 +33,30 @@ export function decisionNarrative(d: DecisionExplanation): string {
 
 function DecisionRows({ d }: { d: DecisionExplanation }) {
   return (
-    <tbody className="border-t border-line first:border-t-0">
+    <tbody className="border-t-2 border-line first:border-t-0">
       <tr className="align-top">
-        <th scope="row" className="w-[13%] px-4 py-5 text-left font-mono text-[10px] font-medium uppercase tracking-[0.1em] text-muted">
+        <th scope="row" className="w-[16%] border-r border-line bg-panel-2/30 px-4 py-5 text-left text-xs font-bold uppercase tracking-[0.06em] text-ink">
           {SLOT_LABEL[d.slot]}
         </th>
-        <td className="w-[27%] px-4 py-5">
+        <td className="w-[28%] px-5 py-5">
           {d.userChoice ? (
             <StageValue value={d.userChoice.label} note={d.userChoice.locked ? "Your choice · fixed" : "Your choice"} />
           ) : (
             <StageValue value="Not specified" note="You left this open" />
           )}
         </td>
-        <td className="w-[30%] px-4 py-5">
+        <td className="w-[28%] border-l border-line px-5 py-5">
           <StageValue value={d.baseline.label} note={d.baseline.origin === "user_provided" ? "Carried forward from you" : "Added by the LLM"} status={STATUS_LABEL[d.baseline.status]} />
         </td>
-        <td className="w-[30%] px-4 py-5">
-          <StageValue value={d.revised.label} note={d.changed ? "Changed by the agent" : "Kept by the agent"} status={STATUS_LABEL[d.revised.status]} strong />
+        <td className="w-[28%] border-l border-line px-5 py-5">
+          <StageValue value={d.revised.label} note={d.changed ? "Changed by the agent" : "Kept by the agent"} status={STATUS_LABEL[d.revised.status]} />
         </td>
       </tr>
       <tr className="bg-panel-2/55 align-top">
-        <th scope="row" className="px-4 py-4 text-left font-mono text-[10px] font-medium uppercase tracking-[0.1em] text-muted">
+        <th scope="row" className="border-r border-line px-4 py-4 text-left text-xs font-bold uppercase tracking-[0.06em] text-ink">
           Why
         </th>
-        <td colSpan={3} className="px-4 py-4">
+        <td colSpan={3} className="px-5 py-4">
           <p className="max-w-4xl text-[14px] leading-6 text-ink-2">{decisionNarrative(d)}</p>
           {d.limitations.length > 1 && <p className="mt-2 text-xs leading-5 text-muted">Note: {d.limitations.slice(0, -1).join(" ")}</p>}
         </td>
@@ -78,14 +78,14 @@ export function ComparisonTable({ decisions }: { decisions: DecisionExplanation[
           Each choice is shown side by side. The row beneath it explains, in plain language, why the agent kept it or changed it.
         </p>
       </div>
-      <div className="overflow-x-auto border border-line bg-panel">
+      <div className="overflow-x-auto rounded-xl border border-line bg-panel shadow-sm">
         <table className="w-full min-w-[780px] border-collapse">
           <thead>
-            <tr className="border-b border-line bg-[#eeede8] text-left">
-              <th className={`px-4 py-3 ${eyebrow}`}>Choice</th>
-              <th className={`px-4 py-3 ${eyebrow}`}>You</th>
-              <th className={`px-4 py-3 ${eyebrow}`}>LLM</th>
-              <th className={`px-4 py-3 ${eyebrow}`}>Agent</th>
+            <tr className="border-b border-line bg-[#e9e7e1] text-left">
+              <th className="border-r border-line px-4 py-3.5 text-xs font-bold uppercase tracking-[0.08em] text-ink">Choice</th>
+              <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.08em] text-ink">You</th>
+              <th className="border-l border-line px-5 py-3.5 text-xs font-bold uppercase tracking-[0.08em] text-ink">LLM</th>
+              <th className="border-l border-line px-5 py-3.5 text-xs font-bold uppercase tracking-[0.08em] text-ink">Agent</th>
             </tr>
           </thead>
           {decisions.map((d) => <DecisionRows key={d.slot} d={d} />)}

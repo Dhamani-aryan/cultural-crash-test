@@ -39,7 +39,7 @@ function Composer({
     if (ref.current) ref.current.style.height = "";
   };
   return (
-    <div className="soft-shadow flex items-end gap-3 border border-line bg-panel px-4 py-3 transition-colors focus-within:border-ink/35">
+    <div className="soft-shadow flex items-end gap-3 rounded-xl border border-line bg-panel px-4 py-3 transition-colors focus-within:border-ink/35">
       <label htmlFor="chat-input" className="sr-only">
         Message
       </label>
@@ -69,7 +69,7 @@ function Composer({
         onClick={send}
         disabled={busy || !text.trim()}
         aria-label="Send"
-        className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center bg-ink text-panel transition-colors hover:bg-accent disabled:opacity-20 disabled:hover:bg-ink"
+        className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink text-panel transition-colors hover:bg-accent disabled:opacity-20 disabled:hover:bg-ink"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
           <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
@@ -139,7 +139,7 @@ function Sidebar({
           <button
             type="button"
             onClick={onNew}
-            className="flex w-full items-center gap-2 border border-ink/15 bg-panel px-3 py-2.5 text-sm font-medium text-ink transition-colors hover:border-ink/30"
+            className="flex w-full items-center gap-2 rounded-lg border border-ink/15 bg-panel px-3 py-2.5 text-sm font-medium text-ink transition-colors hover:border-ink/30"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
               <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -156,7 +156,7 @@ function Sidebar({
                   type="button"
                   onClick={() => onOpen(c)}
                   aria-current={c.id === activeId ? "page" : undefined}
-                  className={`w-full truncate border-l-2 px-3 py-2.5 pr-8 text-left text-sm transition-colors ${c.id === activeId ? "border-accent bg-panel/70 text-ink" : "border-transparent text-ink-2 hover:bg-panel/55"}`}
+                  className={`w-full truncate rounded-lg border-l-2 px-3 py-2.5 pr-8 text-left text-sm transition-colors ${c.id === activeId ? "border-accent bg-panel text-ink shadow-sm" : "border-transparent text-ink-2 hover:bg-panel/70"}`}
                   title={c.title}
                 >
                   {c.title}
@@ -297,7 +297,7 @@ export function ChatApp() {
                             key={j}
                             type="button"
                             onClick={() => chip(c)}
-                            className={`border px-3.5 py-2 text-sm transition-colors ${c.action === "confirm" ? "border-accent bg-accent text-white hover:bg-[var(--accent-hover)]" : "border-line bg-panel text-ink-2 hover:border-ink/30"}`}
+                            className={`rounded-lg border px-3.5 py-2 text-sm transition-colors ${c.action === "confirm" ? "border-accent bg-accent text-white hover:bg-[var(--accent-hover)]" : "border-line bg-panel text-ink-2 hover:border-ink/30"}`}
                           >
                             {c.label}
                           </button>
