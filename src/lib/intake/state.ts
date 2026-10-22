@@ -103,7 +103,7 @@ export function summaryText(state: IntakeState): string {
   const b = state.brief;
   const city = marketById(b.marketId)?.label ?? b.marketId;
   const lines = [
-    `Here's what I'll test:`,
+    `Brief ready for review:`,
     `• ${b.brandName ? `${b.brandName}: ` : ""}${b.productCategory}${b.launchGoal ? `, ${b.launchGoal}` : ""}, in ${city}`,
     `• For: ${b.audienceDescription}${b.audienceAnchors.length ? ` (fans of ${b.audienceAnchors.join(", ")})` : ""}`,
   ];
@@ -112,7 +112,7 @@ export function summaryText(state: IntakeState): string {
     lines.push(`• Your picks: ${b.choices.map((c) => `${c.name}${c.locked ? " (fixed)" : ""}`).join(", ")}`);
   if (b.exclude.length || b.otherRules.length) lines.push(`• Rules: ${[...b.exclude.map((x) => `no ${x}`), ...b.otherRules].join("; ")}`);
   if (state.assumptions.length) lines.push(`• I assumed: ${state.assumptions.map((x) => x.replace(/\.$/, "")).join("; ")}.`);
-  lines.push("", "Say go (or press Generate recommendations), or tell me what to change.");
+  lines.push("", "Confirm the brief to begin, or tell me what to change.");
   return lines.join("\n");
 }
 
@@ -188,7 +188,7 @@ export async function applyIntake(llm: LlmClient, input: IntakeRequest): Promise
       if (state.missingCriticalFields.length) return { state: respond(state), startRequested: false };
       // The summary the user just saw is the review; confirming starts the run.
       state = refresh({ ...state, confirmed: true });
-      return { state: { ...say(state, "assistant", "Generating recommendations…"), chips: [] }, startRequested: true };
+      return { state: { ...say(state, "assistant", "Brief locked. Running the cultural test…"), chips: [] }, startRequested: true };
     }
 
     case "update_brief": {
@@ -257,7 +257,7 @@ export async function applyIntake(llm: LlmClient, input: IntakeRequest): Promise
         const r = refresh(state);
         if (!r.missingCriticalFields.length && summaryShown) {
           const go = refresh({ ...r, confirmed: true });
-          return { state: { ...say(go, "assistant", "Generating recommendations…"), chips: [] }, startRequested: true };
+          return { state: { ...say(go, "assistant", "Brief locked. Running the cultural test…"), chips: [] }, startRequested: true };
         }
         if (!r.missingCriticalFields.length) return { state: respond(r), startRequested: false };
         const why = `Not yet: I still need ${r.missingCriticalFields.map((f) => MISSING_LABEL[f].toLowerCase()).join("; ")}. Or say "figure out the rest".`;

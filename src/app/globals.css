@@ -1,41 +1,22 @@
 @import "tailwindcss";
 
-/*
- * Cultural Crash-Test: a dark, editorial research product. Restrained contrast; colour marks
- * status only, and every status is also written out in words.
- */
+/* A quiet strategy workspace: warm paper, precise type and one action colour. */
 :root {
-  color-scheme: dark;
-  --bg: #0f0f0e;
-  --panel: #171715;
-  --panel-2: #1f1e1b;
-  --ink: #ece8e1;
-  --ink-2: #c4bfb6;
-  --muted: #8d887f;
-  --line: #2c2a26;
-  --accent: #d9b25f;
-  --supported: #7cc49a;
-  --weak: #e2b45a;
-  --nosupport: #ec8a6c;
-  --unresolved: #a3a09a;
-  --conflict: #e2759a;
-}
-
-:root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f6f4ef;
+  --bg: #f5f4f0;
   --panel: #fbfaf7;
-  --panel-2: #efebe3;
-  --ink: #1a1917;
-  --ink-2: #3c3a35;
-  --muted: #6f6b62;
-  --line: #e0dbd1;
-  --accent: #8a6514;
-  --supported: #2d7049;
-  --weak: #8a5d00;
-  --nosupport: #a6411f;
-  --unresolved: #5b5a55;
-  --conflict: #9c2a55;
+  --panel-2: #eeece6;
+  --ink: #171916;
+  --ink-2: #444842;
+  --muted: #737770;
+  --line: #dcdad3;
+  --accent: #2458d3;
+  --accent-hover: #1946b3;
+  --supported: #267052;
+  --weak: #966513;
+  --nosupport: #b3412d;
+  --unresolved: #696d67;
+  --conflict: #9b3153;
 }
 
 @theme inline {
@@ -52,14 +33,20 @@
   --color-nosupport: var(--nosupport);
   --color-unresolved: var(--unresolved);
   --color-conflict: var(--conflict);
-  --font-serif: var(--font-fraunces), Georgia, serif;
+  --font-serif: var(--font-geist-sans), system-ui, sans-serif;
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
+  letter-spacing: -0.008em;
+}
+
+::selection {
+  background: #cdd9fa;
 }
 
 /* Base form styles live in the base layer, so component classes (the chat composer) win. */
@@ -80,8 +67,8 @@ textarea:focus-visible,
 select:focus-visible,
 button:focus-visible,
 summary:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 3px;
 }
 input[type="checkbox"],
 input[type="radio"] {
@@ -105,17 +92,21 @@ input[type="radio"] {
   }
 }
 
-/* ChatGPT-style thinking dots. */
+/* A restrained activity signal. */
 .typing {
   display: inline-flex;
   gap: 4px;
 }
 .typing span {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 9999px;
   background: var(--muted);
   animation: typing-dot 1.2s ease-in-out infinite;
+}
+
+.soft-shadow {
+  box-shadow: 0 1px 2px rgb(24 26 23 / 0.05), 0 14px 38px rgb(24 26 23 / 0.07);
 }
 .typing span:nth-child(2) {
   animation-delay: 0.15s;

@@ -7,7 +7,18 @@ import { RunResult } from "./run-result";
 import { useCrashTest } from "./use-crash-test";
 import { useIntake } from "./use-intake";
 
-const PLACEHOLDER = "Describe your launch: the brand, what you sell, the city, who it's for…";
+const PLACEHOLDER = "Tell us what you’re launching, where, and who it needs to resonate with…";
+
+function ProductMark({ small = false }: { small?: boolean }) {
+  return (
+    <span className={`relative grid shrink-0 grid-cols-2 ${small ? "h-5 w-5 gap-[3px]" : "h-7 w-7 gap-1"}`} aria-hidden>
+      <span className="rounded-[2px] bg-ink" />
+      <span className="rounded-[2px] bg-accent" />
+      <span className="rounded-[2px] bg-ink/25" />
+      <span className="rounded-[2px] bg-ink" />
+    </span>
+  );
+}
 
 function Composer({
   onSend,
@@ -28,7 +39,7 @@ function Composer({
     if (ref.current) ref.current.style.height = "";
   };
   return (
-    <div className="flex items-end gap-2 rounded-2xl border border-line bg-panel px-3 py-2 focus-within:border-muted">
+    <div className="soft-shadow flex items-end gap-3 border border-line bg-panel px-4 py-3 transition-colors focus-within:border-ink/35">
       <label htmlFor="chat-input" className="sr-only">
         Message
       </label>
@@ -51,14 +62,14 @@ function Composer({
             send();
           }
         }}
-        className="max-h-56 flex-1 resize-none border-0 bg-transparent px-1 py-1.5 text-base leading-relaxed focus-visible:outline-none"
+        className="max-h-56 flex-1 resize-none border-0 bg-transparent px-0 py-1.5 text-[15px] leading-relaxed placeholder:text-muted focus-visible:outline-none"
       />
       <button
         type="button"
         onClick={send}
         disabled={busy || !text.trim()}
         aria-label="Send"
-        className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink text-bg disabled:opacity-25"
+        className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center bg-ink text-panel transition-colors hover:bg-accent disabled:opacity-20 disabled:hover:bg-ink"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
           <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
@@ -71,14 +82,14 @@ function Composer({
 function Bubble({ role, children }: { role: "user" | "assistant"; children: React.ReactNode }) {
   return role === "user" ? (
     <div className="flex justify-end">
-      <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-panel-2 px-4 py-2.5 text-[15px] leading-relaxed">{children}</div>
+      <div className="max-w-[85%] whitespace-pre-wrap border-l-2 border-ink/20 bg-panel-2/70 px-4 py-3 text-[15px] leading-relaxed">{children}</div>
     </div>
   ) : (
     <div className="max-w-[92%] whitespace-pre-wrap text-[15px] leading-relaxed text-ink-2">{children}</div>
   );
 }
 
-/** The ChatGPT-style "thinking" dots. */
+/** A compact activity indicator. */
 function Thinking({ label }: { label?: string }) {
   return (
     <div className="flex items-center gap-3 text-sm text-muted" role="status" aria-live="polite">
@@ -115,22 +126,29 @@ function Sidebar({
       {open && <button type="button" aria-label="Close chats" onClick={onClose} className="fixed inset-0 z-20 bg-black/50 md:hidden" />}
       <aside
         aria-label="Chats"
-        className={`fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-line bg-panel transition-transform md:static md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-line bg-[#eeede8] transition-transform md:static md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
-        <div className="flex h-14 items-center px-3">
+        <div className="flex h-[72px] items-center gap-3 px-5">
+          <ProductMark small />
+          <div>
+            <p className="text-sm font-semibold tracking-[-0.02em]">Cultural Crash-Test</p>
+            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted">Qloo grounded</p>
+          </div>
+        </div>
+        <div className="px-3 pt-2">
           <button
             type="button"
             onClick={onNew}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink hover:bg-panel-2"
+            className="flex w-full items-center gap-2 border border-ink/15 bg-panel px-3 py-2.5 text-sm font-medium text-ink transition-colors hover:border-ink/30"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
               <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             </svg>
-            New chat
+            New brief
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-3 pb-4">
-          {chats.length > 0 && <p className="px-3 pb-1 pt-3 text-xs text-muted">Recent</p>}
+          {chats.length > 0 && <p className="px-3 pb-2 pt-7 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">Recent briefs</p>}
           <ul className="space-y-0.5">
             {chats.map((c) => (
               <li key={c.id} className="group relative">
@@ -138,7 +156,7 @@ function Sidebar({
                   type="button"
                   onClick={() => onOpen(c)}
                   aria-current={c.id === activeId ? "page" : undefined}
-                  className={`w-full truncate rounded-lg px-3 py-2 pr-8 text-left text-sm ${c.id === activeId ? "bg-panel-2 text-ink" : "text-ink-2 hover:bg-panel-2"}`}
+                  className={`w-full truncate border-l-2 px-3 py-2.5 pr-8 text-left text-sm transition-colors ${c.id === activeId ? "border-accent bg-panel/70 text-ink" : "border-transparent text-ink-2 hover:bg-panel/55"}`}
                   title={c.title}
                 >
                   {c.title}
@@ -155,6 +173,7 @@ function Sidebar({
             ))}
           </ul>
         </div>
+        <div className="border-t border-line px-5 py-4 text-[11px] leading-relaxed text-muted">Briefs stay in this browser.</div>
       </aside>
     </>
   );
@@ -235,27 +254,39 @@ export function ChatApp() {
         onClose={() => setSidebar(false)}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <nav className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-4 sm:px-6">
+        <nav className="flex h-[72px] shrink-0 items-center gap-3 border-b border-line/80 bg-bg px-4 sm:px-7">
           <button type="button" onClick={() => setSidebar(true)} aria-label="Open chats" className="-ml-1 rounded p-1 text-muted hover:text-ink md:hidden">
             <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden>
               <path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             </svg>
           </button>
-          <span className="font-serif text-lg">Cultural Crash-Test</span>
+          <span className="md:hidden"><ProductMark small /></span>
+          <span className="text-sm font-semibold md:hidden">Cultural Crash-Test</span>
+          <div className="ml-auto hidden items-center gap-2 font-mono text-[10px] uppercase tracking-[0.13em] text-muted sm:flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-supported" />
+            Evidence system ready
+          </div>
         </nav>
 
         {!inConversation ? (
-          <main className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-24">
-            <h1 className="mb-8 text-center font-serif text-3xl sm:text-4xl">What are you launching?</h1>
+          <main className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-5 pb-24">
+            <div className="mb-9 w-full max-w-2xl">
+              <p className="mb-5 font-mono text-[10px] uppercase tracking-[0.18em] text-accent">Pre-launch cultural intelligence</p>
+              <h1 className="max-w-xl text-4xl font-semibold leading-[1.05] tracking-[-0.045em] text-ink sm:text-5xl">Test the cultural logic before launch.</h1>
+              <p className="mt-5 max-w-xl text-base leading-7 text-ink-2">Describe the launch as you would to a strategist. We’ll structure the brief, surface what’s missing, and test the plan against Qloo.</p>
+            </div>
             <div className="w-full max-w-2xl">
               <Composer onSend={send} busy={busy} autoFocus />
+              <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-[0.1em] text-muted">
+                <span>01 · Brief</span><span>02 · Test</span><span>03 · Decision review</span>
+              </div>
               {intake.error && <p className="mt-3 text-center text-sm text-nosupport">{intake.error}</p>}
             </div>
           </main>
         ) : (
           <>
             <main className="flex-1 overflow-y-auto">
-              <div className="mx-auto w-full max-w-3xl space-y-5 px-4 pb-6 pt-8">
+              <div className="mx-auto w-full max-w-[880px] space-y-6 px-5 pb-8 pt-10 sm:px-8">
                 {messages.map((m, i) => (
                   <div key={m.id} className="space-y-3">
                     <Bubble role={m.role}>{m.text}</Bubble>
@@ -266,7 +297,7 @@ export function ChatApp() {
                             key={j}
                             type="button"
                             onClick={() => chip(c)}
-                            className={`rounded-full border px-3.5 py-1.5 text-sm ${c.action === "confirm" ? "border-accent bg-accent text-bg" : "border-line text-ink-2 hover:border-muted"}`}
+                            className={`border px-3.5 py-2 text-sm transition-colors ${c.action === "confirm" ? "border-accent bg-accent text-white hover:bg-[var(--accent-hover)]" : "border-line bg-panel text-ink-2 hover:border-ink/30"}`}
                           >
                             {c.label}
                           </button>
@@ -306,8 +337,8 @@ export function ChatApp() {
               </div>
             </main>
             {!started && (
-              <div className="shrink-0 px-4 pb-5 pt-2">
-                <div className="mx-auto w-full max-w-3xl">
+              <div className="shrink-0 bg-gradient-to-t from-bg via-bg to-transparent px-4 pb-6 pt-5">
+                <div className="mx-auto w-full max-w-[880px]">
                   <Composer onSend={send} busy={busy} />
                 </div>
               </div>

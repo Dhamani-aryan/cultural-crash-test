@@ -66,7 +66,7 @@ describe("intake", () => {
     expect(r1.state.missingCriticalFields).toEqual([]);
     expect(r1.state.readyToRun).toBe(false);
     expect(r1.startRequested).toBe(false);
-    expect(lastAssistant(r1.state)).toMatch(/Here's what I'll test/);
+    expect(lastAssistant(r1.state)).toMatch(/Brief ready for review/);
     expect(r1.state.chips).toEqual([{ label: "Generate recommendations", action: "confirm" }]);
     const r2 = await applyIntake(llm, { action: "confirm", state: r1.state });
     expect(r2.state.readyToRun).toBe(true);

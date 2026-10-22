@@ -1,18 +1,18 @@
 import { STATUS_LABEL, type ComponentStatus, type Coverage } from "@/lib/crashtest/types";
 
 const STATUS_STYLE: Record<ComponentStatus, { color: string; mark: string }> = {
-  supported: { color: "var(--supported)", mark: "●" },
-  weak: { color: "var(--weak)", mark: "◐" },
-  no_support: { color: "var(--nosupport)", mark: "○" },
+  supported: { color: "var(--supported)", mark: "✓" },
+  weak: { color: "var(--weak)", mark: "–" },
+  no_support: { color: "var(--nosupport)", mark: "×" },
   unresolved: { color: "var(--unresolved)", mark: "?" },
-  constraint_conflict: { color: "var(--conflict)", mark: "✕" },
+  constraint_conflict: { color: "var(--conflict)", mark: "!" },
 };
 
 /** Status as a word with a shape; colour is never the only signal. */
 export function StatusBadge({ status }: { status: ComponentStatus }) {
   const s = STATUS_STYLE[status];
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-medium uppercase tracking-wide" style={{ color: s.color }}>
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-mono text-[9px] font-medium uppercase tracking-[0.08em]" style={{ color: s.color }}>
       <span aria-hidden>{s.mark}</span>
       {STATUS_LABEL[status]}
     </span>
