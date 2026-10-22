@@ -638,8 +638,14 @@ export async function repairDirection(input: {
   const byName = new Map(options.map((t) => [nameKey(t.name), t]));
   // Gates, in code: never adopt a tag the brief rules out, and keep every current term this
   // audience already leans to; only the unsupported terms are replaced.
-  const banned = ruledOut(input.brief);
-  const allowedTag = (name: string) => !banned.some((p) => name.toLowerCase().replace(/[-_]/g, " ").includes(p));
+  // A tag is ruled out when all its words are in a ruled-out phrase, or the phrase's are in it:
+  // "No industrial looks" rules out "Industrial"; "No luxury" rules out "Luxury".
+  const words = (s: string) => s.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const banned = ruledOut(input.brief).map(words);
+  const allowedTag = (name: string) => {
+    const w = words(name);
+    return !banned.some((p) => w.every((x) => p.includes(x)) || p.every((x) => w.includes(x)));
+  };
   const kept = current.tags.filter((t) => byName.has(nameKey(t.name)) && allowedTag(t.name)).map((t) => byName.get(nameKey(t.name))!);
   const picked = data.tags.flatMap((n) => byName.get(nameKey(n)) ?? []).filter((t) => allowedTag(t.name));
   const tags = [...new Map([...kept, ...picked].map((t) => [t.id, t])).values()].slice(0, 3);
