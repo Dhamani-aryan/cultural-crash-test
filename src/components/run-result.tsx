@@ -2,7 +2,7 @@
 
 import { briefConstants, buildDecisions, summarizeRun, type RunSummary } from "@/lib/crashtest/explain";
 import { STOP_LABEL, type RunState } from "@/lib/crashtest/types";
-import { AuditDetails, DecisionMatrix } from "./plan-comparison";
+import { AuditDetails, DecisionReview } from "./plan-comparison";
 
 const EARLY = new Set(["user_cancelled", "error", "api_budget_limit", "insufficient_data"]);
 const eyebrow = "font-mono text-[10px] uppercase tracking-[0.14em] text-muted";
@@ -73,7 +73,7 @@ export function RunResult({ state, recorded }: { state: RunState; recorded?: boo
       )}
       <RunResultHeader state={state} summary={summary} recorded={recorded} />
       <BriefConstants state={state} />
-      <DecisionMatrix decisions={decisions} ledger={ledger} />
+      <DecisionReview state={state} decisions={decisions} ledger={ledger} />
       <AuditDetails state={state} />
     </div>
   );

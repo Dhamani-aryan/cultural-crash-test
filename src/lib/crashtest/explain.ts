@@ -57,6 +57,8 @@ export interface DecisionExplanation {
   /** The LLM completion: the user's choice carried forward, or the LLM's addition. */
   baseline: { label: string; status: ComponentStatus; origin: "user_provided" | "agent_proposed" };
   revised: { label: string; status: ComponentStatus; origin: Component["origin"] };
+  /** The LLM completion's audience test in a few words, for the graph. */
+  baselineSignal: string;
   /** One line for the matrix row. */
   summaryReason: string;
   reasonCodes: DecisionReasonCode[];
@@ -157,7 +159,23 @@ function audienceSentence(label: string, d: DimensionScore | undefined, city: st
   return `${label}: ${h.raw}.`;
 }
 
-const localFact = (d: DimensionScore | undefined) =>
+/** A few words, for a graph node. */
+function compactSignal(a: ComponentAssessment): string {
+  if (a.status === "unresolved") return "Not in Qloo";
+  if (a.status === "constraint_conflict") return "Breaks a rule";
+  const d = dim(a, "audience");
+  const h = audienceHit(d);
+  if (!h) return d?.evidenceIds.length ? "No audience support" : "Audience not measured";
+  if (h.rank) return `#${h.rank} of ${h.of}${h.affinity ? ` · ${h.affinity}` : ""}`;
+  if (h.of) return `Outside top ${h.of}`;
+  if (h.tags) {
+    const parts = h.tags.split(", ");
+    return `${parts.filter((p) => /#\d+$/.test(p)).length}/${parts.length} tones in top`;
+  }
+  return STATUS_LABEL[a.status];
+}
+
+const localFact =(d: DimensionScore | undefined) =>
   !d || d.score === undefined ? "Not measured" : d.explanation.replace(/\.$/, "");
 
 /** Why the completed choice was opened up: a short code and row line. */
@@ -367,6 +385,7 @@ export function buildDecisions(state: RunState): DecisionExplanation[] {
       userChoice,
       baseline: { label: b.label, status: b.status, origin: orig?.origin === "user_provided" || fromUser ? ("user_provided" as const) : ("agent_proposed" as const) },
       revised: { label: a.label, status: a.status, origin: fin?.origin ?? "agent_proposed" },
+      baselineSignal: compactSignal(b),
       summaryReason,
       reasonCodes: [...new Set(reasonCodes)],
       whyAway,

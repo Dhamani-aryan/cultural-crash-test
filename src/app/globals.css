@@ -152,3 +152,27 @@ input[type="radio"] {
     animation: none;
   }
 }
+
+/* Decision graph: only the selected path moves; focus shows on the lane itself. */
+.graph-flow {
+  stroke-dasharray: 5 4;
+  animation: graph-flow 1.1s linear infinite;
+}
+@keyframes graph-flow {
+  to {
+    stroke-dashoffset: -9;
+  }
+}
+.graph-lane {
+  outline: none;
+}
+.graph-lane:focus-visible .lane-bg {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .graph-flow {
+    animation: none;
+    stroke-dasharray: none;
+  }
+}

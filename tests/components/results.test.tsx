@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { buildDecisions } from "@/lib/crashtest/explain";
 import { runCrashTest } from "@/lib/crashtest/run";
 import type { LaunchBriefInput, RunState } from "@/lib/crashtest/types";
-import { DecisionDetail, DecisionMatrix, DecisionRow } from "@/components/plan-comparison";
+import { DecisionDetail, DecisionReview, DecisionRow } from "@/components/plan-comparison";
+import { DecisionGraphView } from "@/components/decision-graph";
+import { buildDecisionGraph } from "@/lib/crashtest/graph";
 import { RunResult } from "@/components/run-result";
 import { LONDON_BRIEF, worldClient, worldLlm } from "../crashtest/world";
 
@@ -24,7 +26,7 @@ describe("results markup", () => {
 
   it("puts every choice in one aligned row with an explicit review control, all closed", async () => {
     const s = await withUserChoice();
-    const html = renderToStaticMarkup(<DecisionMatrix decisions={buildDecisions(s)} ledger={ledgerOf(s)} />);
+    const html = renderToStaticMarkup(<DecisionReview state={s} decisions={buildDecisions(s)} ledger={ledgerOf(s)} />);
     expect(html.match(/<li class="border-b/g)).toHaveLength(4);
     expect(html.match(/Review decision →/g)).toHaveLength(4);
     expect(html.match(/aria-expanded="false"/g)).toHaveLength(4);
@@ -89,5 +91,38 @@ describe("results markup", () => {
     const html = renderToStaticMarkup(<RunResult state={same} />);
     expect(html).toContain("0 choices changed. 4 retained.");
     expect(html).toContain("No choice changed");
+  });
+});
+
+describe("decision graph markup", () => {
+  it("offers a Matrix / Graph switch that starts on the matrix", async () => {
+    const s = await finished();
+    const html = renderToStaticMarkup(<DecisionReview state={s} decisions={buildDecisions(s)} ledger={ledgerOf(s)} />);
+    expect(html).toMatch(/aria-pressed="true"[^>]*>Matrix/);
+    expect(html).toMatch(/aria-pressed="false"[^>]*>Graph/);
+    expect(html).not.toContain('aria-label="Decision graph"');
+  });
+
+  it("draws every lane as a keyboard control, animating only the selected one", async () => {
+    const s = await finished();
+    const ds = buildDecisions(s);
+    const html = renderToStaticMarkup(<DecisionGraphView graph={buildDecisionGraph(s, ds)} active="artist_music" onSelect={() => {}} />);
+    expect(html.match(/<g role="button" tabindex="0"/g)).toHaveLength(4);
+    expect(html.match(/<g role="button" tabindex="0" aria-pressed="true"/g)).toHaveLength(1);
+    // Wide view: 5 in-lane edges plus 2 input edges for the selected lane; tall view repeats that lane.
+    const flows = html.match(/class="graph-flow"/g)?.length ?? 0;
+    expect(flows).toBeGreaterThan(0);
+    expect(flows).toBeLessThanOrEqual(14);
+    for (const k of ["Your input", "Qloo entity or result", "Application evaluation", "Final choice"]) expect(html).toContain(k);
+    expect(html).toContain("not cause and effect");
+  });
+
+  it("uses a distinct shape per node kind", async () => {
+    const s = await finished();
+    const ds = buildDecisions(s);
+    const html = renderToStaticMarkup(<DecisionGraphView graph={buildDecisionGraph(s, ds)} active={null} onSelect={() => {}} />);
+    expect(html).toContain("<polygon"); // your input and application evaluations
+    expect(html).toMatch(/<rect[^>]*rx="23"/); // Qloo pill
+    expect(html).toMatch(/<title>Final choice: Grey Lane/);
   });
 });

@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import type { DecisionEvidence, DecisionExplanation } from "@/lib/crashtest/explain";
+import { buildDecisionGraph } from "@/lib/crashtest/graph";
 import { toMarkdown } from "@/lib/crashtest/report";
 import { SLOT_LABEL, SLOTS, STOP_LABEL, type EvidenceRecord, type RunState, type Slot } from "@/lib/crashtest/types";
+import { DecisionGraphView } from "./decision-graph";
 import { StatusBadge } from "./status";
 
 /**
@@ -80,7 +82,7 @@ export function DecisionDetail({ d, ledger, id, labelledBy }: { d: DecisionExpla
   ];
   const constraint = d.evidence.find((e) => e.kind === "constraint");
   return (
-    <div id={id} role="region" aria-labelledby={labelledBy} className="expand space-y-5 border-l-2 border-accent bg-panel/60 px-4 py-5 sm:px-6">
+    <div id={id} role="region" aria-labelledby={labelledBy} aria-label={labelledBy ? undefined : `Decision ${pad(d.sequence)}, ${SLOT_LABEL[d.slot]}`} className="expand space-y-5 border-l-2 border-accent bg-panel/60 px-4 py-5 sm:px-6">
       <p className={eyebrow}>
         Decision {pad(d.sequence)} · {SLOT_LABEL[d.slot]}
       </p>
@@ -224,19 +226,22 @@ export function DecisionRow({ d, open, onToggle, ledger }: { d: DecisionExplanat
   );
 }
 
-export function DecisionMatrix({ decisions, ledger }: { decisions: DecisionExplanation[]; ledger: Map<string, EvidenceRecord> }) {
-  // One decision open at a time on every screen, so the before/after context never scrolls away.
-  const [open, setOpen] = useState<Slot | null>(null);
-  const [planOrder, setPlanOrder] = useState(false);
+export function DecisionMatrix({
+  decisions,
+  ledger,
+  open,
+  onToggle,
+  planOrder = false,
+}: {
+  decisions: DecisionExplanation[];
+  ledger: Map<string, EvidenceRecord>;
+  open: Slot | null;
+  onToggle: (slot: Slot) => void;
+  planOrder?: boolean;
+}) {
   const rows = planOrder ? [...decisions].sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot)) : decisions;
   return (
     <section aria-label="Decision matrix">
-      <div className="flex items-baseline justify-between gap-4 pb-2">
-        <p className={eyebrow}>{planOrder ? "In plan order" : "Changes first"}</p>
-        <button type="button" onClick={() => setPlanOrder((v) => !v)} className="text-xs text-muted hover:text-ink">
-          {planOrder ? "Show changes first" : "Show plan order"}
-        </button>
-      </div>
       <div aria-hidden className={`hidden border-y border-line py-2 lg:grid lg:grid-cols-[7rem_1fr_1fr_1.35fr_1fr] lg:gap-5 lg:px-2 ${eyebrow}`}>
         <span>Choice</span>
         <span>Your brief</span>
@@ -246,10 +251,58 @@ export function DecisionMatrix({ decisions, ledger }: { decisions: DecisionExpla
       </div>
       <ol className="border-t border-line lg:border-t-0">
         {rows.map((d) => (
-          <DecisionRow key={d.slot} d={d} open={open === d.slot} onToggle={() => setOpen((o) => (o === d.slot ? null : d.slot))} ledger={ledger} />
+          <DecisionRow key={d.slot} d={d} open={open === d.slot} onToggle={() => onToggle(d.slot)} ledger={ledger} />
         ))}
       </ol>
     </section>
+  );
+}
+
+/**
+ * Matrix and graph share one selection: opening a row selects its lane in the graph, and
+ * choosing a lane opens that decision. One decision is open at a time on every screen.
+ */
+export function DecisionReview({ state, decisions, ledger }: { state: RunState; decisions: DecisionExplanation[]; ledger: Map<string, EvidenceRecord> }) {
+  const [view, setView] = useState<"matrix" | "graph">("matrix");
+  const [open, setOpen] = useState<Slot | null>(null);
+  const [planOrder, setPlanOrder] = useState(false);
+  const graph = buildDecisionGraph(state, decisions);
+  const selected = open ?? decisions[0]?.slot ?? null;
+  const detail = decisions.find((d) => d.slot === selected);
+  const tab = (v: typeof view, label: string) => (
+    <button
+      type="button"
+      aria-pressed={view === v}
+      onClick={() => setView(v)}
+      className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.09em] ${view === v ? "bg-ink text-bg" : "text-muted hover:text-ink"}`}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div role="group" aria-label="View" className="flex border border-line">
+          {tab("matrix", "Matrix")}
+          {tab("graph", "Graph")}
+        </div>
+        {view === "matrix" ? (
+          <button type="button" onClick={() => setPlanOrder((v) => !v)} className="text-xs text-muted hover:text-ink">
+            {planOrder ? "Show changes first" : "Show plan order"}
+          </button>
+        ) : (
+          <p className={eyebrow}>Select a lane to review it</p>
+        )}
+      </div>
+      {view === "matrix" ? (
+        <DecisionMatrix decisions={decisions} ledger={ledger} open={open} onToggle={(s) => setOpen((o) => (o === s ? null : s))} planOrder={planOrder} />
+      ) : (
+        <>
+          <DecisionGraphView graph={graph} active={selected} onSelect={setOpen} />
+          {detail && <DecisionDetail d={detail} ledger={ledger} id={`decision-${detail.slot}`} />}
+        </>
+      )}
+    </div>
   );
 }
 
