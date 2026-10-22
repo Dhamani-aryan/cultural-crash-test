@@ -4,6 +4,8 @@
 
 This is a presentation plan only. Do not implement it until the user approves the direction.
 
+**Status (22 Oct 2026):** approved and implemented. Phases 1–4 are built and tested. Phase 5 is browser-checked on the recorded London run at desktop and phone widths, with mouse and keyboard, the no-WebGL fallback (unit-tested) and a baseline-favoured run (unit-tested). Rehearsing the timed demo and capturing the video are left to the owner.
+
 The existing conversational intake and the current User / LLM / Agent comparison table remain the product's foundation. This plan adds the minimum judge-facing proof needed to make the working backend visible and understandable, then defines a purposeful Obsidian-style decision graph.
 
 ## Honest judge verdict on the current experience

@@ -8,6 +8,12 @@ _Draft for the hackathon submission form. Fill in the links after deploying._
 
 Find the cultural mismatch before launch, then fix it. An agent tests every cultural choice in a brand launch plan against Qloo's taste data for your audience in your city, repairs the weakest, and shows you, choice by choice, how it differs from what an LLM alone would have recommended.
 
+## Product line
+
+> Your cultural launch plan, stress-tested against real taste data.
+
+See what you chose, what an LLM would add, and what changes when an agent tests every decision against Qloo.
+
 ## The problem
 
 A small brand or agency launching in a city it doesn't know makes several cultural bets at once: a music act, a collaboration partner, a venue, a creative direction. An LLM will happily propose all four, and they'll sound plausible. But plausible isn't the same as supported. Some picks will be generic global defaults, some will belong to another city's scene, and some won't fit each other. Nobody finds out until the budget is spent.
@@ -31,7 +37,7 @@ A small brand or agency launching in a city it doesn't know makes several cultur
 
 ## What you see
 
-You chat: describe the launch, answer any follow-up, or say "figure out the rest". Results lead with the real delta (choices changed and retained; supported and contradicted counts for the LLM completion and the agent's revision), then one aligned decision matrix with three stages per choice: Your brief (only what the user named, otherwise Not specified), LLM completion (labelled From your brief or Added by LLM) and the Qloo-tested agent (Retained or Changed by agent), with the deciding reason in between. Review decision opens one choice at a time: why it moved away and why the replacement (or why it stayed), what stayed fixed, three evidence summaries labelled Qloo result, User constraint or Application evaluation, and the limits. Other candidates, raw evidence and the run methodology stay collapsed. A Graph view draws the same decisions as paths from your brief through Qloo's tests to the final plan, synced with the matrix.
+You chat: describe the launch, answer any follow-up, or say "figure out the rest". Results open on a plain introduction, your direction, and a one-line **run receipt** counted from the recorded run (choices tested, alternatives tried, accepted and retained; Qloo queries, constraints preserved, full-plan re-tests; live or recorded, and the date). Below it, a **Table / Decision graph** switch and the agent's method in one line (Draft without Qloo → Test every choice → Search alternatives → Re-test complete plan → Keep only improvements). The **table** is the default: You / LLM / Agent per choice, with a plain-language Why row whose sentences carry inline provenance tags (Qloo audience result, User constraint, Full-plan re-test) and an **Evidence path →** link that opens the graph on that choice. The **decision graph** (lazy-loaded Three.js through React Three Fiber; nothing 3D loads until it is opened) starts as an overview, your brief → four decisions → final plan, with changed decisions emphasised. Selecting a decision moves the camera to its path: your choice or open slot → the LLM's choice → the Qloo evidence that supported it or not → every candidate the agent tested (rejected ones dim and dashed) → the full-plan re-test → the final choice. Clicking a Qloo node opens an inspector anchored to it, showing the recorded query, result count, top results, market and audience, coverage, and whether it is a recorded or live Qloo result, with the raw request under Technical details. Clicking a candidate shows its recorded re-test outcome. The path replays once, step by step, the first time the graph opens (the method line lights each step). Replay decision path runs it again. Shapes, not colour alone, mark node kinds; colour follows the tested status, so a change never turns green unless its final choice tested Supported. The graph and the table share one selection and one data source (`buildDecisions` → `buildJudgeGraph`), so they can't disagree. Every graph node has a text equivalent below the canvas, which is also the fallback without WebGL; reduced motion switches off the reveal, drift and camera easing.
 
 ## Why it's agentic, not a prompt
 
@@ -66,3 +72,16 @@ Full method, every run (including the early ones the agent lost, and why), and t
 - **App:** Next.js 16, React 19, TypeScript, Tailwind 4 and Zod, with server-sent events for the live agent console.
 - **Data and model:** the Qloo Insights, Search and Entities APIs (including tag insights and explainability), and OpenAI via a ChatGPT sign-in.
 - **Infrastructure and tests:** Upstash Redis for the server-side cache and recordings, and 116 Vitest tests on a synthetic Qloo world.
+
+## Demo narration (60–90 seconds)
+
+1. **Problem:** "An LLM can produce a plausible launch plan, but plausible is not the same as locally supported."
+2. **Input:** enter the London brief naturally; point out the booked venue and the no-Supreme rule.
+3. **Baseline:** "The LLM completes the missing collaboration choice without Qloo."
+4. **Result table:** show You / LLM / Agent and the exact delta: 2/4 → 4/4 supported. Read the run receipt.
+5. **Graph:** select Music act and press Replay decision path.
+6. **Proof:** click one Qloo evidence node (the inspector shows the recorded query), then a candidate and the full-plan re-test.
+7. **Trust:** point out that BOXPARK stayed fixed and missing evidence is not treated as failure.
+8. **Close:** "The product does not just recommend. It shows exactly what changed, why, and which evidence justified it."
+
+Skip settings, logs, infrastructure and raw JSON unless asked.

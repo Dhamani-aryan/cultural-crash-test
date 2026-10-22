@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { briefConstants, buildDecisions, changeCount, sameChoice, summarizeRun, type DecisionExplanation } from "@/lib/crashtest/explain";
+import { agentReceipt, briefConstants, buildDecisions, changeCount, sameChoice, summarizeRun, type DecisionExplanation } from "@/lib/crashtest/explain";
 import { runCrashTest } from "@/lib/crashtest/run";
 import type { Component, LaunchBriefInput, RunState } from "@/lib/crashtest/types";
 import { LONDON_BRIEF, worldClient, worldLlm } from "./world";
@@ -168,5 +168,30 @@ describe("summarizeRun and briefConstants", () => {
   it("lists the shared brief context once", async () => {
     const s = await run({ ...LONDON_BRIEF, brandAttributes: ["utilitarian"], constraints: [{ id: "x", kind: "hard", description: "No Supreme", excludeNames: ["Supreme"] }] });
     expect(briefConstants(s).map((c) => c.label)).toEqual(["Market", "Audience", "Goal", "Brand", "Rules"]);
+  });
+});
+
+describe("agentReceipt", () => {
+  it("counts only what the run recorded", async () => {
+    const s = await run({ ...LONDON_BRIEF, constraints: [{ id: "x", kind: "hard", description: "No Supreme", excludeNames: ["Supreme"] }] });
+    const r = agentReceipt({ ...s, finishedAt: "2026-10-22T10:00:00.000Z" }, true)!;
+    expect(r).toMatchObject({
+      choicesTested: 4,
+      alternativesTested: s.changes.length,
+      accepted: 1,
+      retained: 3,
+      qlooCalls: s.qlooCallsUsed,
+      evidenceRecords: s.evidenceLedger.length,
+      hardConstraints: 1,
+      constraintsPreserved: 1,
+      date: "22 Oct 2026",
+    });
+    expect(r.lines[1]).toBe(`${s.qlooCallsUsed} Qloo queries · 1 constraint preserved · full plan re-tested ${s.changes.length === 1 ? "once" : s.changes.length === 2 ? "twice" : `${s.changes.length} times`}`);
+    expect(r.lines[2]).toBe("Recorded run · 22 Oct 2026");
+    expect(agentReceipt(s, false)!.lines[2]).toMatch(/^Live run/);
+  });
+
+  it("leaves out constraints when the brief has none", async () => {
+    expect(agentReceipt(await run(), true)!.lines[1]).not.toMatch(/constraint/);
   });
 });

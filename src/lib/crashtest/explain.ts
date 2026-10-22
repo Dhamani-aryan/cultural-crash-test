@@ -469,3 +469,58 @@ export function briefConstants(state: RunState): BriefConstant[] {
 }
 
 export const changeCount = (state: RunState) => buildDecisions(state).filter((d) => d.changed).length;
+
+/** What the agent did, counted from the recorded run only. Nothing is estimated. */
+export interface AgentReceipt {
+  choicesTested: number;
+  /** Every candidate tried, kept or not; each one was a full-plan re-test. */
+  alternativesTested: number;
+  accepted: number;
+  retained: number;
+  qlooCalls: number;
+  evidenceRecords: number;
+  hardConstraints: number;
+  constraintsPreserved: number;
+  repairRounds: number;
+  /** The run's own timestamp, as "22 Oct 2026" (UTC). */
+  date: string;
+  lines: string[];
+}
+
+const times = (n: number) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
+
+export function agentReceipt(state: RunState, recorded: boolean): AgentReceipt | null {
+  const last = state.evaluations.at(-1);
+  if (!last) return null;
+  const decisions = buildDecisions(state);
+  const accepted = decisions.filter((d) => d.changed).length;
+  const hard = state.brief.constraints.filter((c) => c.kind === "hard").length;
+  const preserved = Math.max(0, hard - last.hardConstraintViolations.length);
+  const at = state.finishedAt ?? state.startedAt;
+  const date = at ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(at)) : "";
+  const r = {
+    choicesTested: decisions.length,
+    alternativesTested: state.changes.length,
+    accepted,
+    retained: decisions.length - accepted,
+    qlooCalls: state.qlooCallsUsed,
+    evidenceRecords: state.evidenceLedger.length,
+    hardConstraints: hard,
+    constraintsPreserved: preserved,
+    repairRounds: state.currentIteration,
+    date,
+  };
+  const second = [
+    `${r.qlooCalls} Qloo ${r.qlooCalls === 1 ? "query" : "queries"}`,
+    hard ? (preserved === hard ? `${plural(hard, "constraint")} preserved` : `${preserved} of ${hard} constraints preserved`) : "",
+    r.alternativesTested ? `full plan re-tested ${times(r.alternativesTested)}` : "no re-test needed",
+  ].filter(Boolean);
+  return {
+    ...r,
+    lines: [
+      `${plural(r.choicesTested, "choice")} tested · ${plural(r.alternativesTested, "alternative")} tried · ${r.accepted} accepted · ${r.retained} retained`,
+      second.join(" · "),
+      `${recorded ? "Recorded run" : "Live run"}${date ? ` · ${date}` : ""}`,
+    ],
+  };
+}
